@@ -1,4 +1,11 @@
-# cerebro
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo-light.svg" alt="Cerebro logo" width="128">
+  </picture>
+</p>
+
+# Cerebro
 
 A research agent that answers questions about Marvel characters, teams and comics, with citations, plus the evaluation suite that measures how often it is right.
 

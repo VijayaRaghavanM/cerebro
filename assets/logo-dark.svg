@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="t">
+  <title id="t">Cerebro logo</title>
+  <style>
+    .ring { fill: none; stroke: #e6ecf7; stroke-linecap: round; }
+    .ring.outer { stroke-width: 14; }
+    .ring.mid { stroke-width: 10; opacity: .75; }
+    .ring.inner { stroke-width: 7; opacity: .5; }
+    .link { stroke: #e6ecf7; stroke-width: 3; opacity: .55; }
+    .node { fill: #e6ecf7; }
+    .hit { fill: #ff4d61; }
+    .halo { fill: none; stroke: #ff4d61; stroke-width: 3; opacity: .45; }
+  </style>
+  <!-- Scan rings that open on the right, reading as a "C" -->
+  <path class="ring outer" d="M 196.6 68.6 A 96 96 0 1 0 196.6 187.4"/>
+  <path class="ring mid"   d="M 174.3 87.0 A 68 68 0 1 0 174.3 169.0"/>
+  <path class="ring inner" d="M 153.2 101.7 A 42 42 0 1 0 153.2 154.3"/>
+  <!-- Linked facts: a small graph crossing the opening -->
+  <line class="link" x1="128" y1="128" x2="176" y2="128"/>
+  <line class="link" x1="176" y1="128" x2="214" y2="104"/>
+  <line class="link" x1="176" y1="128" x2="214" y2="152"/>
+  <circle class="node" cx="128" cy="128" r="9"/>
+  <circle class="node" cx="214" cy="104" r="7"/>
+  <circle class="node" cx="214" cy="152" r="7"/>
+  <!-- The found record -->
+  <circle class="halo" cx="176" cy="128" r="17"/>
+  <circle class="hit" cx="176" cy="128" r="10"/>
+</svg>
