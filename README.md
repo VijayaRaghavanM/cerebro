@@ -18,10 +18,11 @@ Status: early. Nothing runs yet.
 Requires [uv](https://docs.astral.sh/uv/).
 
 ```sh
-uv sync             # create .venv and install the pinned dependencies
-uv run pytest       # run the tests
-uv run ruff check   # lint
-uv run ruff format  # format
+uv sync                # create .venv and install the pinned dependencies
+uv run pytest          # run the tests
+uv run pytest -m live  # check API keys against the real services
+uv run ruff check      # lint
+uv run ruff format     # format
 ```
 
 ## Data and credits
