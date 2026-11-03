@@ -13,6 +13,17 @@ The agent searches a local copy of the Marvel Database wiki and Comic Vine, call
 
 Status: early. Nothing runs yet.
 
+## Development
+
+Requires [uv](https://docs.astral.sh/uv/).
+
+```sh
+uv sync             # create .venv and install the pinned dependencies
+uv run pytest       # run the tests
+uv run ruff check   # lint
+uv run ruff format  # format
+```
+
 ## Data and credits
 
 - Character and team text comes from the [Marvel Database](https://marvel.fandom.com) on Fandom, licensed under [CC BY-SA](https://creativecommons.org/licenses/by-sa/3.0/). Text derived from it keeps that license.
