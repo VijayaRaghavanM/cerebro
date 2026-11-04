@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from cerebro.adapters.raw_pages import JsonlPageStore
+from cerebro.adapters.jsonl_pages import JsonlPageStore
 from cerebro.domain.pages import Category, PageRef, RawPage
 
 

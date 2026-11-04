@@ -1,7 +1,7 @@
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 
-from cerebro.adapters.raw_pages import JsonlPageStore
+from cerebro.adapters.jsonl_pages import JsonlPageStore
 from cerebro.application.crawl import crawl
 from cerebro.domain.pages import Category, PageRef, RawPage
 from cerebro.ports.wiki import WikiSource
