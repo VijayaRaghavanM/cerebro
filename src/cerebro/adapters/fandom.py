@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
 from cerebro.domain.pages import PageRef, RawPage
-from cerebro.ports.wiki import WikiSource
+from cerebro.ports.wiki import WikiSource, WikiUnavailable
 
 FANDOM_API = "https://marvel.fandom.com/api.php"
 FANDOM_CATEGORIES = {
@@ -130,7 +130,7 @@ class FandomClient(WikiSource):
 
             return data
 
-        raise RuntimeError(f"MediaWiki API failed {ATTEMPTS} times in a row")
+        raise WikiUnavailable(f"Marvel Database API failed {ATTEMPTS} times in a row")
 
 
 def to_raw_page(item: dict[str, Any]) -> RawPage | None:

@@ -6,6 +6,7 @@ import pytest
 
 from cerebro.adapters.fandom import DELAY, FandomClient
 from cerebro.domain.pages import PageRef, RawPage
+from cerebro.ports.wiki import WikiUnavailable
 
 
 class FakeApi:
@@ -104,5 +105,5 @@ def test_backs_off_when_the_wiki_reports_maxlag() -> None:
 def test_gives_up_after_repeated_failures() -> None:
     api = FakeApi(*[urllib.error.URLError("down")] * 6)
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(WikiUnavailable):
         list(client(api, []).category_titles("Category:Characters"))
