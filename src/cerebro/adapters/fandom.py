@@ -22,7 +22,6 @@ FANDOM_CATEGORIES = {
 # MediaWiki asks every client to name itself and give a way to reach its owner.
 USER_AGENT = "cerebro/0.1 (+https://github.com/VijayaRaghavanM/cerebro)"
 
-BATCH_LIMIT = 50  # most pages the API returns content for in one request
 DELAY = 1.0  # seconds to wait before every request
 ATTEMPTS = 6
 
@@ -44,6 +43,8 @@ class FandomClient(WikiSource):
     Waits DELAY seconds before every request and backs off when the wiki lags.
     `get_json` and `sleep` can be swapped so tests run without network or waiting.
     """
+
+    batch_limit = 50  # most pages the API returns content for in one request
 
     def __init__(
         self,
@@ -79,7 +80,7 @@ class FandomClient(WikiSource):
             cont = data["continue"]
 
     def fetch(self, pageids: Sequence[int]) -> list[RawPage]:
-        """The latest revision of each page. Pass at most BATCH_LIMIT ids."""
+        """The latest revision of each page. Pass at most `batch_limit` ids."""
         # "rv" parameters belong to the revisions module: revision id, timestamp and
         # wikitext of the main content slot (pages can also hold other slots).
         # https://www.mediawiki.org/wiki/API:Revisions

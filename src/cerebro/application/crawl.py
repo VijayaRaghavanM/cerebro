@@ -20,7 +20,6 @@ def crawl(
     store: RawPageStore,
     category: str,
     *,
-    batch_size: int,
     limit: int | None = None,
     progress: Callable[[int, int], None] | None = None,
 ) -> CrawlReport:
@@ -41,9 +40,10 @@ def crawl(
         todo = todo[:limit]
 
     # Save after every batch, so an interruption loses at most one batch.
+    size = source.batch_limit
     fetched = 0
-    for start in range(0, len(todo), batch_size):
-        batch = todo[start : start + batch_size]
+    for start in range(0, len(todo), size):
+        batch = todo[start : start + size]
 
         pages = source.fetch(batch)
         store.append(pages)

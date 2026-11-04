@@ -13,6 +13,11 @@ class WikiUnavailable(Exception):
 class WikiSource(ABC):
     """Both methods raise WikiUnavailable when the wiki keeps failing."""
 
+    @property
+    @abstractmethod
+    def batch_limit(self) -> int:
+        """Most page ids `fetch` accepts in one call."""
+
     @abstractmethod
     def category_titles(self, category: str) -> Iterator[PageRef]:
         """Every page in the category, in the wiki's order."""
