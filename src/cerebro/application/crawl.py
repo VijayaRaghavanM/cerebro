@@ -7,6 +7,8 @@ from cerebro.domain.pages import Category
 from cerebro.ports.pages import PageStore
 from cerebro.ports.wiki import WikiSource
 
+Progress = Callable[[int, int], None]  # called with (pages done, pages to do)
+
 
 @dataclass(frozen=True)
 class CrawlReport:
@@ -22,7 +24,7 @@ def crawl(
     category: Category,
     *,
     limit: int | None = None,
-    progress: Callable[[int, int], None] | None = None,
+    progress: Progress | None = None,
 ) -> CrawlReport:
     """Fetch every page in the category that is not saved yet.
 

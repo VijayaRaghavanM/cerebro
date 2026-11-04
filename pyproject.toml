@@ -10,7 +10,11 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "pydantic-settings>=2.16.2",
+    "typer>=0.27.3",
 ]
+
+[project.scripts]
+cerebro = "cerebro.interfaces.cli:app"
 
 [build-system]
 requires = ["uv_build>=0.10.0,<0.11.0"]
@@ -22,7 +26,7 @@ select = ["E", "F", "I", "B", "UP"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["-ra", "--strict-markers", "-m", "not live"]
-markers = ["live: calls a real external API and needs keys; run with -m live"]
+markers = ["live: calls a real external API; run with -m live"]
 
 [dependency-groups]
 dev = [
