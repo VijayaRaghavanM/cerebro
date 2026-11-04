@@ -1,0 +1,60 @@
+"""Resumable crawl of one wiki category into the raw page store."""
+
+from collections.abc import Callable
+from dataclasses import dataclass
+
+from cerebro.adapters.raw_pages import RawPageStore
+from cerebro.ports.wiki import WikiSource
+
+
+@dataclass(frozen=True)
+class CrawlReport:
+    listed: int
+    already_saved: int
+    fetched: int
+    missing: int  # listed, but the wiki returned no revision
+
+
+def crawl(
+    source: WikiSource,
+    store: RawPageStore,
+    category: str,
+    *,
+    batch_size: int,
+    limit: int | None = None,
+    progress: Callable[[int, int], None] | None = None,
+) -> CrawlReport:
+    """Fetch every listed page that is not saved yet.
+
+    `limit` caps how many new pages this run fetches.
+    """
+    # List the category on the first run only; reruns reuse the saved listing.
+    refs = store.load_titles()
+    if refs is None:
+        refs = list(source.category_members(category))
+        store.save_titles(refs)
+
+    # Skip pages already saved. This is what lets a rerun resume.
+    saved = store.saved_ids()
+    todo = [ref.pageid for ref in refs if ref.pageid not in saved]
+    if limit is not None:
+        todo = todo[:limit]
+
+    # Save after every batch, so an interruption loses at most one batch.
+    fetched = 0
+    for start in range(0, len(todo), batch_size):
+        batch = todo[start : start + batch_size]
+
+        pages = source.fetch(batch)
+        store.append(pages)
+        fetched += len(pages)
+
+        if progress is not None:
+            progress(start + len(batch), len(todo))
+
+    return CrawlReport(
+        listed=len(refs),
+        already_saved=len(saved),
+        fetched=fetched,
+        missing=len(todo) - fetched,
+    )
