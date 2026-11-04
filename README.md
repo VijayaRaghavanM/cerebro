@@ -28,8 +28,8 @@ uv run cerebro crawl fandom  # download raw wiki pages; safe to rerun
 
 ## Data and credits
 
-- Character and team text comes from the [Marvel Database](https://marvel.fandom.com) on Fandom, licensed under [CC BY-SA](https://creativecommons.org/licenses/by-sa/3.0/). Text derived from it keeps that license.
-- Issue, creator and appearance data comes from the [Comic Vine API](https://comicvine.gamespot.com/api/) under its terms for non-commercial use. It is not redistributed here; it is fetched with your own API key.
+- Character, team and comic pages, including comic creators and appearances, come from the [Marvel Database](https://marvel.fandom.com) on Fandom, licensed under [CC BY-SA](https://creativecommons.org/licenses/by-sa/3.0/). Text derived from it keeps that license.
+- Issue dates and per-character issue lists come from the [Comic Vine API](https://comicvine.gamespot.com/api/) under its terms for non-commercial use. It is not redistributed here; it is fetched with your own API key.
 
 This is a non-commercial fan project. It is not affiliated with or endorsed by Marvel, Fandom or Comic Vine.
 
