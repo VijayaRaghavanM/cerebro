@@ -1,6 +1,15 @@
 """Raw wiki pages as fetched, before any parsing."""
 
 from dataclasses import dataclass
+from enum import StrEnum
+
+
+class Category(StrEnum):
+    """The wiki categories Cerebro collects pages from."""
+
+    CHARACTERS = "characters"
+    TEAMS = "teams"
+    COMICS = "comics"
 
 
 @dataclass(frozen=True)

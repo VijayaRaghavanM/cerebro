@@ -3,10 +3,10 @@ from pathlib import Path
 
 from cerebro.adapters.raw_pages import RawPageStore
 from cerebro.application.crawl import crawl
-from cerebro.domain.pages import PageRef, RawPage
+from cerebro.domain.pages import Category, PageRef, RawPage
 from cerebro.ports.wiki import WikiSource
 
-CATEGORY = "Category:Characters"
+CATEGORY = Category.CHARACTERS
 
 
 def page(pageid: int) -> RawPage:
@@ -29,7 +29,7 @@ class FakeWiki(WikiSource):
         self.fetched: list[int] = []
         self.batch_sizes: list[int] = []
 
-    def category_titles(self, category: str) -> Iterator[PageRef]:
+    def category_titles(self, category: Category) -> Iterator[PageRef]:
         self.title_requests += 1
         yield from (PageRef(i, f"Page {i}") for i in self.listed)
 

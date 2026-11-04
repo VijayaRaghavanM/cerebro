@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from cerebro.adapters.raw_pages import RawPageStore
+from cerebro.domain.pages import Category
 from cerebro.ports.wiki import WikiSource
 
 
@@ -18,7 +19,7 @@ class CrawlReport:
 def crawl(
     source: WikiSource,
     store: RawPageStore,
-    category: str,
+    category: Category,
     *,
     limit: int | None = None,
     progress: Callable[[int, int], None] | None = None,

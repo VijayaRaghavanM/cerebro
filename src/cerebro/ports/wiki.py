@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterator, Sequence
 
-from cerebro.domain.pages import PageRef, RawPage
+from cerebro.domain.pages import Category, PageRef, RawPage
 
 
 class WikiUnavailable(Exception):
@@ -19,7 +19,7 @@ class WikiSource(ABC):
         """Most page ids `fetch` accepts in one call."""
 
     @abstractmethod
-    def category_titles(self, category: str) -> Iterator[PageRef]:
+    def category_titles(self, category: Category) -> Iterator[PageRef]:
         """Every page in the category, in the wiki's order."""
 
     @abstractmethod

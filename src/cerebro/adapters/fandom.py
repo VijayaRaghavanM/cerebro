@@ -9,14 +9,14 @@ import urllib.request
 from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
-from cerebro.domain.pages import PageRef, RawPage
+from cerebro.domain.pages import Category, PageRef, RawPage
 from cerebro.ports.wiki import WikiSource, WikiUnavailable
 
 FANDOM_API = "https://marvel.fandom.com/api.php"
-FANDOM_CATEGORIES = {
-    "characters": "Category:Characters",
-    "teams": "Category:Teams",
-    "comics": "Category:Comics",
+CATEGORY_TITLES = {
+    Category.CHARACTERS: "Category:Characters",
+    Category.TEAMS: "Category:Teams",
+    Category.COMICS: "Category:Comics",
 }
 
 # MediaWiki asks every client to name itself and give a way to reach its owner.
@@ -54,14 +54,14 @@ class FandomClient(WikiSource):
         self._get_json = get_json
         self._sleep = sleep
 
-    def category_titles(self, category: str) -> Iterator[PageRef]:
+    def category_titles(self, category: Category) -> Iterator[PageRef]:
         # "cm" parameters belong to the categorymembers module: main articles only
         # (namespace 0), no subcategories or files, 500 per response (the non-bot max).
         # https://www.mediawiki.org/wiki/API:Categorymembers
         params = {
             "action": "query",
             "list": "categorymembers",
-            "cmtitle": category,
+            "cmtitle": CATEGORY_TITLES[category],
             "cmnamespace": "0",
             "cmtype": "page",
             "cmlimit": "500",
