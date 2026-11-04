@@ -8,7 +8,7 @@ from cerebro.domain.pages import PageRef, RawPage
 
 class WikiSource(ABC):
     @abstractmethod
-    def category_members(self, category: str) -> Iterator[PageRef]:
+    def category_titles(self, category: str) -> Iterator[PageRef]:
         """Every page in the category, in the wiki's order."""
 
     @abstractmethod

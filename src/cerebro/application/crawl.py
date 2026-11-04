@@ -24,14 +24,14 @@ def crawl(
     limit: int | None = None,
     progress: Callable[[int, int], None] | None = None,
 ) -> CrawlReport:
-    """Fetch every listed page that is not saved yet.
+    """Fetch every page in the category that is not saved yet.
 
     `limit` caps how many new pages this run fetches.
     """
-    # List the category on the first run only; reruns reuse the saved listing.
+    # Ask the wiki for the category's titles once; reruns reuse the saved ones.
     refs = store.load_titles()
     if refs is None:
-        refs = list(source.category_members(category))
+        refs = list(source.category_titles(category))
         store.save_titles(refs)
 
     # Skip pages already saved. This is what lets a rerun resume.

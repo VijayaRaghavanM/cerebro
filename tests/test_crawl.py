@@ -23,12 +23,12 @@ class FakeWiki(WikiSource):
         self.pages = {i: page(i) for i in existing}
 
         # What the crawl asked for, so tests can check it.
-        self.listings = 0
+        self.title_requests = 0
         self.fetched: list[int] = []
         self.batch_sizes: list[int] = []
 
-    def category_members(self, category: str) -> Iterator[PageRef]:
-        self.listings += 1
+    def category_titles(self, category: str) -> Iterator[PageRef]:
+        self.title_requests += 1
         yield from (PageRef(i, f"Page {i}") for i in self.listed)
 
     def fetch(self, pageids: Sequence[int]) -> list[RawPage]:
@@ -59,7 +59,7 @@ def test_interrupted_crawl_resumes_without_refetching_or_relisting(
     third = crawl(wiki, store, CATEGORY, batch_size=2)
 
     assert sorted(wiki.fetched) == [1, 2, 3, 4, 5]  # each page fetched exactly once
-    assert wiki.listings == 1
+    assert wiki.title_requests == 1
     assert (second.already_saved, second.fetched) == (2, 3)
     assert third.fetched == 0
 

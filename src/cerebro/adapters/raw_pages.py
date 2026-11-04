@@ -18,10 +18,10 @@ class RawPageStore:
         self.pages_path = root / f"{name}.jsonl"
         self.titles_path = root / f"{name}-titles.json"
 
-    # Category listing: every page in the category, saved once so reruns skip it.
+    # Titles: every page in the category, saved once so reruns skip asking the wiki.
 
     def load_titles(self) -> list[PageRef] | None:
-        """The saved listing, or None if the category was never listed."""
+        """The saved titles, or None if they were never saved."""
         if not self.titles_path.exists():
             return None
 

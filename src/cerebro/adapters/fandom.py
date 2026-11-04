@@ -1,4 +1,4 @@
-"""MediaWiki API client for the Marvel Database on Fandom."""
+"""Client for the Marvel Database, a MediaWiki wiki hosted on Fandom."""
 
 import json
 import logging
@@ -38,8 +38,8 @@ def urllib_get_json(url: str) -> dict[str, Any]:
     return data
 
 
-class MediaWikiClient(WikiSource):
-    """Reads category listings and page content from a MediaWiki API.
+class FandomClient(WikiSource):
+    """Reads category titles and page content from the Marvel Database API.
 
     Waits DELAY seconds before every request and backs off when the wiki lags.
     `get_json` and `sleep` can be swapped so tests run without network or waiting.
@@ -53,7 +53,7 @@ class MediaWikiClient(WikiSource):
         self._get_json = get_json
         self._sleep = sleep
 
-    def category_members(self, category: str) -> Iterator[PageRef]:
+    def category_titles(self, category: str) -> Iterator[PageRef]:
         # "cm" parameters belong to the categorymembers module: main articles only
         # (namespace 0), no subcategories or files, 500 per response (the non-bot max).
         # https://www.mediawiki.org/wiki/API:Categorymembers
