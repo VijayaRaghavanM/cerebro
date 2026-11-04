@@ -1,7 +1,7 @@
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 
-from cerebro.adapters.raw_pages import RawPageStore
+from cerebro.adapters.raw_pages import JsonlPageStore
 from cerebro.application.crawl import crawl
 from cerebro.domain.pages import Category, PageRef, RawPage
 from cerebro.ports.wiki import WikiSource
@@ -41,11 +41,11 @@ class FakeWiki(WikiSource):
 
 def test_first_crawl_saves_every_listed_page_in_batches(tmp_path: Path) -> None:
     wiki = FakeWiki(listed=[1, 2, 3, 4, 5])
-    store = RawPageStore(tmp_path, "characters")
+    store = JsonlPageStore(tmp_path)
 
     report = crawl(wiki, store, CATEGORY)
 
-    assert store.saved_ids() == {1, 2, 3, 4, 5}
+    assert store.saved_ids(CATEGORY) == {1, 2, 3, 4, 5}
     assert max(wiki.batch_sizes) <= wiki.batch_limit
     assert report.fetched == 5
 
@@ -54,7 +54,7 @@ def test_interrupted_crawl_resumes_without_refetching_or_relisting(
     tmp_path: Path,
 ) -> None:
     wiki = FakeWiki(listed=[1, 2, 3, 4, 5])
-    store = RawPageStore(tmp_path, "characters")
+    store = JsonlPageStore(tmp_path)
 
     crawl(wiki, store, CATEGORY, limit=2)  # stops early, like a Ctrl-C
     second = crawl(wiki, store, CATEGORY)
@@ -70,9 +70,9 @@ def test_listed_pages_the_wiki_no_longer_has_are_reported_missing(
     tmp_path: Path,
 ) -> None:
     wiki = FakeWiki(listed=[1, 2, 3], existing=[1, 3])
-    store = RawPageStore(tmp_path, "characters")
+    store = JsonlPageStore(tmp_path)
 
     report = crawl(wiki, store, CATEGORY)
 
-    assert store.saved_ids() == {1, 3}
+    assert store.saved_ids(CATEGORY) == {1, 3}
     assert (report.fetched, report.missing) == (2, 1)

@@ -3,8 +3,8 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from cerebro.adapters.raw_pages import RawPageStore
 from cerebro.domain.pages import Category
+from cerebro.ports.pages import PageStore
 from cerebro.ports.wiki import WikiSource
 
 
@@ -18,7 +18,7 @@ class CrawlReport:
 
 def crawl(
     source: WikiSource,
-    store: RawPageStore,
+    store: PageStore,
     category: Category,
     *,
     limit: int | None = None,
@@ -29,13 +29,13 @@ def crawl(
     `limit` caps how many new pages this run fetches.
     """
     # Ask the wiki for the category's titles once; reruns reuse the saved ones.
-    refs = store.load_titles()
+    refs = store.load_titles(category)
     if refs is None:
         refs = list(source.category_titles(category))
-        store.save_titles(refs)
+        store.save_titles(category, refs)
 
     # Skip pages already saved. This is what lets a rerun resume.
-    saved = store.saved_ids()
+    saved = store.saved_ids(category)
     todo = [ref.pageid for ref in refs if ref.pageid not in saved]
     if limit is not None:
         todo = todo[:limit]
@@ -47,7 +47,7 @@ def crawl(
         batch = todo[start : start + size]
 
         pages = source.fetch(batch)
-        store.append(pages)
+        store.append(category, pages)
         fetched += len(pages)
 
         if progress is not None:
