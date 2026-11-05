@@ -2,7 +2,7 @@
 
 A character page is one call of the character template. Its fields hold wikitext:
 links, footnotes, citations and the wiki's own link templates. The parser keeps the
-text a reader would see and drops the rest.
+text a reader would see, writes section headings as Markdown, and drops the rest.
 """
 
 import re
@@ -41,6 +41,9 @@ IMAGE_PREFIXES = ("file:", "image:")
 
 LIST_MARKER = re.compile(r"^[*#:;]+\s*")
 BOLD_OR_ITALIC = re.compile(r"'{2,}")
+# The parser doesn't see headings inside a template field, so they arrive as text.
+# A heading needs some text: a line of only = marks is left alone.
+HEADING = re.compile(r"^(=+)\s*([^=\s].*?)\s*=+$", re.MULTILINE)
 REALITY_SUFFIX = re.compile(r"\s*\([^()]*\)$")
 
 
@@ -150,9 +153,19 @@ def _drop_image_links(value: Wikicode) -> None:
 def _tidy(text: str) -> str | None:
     """Trimmed plain text, or None if nothing is left.
 
-    List markers and bold or italic marks go, and blank lines collapse to one.
+    List markers and bold or italic marks go, headings become Markdown headings, and
+    blank lines collapse to one.
     """
     text = BOLD_OR_ITALIC.sub("", text)
     lines = [LIST_MARKER.sub("", line.strip()) for line in text.splitlines()]
-    text = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+    # After the list markers, because # also starts a numbered list in wikitext.
+    text = HEADING.sub(_markdown_heading, "\n".join(lines))
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
     return text or None
+
+
+def _markdown_heading(heading: re.Match[str]) -> str:
+    """`===Early Life===` as `### Early Life`, at the same level."""
+    marks, title = heading.groups()
+    return "#" * len(marks) + " " + title

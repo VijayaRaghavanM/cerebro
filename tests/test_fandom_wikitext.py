@@ -94,6 +94,12 @@ def test_reads_every_field_of_a_real_page() -> None:
         pytest.param(
             "X-Men\n* \n* \nMorlocks", "X-Men\n\nMorlocks", id="empty list items"
         ),
+        pytest.param(
+            "===Early Life===\nBorn in Harlem.\n== Later Years ==\nMoved to Kenya.",
+            "### Early Life\nBorn in Harlem.\n## Later Years\nMoved to Kenya.",
+            id="section headings",
+        ),
+        pytest.param("X-Men\n==\nMorlocks", "X-Men\n==\nMorlocks", id="bare = marks"),
     ],
 )
 def test_a_field_keeps_only_the_text_a_reader_sees(

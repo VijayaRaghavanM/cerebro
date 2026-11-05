@@ -5,7 +5,11 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Character:
-    """One character page. Each text field is plain text, or None if it's empty."""
+    """One character page.
+
+    Each text field is plain text, or None if it's empty. Where the wiki splits a field
+    into sections, the headings are Markdown: `### Early Life`.
+    """
 
     pageid: int
     title: str
