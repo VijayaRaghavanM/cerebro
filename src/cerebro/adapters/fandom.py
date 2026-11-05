@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 JsonGetter = Callable[[str], dict[str, Any]]
 
 
-def urllib_get_json(url: str) -> dict[str, Any]:
+def _urllib_get_json(url: str) -> dict[str, Any]:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=60) as response:
         data: dict[str, Any] = json.load(response)
@@ -48,7 +48,7 @@ class FandomClient(WikiSource):
 
     def __init__(
         self,
-        get_json: JsonGetter = urllib_get_json,
+        get_json: JsonGetter = _urllib_get_json,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._get_json = get_json
@@ -100,7 +100,7 @@ class FandomClient(WikiSource):
             data = self._get({**params, **cont})
 
             for item in data["query"]["pages"]:
-                page = to_raw_page(item)
+                page = _to_raw_page(item)
                 if page is not None:
                     pages.setdefault(page.pageid, page)
 
@@ -134,7 +134,7 @@ class FandomClient(WikiSource):
         raise WikiUnavailable(f"Marvel Database API failed {ATTEMPTS} times in a row")
 
 
-def to_raw_page(item: dict[str, Any]) -> RawPage | None:
+def _to_raw_page(item: dict[str, Any]) -> RawPage | None:
     """One page from a revisions response, or None if the page no longer exists."""
     revisions = item.get("revisions")
     if not revisions:

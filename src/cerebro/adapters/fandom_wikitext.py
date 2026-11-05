@@ -46,7 +46,7 @@ REALITY_SUFFIX = re.compile(r"\s*\([^()]*\)$")
 
 def parse_character(page: RawPage) -> Character | None:
     """The character on the page, or None if the page has no character template."""
-    template = find_template(page.wikitext, CHARACTER_TEMPLATE)
+    template = _find_template(page.wikitext, CHARACTER_TEMPLATE)
     if template is None:
         return None
 
@@ -54,38 +54,38 @@ def parse_character(page: RawPage) -> Character | None:
         pageid=page.pageid,
         title=page.title,
         revid=page.revid,
-        name=field_text(template, "Name") or REALITY_SUFFIX.sub("", page.title),
-        current_alias=field_text(template, "CurrentAlias"),
-        aliases=field_text(template, "Aliases"),
-        reality=field_text(template, "Reality"),
-        origin=field_text(template, "Origin"),
-        gender=field_text(template, "Gender"),
-        affiliation=field_text(template, "Affiliation"),
-        base_of_operations=field_text(template, "BaseOfOperations"),
-        relatives=field_text(template, "Relatives"),
-        first_appearance=field_text(template, "First"),
-        creators=field_text(template, "Creators"),
-        powers=field_text(template, "Powers"),
-        abilities=field_text(template, "Abilities"),
-        history=field_text(template, "History"),
+        name=_field_text(template, "Name") or REALITY_SUFFIX.sub("", page.title),
+        current_alias=_field_text(template, "CurrentAlias"),
+        aliases=_field_text(template, "Aliases"),
+        reality=_field_text(template, "Reality"),
+        origin=_field_text(template, "Origin"),
+        gender=_field_text(template, "Gender"),
+        affiliation=_field_text(template, "Affiliation"),
+        base_of_operations=_field_text(template, "BaseOfOperations"),
+        relatives=_field_text(template, "Relatives"),
+        first_appearance=_field_text(template, "First"),
+        creators=_field_text(template, "Creators"),
+        powers=_field_text(template, "Powers"),
+        abilities=_field_text(template, "Abilities"),
+        history=_field_text(template, "History"),
     )
 
 
-def find_template(wikitext: str, name: str) -> Template | None:
+def _find_template(wikitext: str, name: str) -> Template | None:
     """The first top-level call of the named template, or None."""
     # Bold and italic markup that opens inside a template and closes after it, as in
     # {{WP|Scrooge McDuck|der '''cartoon duck}}!''', makes the parser lose the whole
-    # page. Read '' and ''' as plain text instead; tidy() removes them.
+    # page. Read '' and ''' as plain text instead; _tidy() removes them.
     code = mwparserfromhell.parse(wikitext, skip_style_tags=True)
 
-    wanted = normalise(name)
+    wanted = _normalise(name)
     for template in code.filter_templates(recursive=False):
-        if normalise(str(template.name)) == wanted:
+        if _normalise(str(template.name)) == wanted:
             return template
     return None
 
 
-def normalise(name: str) -> str:
+def _normalise(name: str) -> str:
     """A template name the way MediaWiki compares it.
 
     Underscores and runs of spaces count as one space, spaces around the namespace
@@ -96,7 +96,7 @@ def normalise(name: str) -> str:
     return name[:1].upper() + name[1:]
 
 
-def field_text(template: Template, field: str) -> str | None:
+def _field_text(template: Template, field: str) -> str | None:
     """The field as plain text, or None if the field is missing or empty.
 
     Cleaning edits the template in place. That's safe because each page is parsed
@@ -106,14 +106,14 @@ def field_text(template: Template, field: str) -> str | None:
         return None
 
     value = template.get(field).value
-    drop_footnotes(value)
-    show_link_templates(value)
-    drop_image_links(value)
+    _drop_footnotes(value)
+    _show_link_templates(value)
+    _drop_image_links(value)
 
-    return tidy(value.strip_code())
+    return _tidy(value.strip_code())
 
 
-def drop_footnotes(value: Wikicode) -> None:
+def _drop_footnotes(value: Wikicode) -> None:
     # strip_code keeps the text inside <ref> tags, so remove the tags first.
     # Innermost first, so a nested footnote goes before the one around it.
     for tag in reversed(value.filter_tags()):
@@ -121,25 +121,25 @@ def drop_footnotes(value: Wikicode) -> None:
             value.remove(tag)
 
 
-def show_link_templates(value: Wikicode) -> None:
+def _show_link_templates(value: Wikicode) -> None:
     # Innermost first, so a template inside another is resolved before its parent
     # is replaced or dropped.
     for template in reversed(value.filter_templates()):
-        shown = shown_text(template)
+        shown = _shown_text(template)
         if shown is not None:
             value.replace(template, shown)
 
 
-def shown_text(template: Template) -> Wikicode | None:
+def _shown_text(template: Template) -> Wikicode | None:
     """The text a link template shows, or None for any other template."""
-    params = LINK_TEMPLATES.get(normalise(str(template.name)), ())
+    params = LINK_TEMPLATES.get(_normalise(str(template.name)), ())
     for param in params:
         if template.has(param, ignore_empty=True):
             return template.get(param).value
     return None
 
 
-def drop_image_links(value: Wikicode) -> None:
+def _drop_image_links(value: Wikicode) -> None:
     # Innermost first, so an image inside another image's caption goes before the
     # image around it.
     for link in reversed(value.filter_wikilinks()):
@@ -147,7 +147,7 @@ def drop_image_links(value: Wikicode) -> None:
             value.remove(link)
 
 
-def tidy(text: str) -> str | None:
+def _tidy(text: str) -> str | None:
     """Trimmed plain text, or None if nothing is left.
 
     List markers and bold or italic marks go, and blank lines collapse to one.
