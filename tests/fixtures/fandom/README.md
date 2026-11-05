@@ -1,0 +1,1 @@
+Pages from the [Marvel Database](https://marvel.fandom.com) on Fandom, saved as `cerebro crawl fandom` stores them. Their text is licensed under [CC BY-SA](https://creativecommons.org/licenses/by-sa/3.0/).
