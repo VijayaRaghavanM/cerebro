@@ -3,6 +3,7 @@
 A character page is one call of the character template. Its fields hold wikitext:
 links, footnotes, citations and the wiki's own link templates. The parser keeps the
 text a reader would see, writes section headings as Markdown, and drops the rest.
+The page's category links are kept apart from the text.
 """
 
 import re
@@ -36,8 +37,11 @@ LINK_TEMPLATES = {
     "G": ("1",),  # glossary term
 }
 
-# An image link's text is its layout options and caption ("thumb|left|..."), not prose.
-IMAGE_PREFIXES = ("file:", "image:")
+# Links that aren't prose: an image link's text is its layout options and caption
+# ("thumb|left|..."), and a category link shows nothing. A leading colon, as in
+# [[:Category:Black Skin|black]], makes a link visible, so those keep their text.
+# Namespace names are case-blind: [[FIle:...]] is still an image.
+NON_TEXT_LINKS = ("file:", "image:", "category:")
 
 LIST_MARKER = re.compile(r"^[*#:;]+\s*")
 BOLD_OR_ITALIC = re.compile(r"'{2,}")
@@ -49,9 +53,13 @@ REALITY_SUFFIX = re.compile(r"\s*\([^()]*\)$")
 
 def parse_character(page: RawPage) -> Character | None:
     """The character on the page, or None if the page has no character template."""
-    template = _find_template(page.wikitext, CHARACTER_TEMPLATE)
+    code = _parse(page.wikitext)
+    template = _find_template(code, CHARACTER_TEMPLATE)
     if template is None:
         return None
+
+    # Before the fields are cleaned, which removes the category links inside them.
+    categories = _categories(code)
 
     return Character(
         pageid=page.pageid,
@@ -71,16 +79,19 @@ def parse_character(page: RawPage) -> Character | None:
         powers=_field_text(template, "Powers"),
         abilities=_field_text(template, "Abilities"),
         history=_field_text(template, "History"),
+        categories=categories,
     )
 
 
-def _find_template(wikitext: str, name: str) -> Template | None:
-    """The first top-level call of the named template, or None."""
+def _parse(wikitext: str) -> Wikicode:
     # Bold and italic markup that opens inside a template and closes after it, as in
     # {{WP|Scrooge McDuck|der '''cartoon duck}}!''', makes the parser lose the whole
     # page. Read '' and ''' as plain text instead; _tidy() removes them.
-    code = mwparserfromhell.parse(wikitext, skip_style_tags=True)
+    return mwparserfromhell.parse(wikitext, skip_style_tags=True)
 
+
+def _find_template(code: Wikicode, name: str) -> Template | None:
+    """The first top-level call of the named template, or None."""
     wanted = _normalise(name)
     for template in code.filter_templates(recursive=False):
         if _normalise(str(template.name)) == wanted:
@@ -89,21 +100,31 @@ def _find_template(wikitext: str, name: str) -> Template | None:
 
 
 def _normalise(name: str) -> str:
-    """A template name the way MediaWiki compares it.
+    """A template or page name the way MediaWiki compares it.
 
     Underscores and runs of spaces count as one space, spaces around the namespace
-    colon don't count, and the first letter is case-blind.
+    colon (the first one) don't count, and the first letter is case-blind.
     """
     name = re.sub(r"[\s_]+", " ", name).strip()
-    name = re.sub(r"\s*:\s*", ":", name)
+    name = re.sub(r"\s*:\s*", ":", name, count=1)
     return name[:1].upper() + name[1:]
+
+
+def _categories(code: Wikicode) -> tuple[str, ...]:
+    """Every category the page links to, once each, in page order."""
+    names = []
+    for link in code.filter_wikilinks():
+        # The title is the category; a sort key after the | only orders its listing.
+        title = _normalise(str(link.title))
+        if title.lower().startswith("category:"):
+            names.append(title[len("category:") :])
+    return tuple(dict.fromkeys(names))
 
 
 def _field_text(template: Template, field: str) -> str | None:
     """The field as plain text, or None if the field is missing or empty.
 
-    Cleaning edits the template in place. That's safe because each page is parsed
-    into its own tree, which nothing else reads.
+    Cleaning edits the template in place, so read anything else from the page first.
     """
     if not template.has(field):
         return None
@@ -111,7 +132,7 @@ def _field_text(template: Template, field: str) -> str | None:
     value = template.get(field).value
     _drop_footnotes(value)
     _show_link_templates(value)
-    _drop_image_links(value)
+    _drop_non_text_links(value)
 
     return _tidy(value.strip_code())
 
@@ -142,11 +163,11 @@ def _shown_text(template: Template) -> Wikicode | None:
     return None
 
 
-def _drop_image_links(value: Wikicode) -> None:
+def _drop_non_text_links(value: Wikicode) -> None:
     # Innermost first, so an image inside another image's caption goes before the
     # image around it.
     for link in reversed(value.filter_wikilinks()):
-        if str(link.title).strip().lower().startswith(IMAGE_PREFIXES):
+        if _normalise(str(link.title)).lower().startswith(NON_TEXT_LINKS):
             value.remove(link)
 
 

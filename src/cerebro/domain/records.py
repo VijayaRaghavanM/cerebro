@@ -9,6 +9,10 @@ class Character:
 
     Each text field is plain text, or None if it's empty. Where the wiki splits a field
     into sections, the headings are Markdown: `### Early Life`.
+
+    `categories` holds the categories written on the page, such as `Time Travelers`.
+    It is a tuple because each entry is its own tag; list fields such as `aliases`
+    keep the wiki's own layout, usually one entry per line.
     """
 
     pageid: int
@@ -28,3 +32,4 @@ class Character:
     powers: str | None
     abilities: str | None
     history: str | None
+    categories: tuple[str, ...]

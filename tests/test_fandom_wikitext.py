@@ -80,6 +80,8 @@ def test_reads_every_field_of_a_real_page() -> None:
         pytest.param("{{r|Uncanny X-Men Vol 1 94}}", None, id="only a citation"),
         pytest.param("Storm<ref>A<ref>B</ref></ref>", "Storm", id="nested footnotes"),
         pytest.param("[[Image:Storm.jpg|thumb]] Storm", "Storm", id="image link"),
+        # Elizabeth Brant (Earth-19529) writes it this way.
+        pytest.param("[[FIle:Betty.png|thumb]] Betty", "Betty", id="odd capitals"),
         pytest.param(
             "[[File:A.jpg|thumb|[[File:B.jpg]] in flight]] Storm",
             "Storm",
@@ -109,6 +111,31 @@ def test_a_field_keeps_only_the_text_a_reader_sees(
 
     assert record is not None
     assert record.affiliation == shown
+
+
+def test_collects_the_categories_and_keeps_them_out_of_the_text() -> None:
+    lines = [
+        "{{Marvel Database:Character Template",
+        "| Reality = Earth-616[[Category:Characters Displaced to Earth-616]]",
+        "| Affiliation = [[:Category:Black Skin|black]]",
+        "}}",
+        "[[Category:Time Travelers]]",
+        "[[Category:Shared Identities: Successors|Storm]]",
+        "[[Category:Time_Travelers]]",
+        "[[CATEGORY:Armor Users]]",
+    ]
+    record = parse_character(wiki_page("\n".join(lines)))
+
+    assert record is not None
+    assert record.categories == (
+        "Characters Displaced to Earth-616",
+        "Time Travelers",
+        "Shared Identities: Successors",
+        "Armor Users",
+    )
+    assert record.reality == "Earth-616"
+    # The leading colon makes it a visible link to the category, not a category.
+    assert record.affiliation == "black"
 
 
 def test_name_comes_from_the_name_field_or_the_title_without_the_reality() -> None:
