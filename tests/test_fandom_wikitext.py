@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 import pytest
@@ -8,9 +9,22 @@ from cerebro.domain.pages import RawPage
 
 REAL_PAGE = Path(__file__).parent / "fixtures" / "fandom" / "daniel_berkhart.json"
 
+# Every template field a character record reads. RealName is left out: it only
+# stands in for a missing Name.
+WIKI_FIELDS = """
+    Name Name2 CurrentAlias Aliases Title Titles Nicknames Codenames EditorialNames
+    Impersonations Identity Identity2 Reality Reality2 Status Gender Origin Citizenship
+    Occupation Affiliation BaseOfOperations MaritalStatus PlaceOfBirth Education Hair
+    Eyes Eyeballs Skin Height Weight UnusualFeatures AdditionalAttributes Relatives
+    Parents Siblings Children Spouses InLaw Grandparents Ancestors Descendants Clones
+    HostOf Hosts PetOf Pets Death Death2 KilledBy CauseOfDeath PlaceOfDeath CasualtyOf
+    Sacrifice Suicide Powers Abilities Weaknesses Equipment Transportation Weapons First
+    First2 Creators History Personality Overview Notes Trivia
+""".split()
+
 
 def real_page() -> RawPage:
-    """Daniel Berkhart (Earth-616), saved from the crawl. It fills every field."""
+    """Daniel Berkhart (Earth-616), saved from the crawl. It fills 33 of the fields."""
     return RawPage(**json.loads(REAL_PAGE.read_text(encoding="utf-8")))
 
 
@@ -28,7 +42,8 @@ def character_page(
     return wiki_page("\n".join(["{{" + template, *lines, "}}"]))
 
 
-# The real page shows that the field names match the wiki's.
+# The real page shows that the field names match the wiki's, and that no two fields
+# are swapped.
 
 
 def test_reads_every_field_of_a_real_page() -> None:
@@ -40,22 +55,65 @@ def test_reads_every_field_of_a_real_page() -> None:
     assert record.title == raw.title
     assert record.name == "Daniel Berkhart"
     assert record.current_alias == "Mysterio"
+    assert record.nicknames == "Misty the Wizard of Oz"
+    assert record.identity == "Secret"
     assert record.reality == "Earth-616"
-    assert record.origin == "Human, technology user"
     assert record.gender == "Male"
+    assert record.origin == "Human, technology user"
+    assert record.citizenship == "American"
+    assert record.occupation == "Criminal"
     assert record.base_of_operations == "New York City, New York"
+    assert record.marital_status == "Single"
+    assert record.place_of_birth == "United States"
+    assert record.hair == "Brown; Balding"
+    assert record.eyes == "Blue"
+    assert record.height == "5'10\""
+    assert record.weight == "160 lbs"
     assert record.relatives == "Hudson Berkhart (son)"
+    assert record.death == "Venom Vol 2 11"
+    assert record.death_note == "(mentioned)"
+    assert record.killed_by == "Jack O'Lantern (Crime-Master) (Earth-616)"
+    assert record.powers == "Illusions"
     assert record.first_appearance == "Amazing Spider-Man Vol 1 141"
     assert record.creators == "Gerry Conway; Ross Andru"
-    assert record.powers == "Illusions"
 
     # Lists and prose are checked for one entry or fact each, so a refreshed page
     # with a new alias or reworded text still passes.
-    assert record.aliases and record.affiliation and record.abilities and record.history
+    assert (
+        record.aliases
+        and record.affiliation
+        and record.education
+        and record.unusual_features
+        and record.cause_of_death
+        and record.abilities
+        and record.equipment
+        and record.first_appearance_note
+        and record.history
+        and record.trivia
+    )
     assert "Jack O'Lantern" in record.aliases
     assert "Sinister Six" in record.affiliation
+    assert "acting" in record.education
+    assert "goatee" in record.unusual_features
+    assert "Crime-Master" in record.cause_of_death
     assert "enhanced speed" in record.abilities
+    assert "Gas Gloves" in record.equipment
+    assert "Spectacular Spider-Man Vol 1 241" in record.first_appearance_note
     assert "J. Jonah Jameson" in record.history
+    assert "DeMatteis" in record.trivia
+
+
+def test_every_template_field_lands_in_exactly_one_record_field() -> None:
+    # Each field holds its own name, so a misspelt, dropped or doubled field shows.
+    record = parse_character(character_page(**{field: field for field in WIKI_FIELDS}))
+    assert record is not None
+
+    texts = [
+        value
+        for key, value in asdict(record).items()
+        if isinstance(value, str) and key != "title"
+    ]
+    assert sorted(texts) == sorted(WIKI_FIELDS)
 
 
 # Each rule below is shown on the smallest page that needs it.
@@ -138,12 +196,14 @@ def test_collects_the_categories_and_keeps_them_out_of_the_text() -> None:
     assert record.affiliation == "black"
 
 
-def test_name_comes_from_the_name_field_or_the_title_without_the_reality() -> None:
-    named = parse_character(character_page(Name="Ororo Munroe"))
+def test_name_comes_from_name_then_real_name_then_the_title() -> None:
+    named = parse_character(character_page(Name="Ororo Munroe", RealName="Ororo"))
+    real_named = parse_character(character_page(RealName="Ororo Munroe"))
     unnamed = parse_character(character_page())
 
-    assert named is not None and unnamed is not None
+    assert named is not None and real_named is not None and unnamed is not None
     assert named.name == "Ororo Munroe"
+    assert real_named.name == "Ororo Munroe"
     assert unnamed.name == "Storm"
 
 

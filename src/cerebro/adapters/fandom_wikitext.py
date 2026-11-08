@@ -12,7 +12,11 @@ import mwparserfromhell
 from mwparserfromhell.nodes import Template
 from mwparserfromhell.wikicode import Wikicode
 
-from cerebro.adapters.fandom_templates import CHARACTER_TEMPLATE, LINK_TEMPLATES
+from cerebro.adapters.fandom_templates import (
+    CHARACTER_FIELDS,
+    CHARACTER_TEMPLATE,
+    LINK_TEMPLATES,
+)
 from cerebro.domain.pages import RawPage
 from cerebro.domain.records import Character
 
@@ -40,25 +44,22 @@ def parse_character(page: RawPage) -> Character | None:
     # Before the fields are cleaned, which removes the category links inside them.
     categories = _categories(code)
 
+    texts = {
+        field: _field_text(template, wiki) for field, wiki in CHARACTER_FIELDS.items()
+    }
+    name = (
+        _field_text(template, "Name")
+        or _field_text(template, "RealName")
+        or REALITY_SUFFIX.sub("", page.title)
+    )
+
     return Character(
         pageid=page.pageid,
         title=page.title,
         revid=page.revid,
-        name=_field_text(template, "Name") or REALITY_SUFFIX.sub("", page.title),
-        current_alias=_field_text(template, "CurrentAlias"),
-        aliases=_field_text(template, "Aliases"),
-        reality=_field_text(template, "Reality"),
-        origin=_field_text(template, "Origin"),
-        gender=_field_text(template, "Gender"),
-        affiliation=_field_text(template, "Affiliation"),
-        base_of_operations=_field_text(template, "BaseOfOperations"),
-        relatives=_field_text(template, "Relatives"),
-        first_appearance=_field_text(template, "First"),
-        creators=_field_text(template, "Creators"),
-        powers=_field_text(template, "Powers"),
-        abilities=_field_text(template, "Abilities"),
-        history=_field_text(template, "History"),
+        name=name,
         categories=categories,
+        **texts,
     )
 
 
