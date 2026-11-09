@@ -86,12 +86,12 @@ CHARACTER_FIELDS = {
     "trivia": "Trivia",
 }
 
-# Link templates by page name, with the parameters that may hold the text they show.
+# Templates that show text, by page name, with the parameters that may hold it.
 # The first one with a value wins: {{m|Page (Earth-616)|Shown name}} shows
 # "Shown name", and {{m|Page (Earth-616)}} shows the page. Page names start with a
 # capital, so {{cl|...}} is the "Cl" entry.
 # Every other template is a citation or decoration ({{r}}, {{Citation}}) and is dropped.
-LINK_TEMPLATES = {
+TEXT_TEMPLATES = {
     "M": ("2", "1"),
     "DC": ("2", "1"),
     "Wc": ("3", "2"),  # {{wc|other wiki|Page|Shown name}}
@@ -103,5 +103,5 @@ LINK_TEMPLATES = {
     "Elt": ("1",),  # episode
     "Power": ("1",),
     "Ability": ("1",),
-    "G": ("1",),  # glossary term
+    "G": ("1",),  # a tag, such as {{g|Mentioned}}
 }

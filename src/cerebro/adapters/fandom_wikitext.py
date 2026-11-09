@@ -15,7 +15,7 @@ from mwparserfromhell.wikicode import Wikicode
 from cerebro.adapters.fandom_templates import (
     CHARACTER_FIELDS,
     CHARACTER_TEMPLATE,
-    LINK_TEMPLATES,
+    TEXT_TEMPLATES,
 )
 from cerebro.domain.pages import RawPage
 from cerebro.domain.records import Character
@@ -111,7 +111,7 @@ def _field_text(template: Template, field: str) -> str | None:
 
     value = template.get(field).value
     _drop_footnotes(value)
-    _show_link_templates(value)
+    _show_text_templates(value)
     _drop_non_text_links(value)
 
     return _tidy(value.strip_code())
@@ -125,7 +125,7 @@ def _drop_footnotes(value: Wikicode) -> None:
             value.remove(tag)
 
 
-def _show_link_templates(value: Wikicode) -> None:
+def _show_text_templates(value: Wikicode) -> None:
     # Innermost first, so a template inside another is resolved before its parent
     # is replaced or dropped.
     for template in reversed(value.filter_templates()):
@@ -135,8 +135,8 @@ def _show_link_templates(value: Wikicode) -> None:
 
 
 def _shown_text(template: Template) -> Wikicode | None:
-    """The text a link template shows, or None for any other template."""
-    params = LINK_TEMPLATES.get(_normalise(str(template.name)), ())
+    """The text a template from TEXT_TEMPLATES shows, or None for any other template."""
+    params = TEXT_TEMPLATES.get(_normalise(str(template.name)), ())
     for param in params:
         if template.has(param, ignore_empty=True):
             return template.get(param).value
