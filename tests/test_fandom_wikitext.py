@@ -137,6 +137,12 @@ def test_every_template_field_lands_in_exactly_one_record_field() -> None:
         ),
         pytest.param("{{r|Uncanny X-Men Vol 1 94}}", None, id="only a citation"),
         pytest.param("Storm<ref>A<ref>B</ref></ref>", "Storm", id="nested footnotes"),
+        pytest.param(
+            "Storm{{DC|Superman|ref=true}}{{DC|Krypton|refname=k}}",
+            "Storm",
+            id="link used as a footnote",
+        ),
+        pytest.param("{{DC|Superman|ref=yes}}", "Superman", id="ref other than true"),
         pytest.param("[[Image:Storm.jpg|thumb]] Storm", "Storm", id="image link"),
         # Elizabeth Brant (Earth-19529) writes it this way.
         pytest.param("[[FIle:Betty.png|thumb]] Betty", "Betty", id="odd capitals"),

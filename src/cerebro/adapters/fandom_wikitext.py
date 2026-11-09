@@ -124,6 +124,19 @@ def _drop_footnotes(value: Wikicode) -> None:
         if str(tag.tag).strip().lower() == "ref":
             value.remove(tag)
 
+    for template in reversed(value.filter_templates()):
+        if _is_footnote(template):
+            value.remove(template)
+
+
+def _is_footnote(template: Template) -> bool:
+    """Whether a link template is called as a footnote.
+
+    The wiki turns {{DC|Superman|ref=true}}, or a call with a refname, into a footnote.
+    """
+    as_ref = template.has("ref") and str(template.get("ref").value).strip() == "true"
+    return as_ref or template.has("refname", ignore_empty=True)
+
 
 def _show_text_templates(value: Wikicode) -> None:
     # Innermost first, so a template inside another is resolved before its parent
