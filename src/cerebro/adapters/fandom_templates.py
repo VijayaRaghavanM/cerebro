@@ -170,27 +170,106 @@ TEXT_TEMPLATES = {
     "MessageBox": ("1", "Message"),
 }
 
-# Templates that always show the same text, by page name. Most are appearance tags,
-# which the wiki writes in parentheses after a first appearance or a death.
+# Templates that always show the same text, by page name.
 FIXED_TEXT_TEMPLATES = {
-    "Mentioned": "(Mentioned)",
-    "Referenced": "(Referenced)",
-    "1stFull": "(First full appearance)",
-    "FlashOnly": "(Only in flashback)",
-    "OnScreenOnly": "(Only on screen as a static image or video record)",
-    "BTS": "(Behind the scenes)",
-    "Corpse": "(Corpse, skeleton or other remains)",
-    "Tombstone": "(Tombstone)",
-    "Dream": "(Dream)",
-    "Vision": "(Vision or hallucination)",
-    "Photo": "(Photo)",
-    "Drawing": "(Drawing)",
     "Omega Level Mutant": "Omega Level mutant",
 }
 
-# The general tag template, which names its own tag: {{g|Chronologically}} shows
-# "(Chronologically)".
-TAG_TEMPLATE = "G"
+# Appearance templates, by page name, with the tag the wiki writes in parentheses
+# after the page in their first parameter: {{Mentioned|[[Storm (Earth-616)|Storm]]}}
+# shows "Storm (Mentioned)", and an empty tag shows the page alone. A story's cast
+# list is made of them; a first appearance or death note uses them without a page.
+APPEARANCE_TAGS = {
+    "A": "",
+    "Apn": "",  # also links the previous and next appearance, which aren't text
+    "Minor": "",
+    "Mentioned": "Mentioned",
+    "Referenced": "Referenced",
+    "Named": "Named only",
+    "Narration": "Mentioned in narration or thoughts",
+    "Invoked": "Invoked",
+    "Topical Reference": "Topical Reference",
+    "Cameo": "Cameo",
+    "Unnamed": "Unnamed",
+    "Voice": "Voice only",
+    "Shadow": "Shadow only",
+    # First and last appearances
+    "1st": "First appearance",
+    "1stFull": "First full appearance",
+    "1stChron": "First appearance chronologically",
+    "1st Real Name": "Name revealed",
+    "1st Unnamed": "First appearance; unnamed",
+    "1st Dies": "First appearance; dies",
+    "1st Destruction": "First appearance; destruction",
+    "1st Vision": "First appearance; vision or hallucination",
+    "1st Dream": "First appearance; dream",
+    "1st Illusion": "First appearance; illusion or holographic simulation",
+    "1st Photo": "First appearance; photo",
+    "1st Corpse": "First appearance; corpse, skeleton or other remains",
+    "1st Variant": "First appearance in this reality",
+    "Final": "Final appearance",
+    # Flashbacks and recaps; Fb and Flashonly redirect to FlashOnly
+    "FlashOnly": "Only in flashback",
+    "Fb": "Only in flashback",
+    "Flashonly": "Only in flashback",
+    "Flashback": "Main story and flashback",
+    "FlashforwardOnly": "Only in flashforward",
+    "Flashforward": "Main story and flashforward",
+    "Flashback and Flashforward": "Main story, flashback, flashforward",
+    "ChronoFB": "Appears in flashback",
+    "Chronology": "See chronology",
+    "RecapOnly": "Only in recap",
+    "Recap": "Main story and recap",
+    "Memory": "In a memory",
+    # Deaths, endings and changes; Dies redirects to Death
+    "Death": "Death",
+    "Dies": "Death",
+    "Dead": "Dead",
+    "Deceased": "Deceased",
+    "ApDeath": "Apparent death",
+    "Corpse": "Corpse, skeleton or other remains",
+    "Tombstone": "Tombstone",
+    "Ghost": "Ghost, soul or spirit",
+    "Resurrection": "Resurrection",
+    "Origin": "Origin revealed",
+    "Destruction": "Destruction",
+    "Destroyed": "Destroyed",
+    "Defunct": "Defunct",
+    "Disbands": "Disbands",
+    "Joins": "Joins",
+    "Leaves": "Leaves",
+    "Rejoins": "Rejoins",
+    # Not there in person; Screen redirects to OnScreen, Bts to BTS
+    "Vision": "Vision or hallucination",
+    "Dream": "Dream",
+    "Illusion": "Illusion or holographic simulation",
+    "Hologram": "As a hologram",
+    "Imagination": "Imagination",
+    "OnScreen": "Appears on screen",
+    "Screen": "Appears on screen",
+    "OnScreenOnly": "Only on screen as a static image or video record",
+    "Photo": "Photo",
+    "Drawing": "Drawing",
+    "Poster": "Poster",
+    "Statue": "Statue",
+    "Toy": "Toy",
+    "Map": "Map",
+    "BTS": "Behind the scenes",
+    "Bts": "Behind the scenes",
+}
+
+# Appearance templates whose tag names someone, from their last parameter, with the
+# page in a first parameter before it: {{PossessedBy|[[Jean Grey (Earth-616)|Jean
+# Grey]]|Phoenix Force}} shows "Jean Grey (Possessed by Phoenix Force)". G, the
+# general tag template, adds no words: {{g|Mentioned}} shows "(Mentioned)".
+NAMING_TAGS = {
+    "G": "",
+    "Green": "",  # G redirects to it
+    "1stas": "First appearance as",
+    "PossessedBy": "Possessed by",
+    "Impersonates": "Impersonates",
+    "Controlled": "Controlled by",
+}
 
 # A collapsible box, such as "Former Powers": {{Navigation|title=...|body=...}}.
 NAVIGATION_TEMPLATE = "Navigation"

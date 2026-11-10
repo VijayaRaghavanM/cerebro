@@ -14,15 +14,16 @@ from mwparserfromhell.nodes import Node, Template, Text, Wikilink
 from mwparserfromhell.wikicode import Wikicode
 
 from cerebro.adapters.fandom_templates import (
+    APPEARANCE_TAGS,
     CATEGORY_TEMPLATES,
     CHARACTER_FIELDS,
     CHARACTER_TEMPLATE,
     FIXED_TEXT_TEMPLATES,
     MEMBER_OF_TEMPLATE,
+    NAMING_TAGS,
     NAVIGATION_TEMPLATE,
     PAGE_LINK_TEMPLATES,
     QUOTE_TEMPLATE,
-    TAG_TEMPLATE,
     TEAM_FIELDS,
     TEAM_TEMPLATE,
     TEXT_TEMPLATES,
@@ -289,9 +290,10 @@ def _shown_text(template: Template) -> Wikicode | str | None:
     name = _normalise(str(template.name))
     if name in FIXED_TEXT_TEMPLATES:
         return FIXED_TEXT_TEMPLATES[name]
-    if name == TAG_TEMPLATE:
-        tag = _param(template, "1")
-        return f"({tag})" if tag else None
+    if name in APPEARANCE_TAGS:
+        return _tagged(_param(template, "1"), APPEARANCE_TAGS[name])
+    if name in NAMING_TAGS:
+        return _naming_tag_text(template, NAMING_TAGS[name])
     if name == NAVIGATION_TEMPLATE:
         return _navigation_text(template)
     if name == QUOTE_TEMPLATE:
@@ -303,6 +305,26 @@ def _shown_text(template: Template) -> Wikicode | str | None:
             issue_range = _issue_range(template)
             return f"{shown}{issue_range}" if issue_range else shown
     return None
+
+
+def _naming_tag_text(template: Template, words: str) -> str | None:
+    """A tag that names someone from the last parameter, after a page given first."""
+    given = [param for param in ("1", "2") if template.has(param, ignore_empty=True)]
+    if not given:
+        return None
+
+    page = _param(template, "1") if len(given) == 2 else None
+    named = _param(template, given[-1])
+    return _tagged(page, f"{words} {named}".strip())
+
+
+def _tagged(page: str | None, tag: str) -> str | None:
+    """A page and its tag as a cast list writes them: "Storm (Mentioned)"."""
+    if page and tag:
+        return f"{page} ({tag})"
+    if tag:
+        return f"({tag})"
+    return page
 
 
 def _navigation_text(template: Template) -> Wikicode | None:

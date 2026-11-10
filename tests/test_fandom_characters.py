@@ -23,9 +23,9 @@ WIKI_FIELDS = """
     First2 Creators History Personality Overview Notes Trivia
 """.split()
 
-# One call of each template that shows text, and the text the wiki shows for it. Like
-# WIKI_FIELDS, the list is kept apart from the parser's tables, so a dropped or
-# mistyped row shows.
+# One call of each text template, naming tag and fixed text, and of the appearance
+# tags that notes use, with the text the wiki shows. Like WIKI_FIELDS, the list is
+# kept apart from the parser's tables, so a dropped or mistyped row shows.
 TEXT_TEMPLATE_CALLS = [
     ("{{m|X-Men (Earth-616)|X-Men}}", "X-Men"),
     ("{{DC|Kent Nelson (New Earth)|Doctor Fate}}", "Doctor Fate"),
@@ -76,6 +76,23 @@ TEXT_TEMPLATE_CALLS = [
     ("{{Drawing}}", "(Drawing)"),
     ("{{Omega Level Mutant|type=krakoan|X-Men: Red Vol 2 16}}", "Omega Level mutant"),
     ("{{g|Chronologically}}", "(Chronologically)"),
+    ("{{Green|Dead}}", "(Dead)"),
+    (
+        "{{1stas|[[Jean Grey (Earth-616)|Jean Grey]]|Phoenix}}",
+        "Jean Grey (First appearance as Phoenix)",
+    ),
+    (
+        "{{PossessedBy|[[Jean Grey (Earth-616)|Jean Grey]]|Phoenix Force}}",
+        "Jean Grey (Possessed by Phoenix Force)",
+    ),
+    (
+        "{{Impersonates|[[Steve Rogers (Earth-616)|Captain America]]}}",
+        "(Impersonates Captain America)",
+    ),
+    (
+        "{{Controlled|[[Jason Wyngarde (Earth-616)|Mastermind]]}}",
+        "(Controlled by Mastermind)",
+    ),
 ]
 
 
@@ -255,6 +272,24 @@ def test_every_text_template_shows_its_text() -> None:
         ),
         pytest.param("{{Quote}}", None, id="empty quote"),
         pytest.param("{{g}}", None, id="empty tag"),
+        pytest.param(
+            "{{a|[[Ororo Munroe (Earth-616)|Storm]]}}", "Storm", id="appearance"
+        ),
+        pytest.param(
+            "{{apn|[[Q'Wake (Earth-616)|Q'Wake]]|Force Works Vol 1 6|Thor Vol 1 7}}",
+            "Q'Wake",
+            id="appearance between the previous and next",
+        ),
+        pytest.param(
+            "{{Mentioned|[[Ororo Munroe (Earth-616)|Storm]]}}",
+            "Storm (Mentioned)",
+            id="appearance with a tag",
+        ),
+        pytest.param(
+            "{{g|[[Ororo Munroe (Earth-616)|Storm]]|Cameo}}",
+            "Storm (Cameo)",
+            id="general tag after a page",
+        ),
         pytest.param(
             "{{cl|Tarzan Vol 1 15|to=23}}, {{cl|Conan the Barbarian Vol 1 17|and=18}}",
             "Tarzan Vol 1 15 to 23, Conan the Barbarian Vol 1 17 and 18",
