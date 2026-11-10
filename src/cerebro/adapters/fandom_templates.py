@@ -119,5 +119,26 @@ TEXT_TEMPLATES = {
     "Speaker": ("2", "1"),  # a language
     "CategoryLink": ("2", "1"),
     "MessageBox": ("1", "Message"),
-    "G": ("1",),  # a tag, such as {{g|Mentioned}}
 }
+
+# Templates that always show the same text, by page name. Most are appearance tags,
+# which the wiki writes in parentheses after a first appearance or a death.
+FIXED_TEXT_TEMPLATES = {
+    "Mentioned": "(Mentioned)",
+    "Referenced": "(Referenced)",
+    "1stFull": "(First full appearance)",
+    "FlashOnly": "(Only in flashback)",
+    "OnScreenOnly": "(Only on screen as a static image or video record)",
+    "BTS": "(Behind the scenes)",
+    "Corpse": "(Corpse, skeleton or other remains)",
+    "Tombstone": "(Tombstone)",
+    "Dream": "(Dream)",
+    "Vision": "(Vision or hallucination)",
+    "Photo": "(Photo)",
+    "Drawing": "(Drawing)",
+    "Omega Level Mutant": "Omega Level mutant",
+}
+
+# The general tag template, which names its own tag: {{g|Chronologically}} shows
+# "(Chronologically)".
+TAG_TEMPLATE = "G"

@@ -15,6 +15,8 @@ from mwparserfromhell.wikicode import Wikicode
 from cerebro.adapters.fandom_templates import (
     CHARACTER_FIELDS,
     CHARACTER_TEMPLATE,
+    FIXED_TEXT_TEMPLATES,
+    TAG_TEMPLATE,
     TEXT_TEMPLATES,
 )
 from cerebro.domain.pages import RawPage
@@ -147,10 +149,16 @@ def _show_text_templates(value: Wikicode) -> None:
             value.replace(template, shown)
 
 
-def _shown_text(template: Template) -> Wikicode | None:
-    """The text a template from TEXT_TEMPLATES shows, or None for any other template."""
-    params = TEXT_TEMPLATES.get(_normalise(str(template.name)), ())
-    for param in params:
+def _shown_text(template: Template) -> Wikicode | str | None:
+    """The text a template shows, or None for one whose text the parser drops."""
+    name = _normalise(str(template.name))
+    if name in FIXED_TEXT_TEMPLATES:
+        return FIXED_TEXT_TEMPLATES[name]
+    if name == TAG_TEMPLATE and template.has("1", ignore_empty=True):
+        tag = str(template.get("1").value).strip()
+        return f"({tag})"
+
+    for param in TEXT_TEMPLATES.get(name, ()):
         if template.has(param, ignore_empty=True):
             return template.get(param).value
     return None

@@ -23,7 +23,7 @@ WIKI_FIELDS = """
 """.split()
 
 # One call of each template that shows text, and the text the wiki shows for it. Like
-# WIKI_FIELDS, the list is kept apart from the parser's table, so a dropped or
+# WIKI_FIELDS, the list is kept apart from the parser's tables, so a dropped or
 # mistyped row shows.
 TEXT_TEMPLATE_CALLS = [
     ("{{m|X-Men (Earth-616)|X-Men}}", "X-Men"),
@@ -58,7 +58,20 @@ TEXT_TEMPLATE_CALLS = [
     ("{{Speaker|English}}", "English"),
     ("{{CategoryLink|Mutants|mutant}}", "mutant"),
     ("{{MessageBox|Message=Gabriel's memories}}", "Gabriel's memories"),
-    ("{{g|Mentioned}}", "Mentioned"),
+    ("{{Mentioned}}", "(Mentioned)"),
+    ("{{Referenced}}", "(Referenced)"),
+    ("{{1stFull}}", "(First full appearance)"),
+    ("{{FlashOnly}}", "(Only in flashback)"),
+    ("{{OnScreenOnly}}", "(Only on screen as a static image or video record)"),
+    ("{{BTS}}", "(Behind the scenes)"),
+    ("{{Corpse}}", "(Corpse, skeleton or other remains)"),
+    ("{{Tombstone}}", "(Tombstone)"),
+    ("{{Dream}}", "(Dream)"),
+    ("{{Vision}}", "(Vision or hallucination)"),
+    ("{{Photo}}", "(Photo)"),
+    ("{{Drawing}}", "(Drawing)"),
+    ("{{Omega Level Mutant|type=krakoan|X-Men: Red Vol 2 16}}", "Omega Level mutant"),
+    ("{{g|Chronologically}}", "(Chronologically)"),
 ]
 
 
