@@ -4,6 +4,17 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class Link:
+    """A link in a record's text: the field it's in, the page it points to, and the
+    text the reader sees, such as Link("affiliation", "X-Men (Earth-616)", "X-Men").
+    """
+
+    field: str
+    title: str  # the linked page's title, as in a record's own `title`
+    text: str
+
+
+@dataclass(frozen=True)
 class Character:
     """One character page.
 
@@ -15,6 +26,9 @@ class Character:
     such as `Time Travelers`, and those its powers and abilities name, such as
     `Flight`. It is a tuple because each entry is its own tag; list fields such as
     `aliases` keep the wiki's own layout, usually one entry per line.
+
+    `links` holds the links in the text fields, once per field, page and text, so
+    the pages a field names can be followed to their own records.
     """
 
     pageid: int
@@ -108,3 +122,4 @@ class Character:
     trivia: str | None
 
     categories: tuple[str, ...]
+    links: tuple[Link, ...]

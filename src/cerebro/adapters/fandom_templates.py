@@ -149,6 +149,14 @@ NAVIGATION_TEMPLATE = "Navigation"
 # A quote, its speaker and the issue it comes from: {{Quote|...|Venom|Venom Vol 1 1}}.
 QUOTE_TEMPLATE = "Quote"
 
+# Templates that link to a page on this wiki, named in their first parameter:
+# {{cl|Uncanny X-Men Vol 1 94}} links to that comic.
+PAGE_LINK_TEMPLATES = {"M", "Cl", "C", "Sld", "Sl", "Ml", "Vl", "Elt", "El"}
+
+# The team template, which links to the team in the page's own reality when it names
+# none: {{m|X-Men}} on Storm (Earth-616) links to X-Men (Earth-616).
+TEAM_TEMPLATE = "M"
+
 # Templates that file the page under the category named in their first parameter:
 # {{Power|Flight|flying}} shows "flying" and files the page under Flight.
 CATEGORY_TEMPLATES = {"Power", "Ability"}

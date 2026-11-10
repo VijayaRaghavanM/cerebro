@@ -3,7 +3,8 @@
 A character page is one call of the character template. Its fields hold wikitext:
 links, footnotes, citations and the wiki's own link templates. The parser keeps the
 text a reader would see, writes section headings as Markdown, and drops the rest.
-The categories the page is filed under are kept apart from the text.
+The categories the page is filed under are kept apart from the text, and so are the
+pages its fields link to.
 """
 
 import re
@@ -18,12 +19,14 @@ from cerebro.adapters.fandom_templates import (
     CHARACTER_TEMPLATE,
     FIXED_TEXT_TEMPLATES,
     NAVIGATION_TEMPLATE,
+    PAGE_LINK_TEMPLATES,
     QUOTE_TEMPLATE,
     TAG_TEMPLATE,
+    TEAM_TEMPLATE,
     TEXT_TEMPLATES,
 )
 from cerebro.domain.pages import RawPage
-from cerebro.domain.records import Character
+from cerebro.domain.records import Character, Link
 
 # Links that aren't prose: an image link's text is its layout options and caption
 # ("thumb|left|..."), and a category link shows nothing. A leading colon, as in
@@ -46,9 +49,10 @@ def parse_character(page: RawPage) -> Character | None:
     if template is None:
         return None
 
-    # Before the fields are cleaned, which removes the category links and the power
-    # templates inside them.
+    # Before the fields are cleaned, which removes the category links, power templates
+    # and links inside them.
     categories = _categories(code)
+    links = _links(template, page.title)
 
     texts = {
         field: _field_text(template, wiki) for field, wiki in CHARACTER_FIELDS.items()
@@ -65,6 +69,7 @@ def parse_character(page: RawPage) -> Character | None:
         revid=page.revid,
         name=name,
         categories=categories,
+        links=links,
         **texts,
     )
 
@@ -86,13 +91,21 @@ def _find_template(code: Wikicode, name: str) -> Template | None:
 
 
 def _normalise(name: str) -> str:
-    """A template or page name the way MediaWiki compares it.
+    """A template or namespaced page name the way MediaWiki compares it.
 
-    Underscores and runs of spaces count as one space, spaces around the namespace
-    colon (the first one) don't count, and the first letter is case-blind.
+    The rules of a page title apply, and spaces around the namespace colon (the first
+    one) don't count either.
+    """
+    return re.sub(r"\s*:\s*", ":", _page_title(name), count=1)
+
+
+def _page_title(name: str) -> str:
+    """A page title the way MediaWiki compares it.
+
+    Underscores and runs of spaces count as one space, and the first letter is
+    case-blind. A colon is part of the title: "Hulk: Gray Vol 1 1" keeps its space.
     """
     name = re.sub(r"[\s_]+", " ", name).strip()
-    name = re.sub(r"\s*:\s*", ":", name, count=1)
     return name[:1].upper() + name[1:]
 
 
@@ -123,6 +136,63 @@ def _category(node: Node) -> str | None:
     if not title.lower().startswith("category:"):
         return None
     return title[len("category:") :]
+
+
+def _links(template: Template, page_title: str) -> tuple[Link, ...]:
+    """Every link in the text fields, in field and page order, once each."""
+    fields = {"name": "Name", **CHARACTER_FIELDS}
+    links = [
+        link
+        for field, wiki in fields.items()
+        for link in _field_links(template, field, wiki, page_title)
+    ]
+    return tuple(dict.fromkeys(links))
+
+
+def _field_links(
+    template: Template, field: str, wiki: str, page_title: str
+) -> list[Link]:
+    """The links in one field, in page order."""
+    if not template.has(wiki):
+        return []
+
+    value = template.get(wiki).value
+    # As in _clean, footnotes go first: a link in a footnote isn't in the text.
+    _drop_footnotes(value)
+    links = [_link(node, field, page_title) for node in value.filter()]
+    return [link for link in links if link]
+
+
+def _link(node: Node, field: str, page_title: str) -> Link | None:
+    """The link a node makes to a page, or None if it makes none."""
+    if isinstance(node, Wikilink) and _shows_text(node):
+        target = str(node.title)
+    elif (
+        isinstance(node, Template) and _normalise(str(node.name)) in PAGE_LINK_TEMPLATES
+    ):
+        target = _param(node, "1") or ""
+        if _normalise(str(node.name)) == TEAM_TEMPLATE:
+            target = _in_reality(target, page_title)
+    else:
+        return None
+
+    # A leading colon only makes a category link visible, and a # only picks a
+    # section. A target holding a template, such as {{PAGENAME}}, is this page.
+    title = _page_title(target.lstrip(":").split("#", 1)[0])
+    if not title or "{{" in title:
+        return None
+
+    text = _clean(_parse(str(node))) or title
+    return Link(field, title, text)
+
+
+def _in_reality(team: str, page_title: str) -> str:
+    """The team in the page's own reality if it names none, as {{m}} links it."""
+    reality = REALITY_SUFFIX.search(page_title)
+    if not team or reality is None or REALITY_SUFFIX.search(team):
+        return team
+
+    return f"{team} {reality.group().strip()}"
 
 
 def _field_text(template: Template, field: str) -> str | None:
@@ -245,8 +315,13 @@ def _drop_non_text_links(value: Wikicode) -> None:
     # Innermost first, so an image inside another image's caption goes before the
     # image around it.
     for link in reversed(value.filter_wikilinks()):
-        if _normalise(str(link.title)).lower().startswith(NON_TEXT_LINKS):
+        if not _shows_text(link):
             value.remove(link)
+
+
+def _shows_text(link: Wikilink) -> bool:
+    """Whether a link is part of the text, unlike an image or a category link."""
+    return not _normalise(str(link.title)).lower().startswith(NON_TEXT_LINKS)
 
 
 def _tidy(text: str) -> str | None:

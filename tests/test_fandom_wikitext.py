@@ -6,6 +6,7 @@ import pytest
 
 from cerebro.adapters.fandom_wikitext import parse_character
 from cerebro.domain.pages import RawPage
+from cerebro.domain.records import Link
 
 REAL_PAGE = Path(__file__).parent / "fixtures" / "fandom" / "daniel_berkhart.json"
 
@@ -294,6 +295,89 @@ def test_collects_the_categories_and_keeps_them_out_of_the_text() -> None:
     assert record.powers == "weather control and Combat: Martial Arts"
     # The leading colon makes it a visible link to the category, not a category.
     assert record.affiliation == "black"
+
+
+@pytest.mark.parametrize(
+    ("wikitext", "links"),
+    [
+        pytest.param(
+            "[[Morlocks (Earth-616)|'''the Morlocks''']]",
+            [("Morlocks (Earth-616)", "the Morlocks")],
+            id="link",
+        ),
+        pytest.param(
+            "[[Morlocks_(Earth-616)#History|the Morlocks]]",
+            [("Morlocks (Earth-616)", "the Morlocks")],
+            id="underscores and a section",
+        ),
+        pytest.param(
+            "[[Hulk: Gray Vol 1 1]]",
+            [("Hulk: Gray Vol 1 1", "Hulk: Gray Vol 1 1")],
+            id="colon in a title",
+        ),
+        pytest.param(
+            "[[:Category:Black Skin|black]]",
+            [("Category:Black Skin", "black")],
+            id="visible link to a category",
+        ),
+        pytest.param(
+            "{{m|X-Men}}", [("X-Men (Earth-616)", "X-Men")], id="team in this reality"
+        ),
+        pytest.param(
+            "{{m|X-Men (Earth-1610)|Ultimate X-Men}}",
+            [("X-Men (Earth-1610)", "Ultimate X-Men")],
+            id="team in another reality",
+        ),
+        pytest.param(
+            "{{cl|Uncanny X-Men Vol 1 94}} {{c|Hulk: Gray Vol 1 1}}"
+            " {{sld|She-Hulk Vol 2 25}} {{sl|Kull the Conqueror Vol 1 4}}"
+            " {{ml|X2 (film)}} {{vl|Spider-Man (2018 video game)}}"
+            " {{elt|Big Hero 6: The Series Season 1 15}} {{el|Wolverine Season 1 1}}",
+            [
+                (title, title)
+                for title in [
+                    "Uncanny X-Men Vol 1 94",
+                    "Hulk: Gray Vol 1 1",
+                    "She-Hulk Vol 2 25",
+                    "Kull the Conqueror Vol 1 4",
+                    "X2 (film)",
+                    "Spider-Man (2018 video game)",
+                    "Big Hero 6: The Series Season 1 15",
+                    "Wolverine Season 1 1",
+                ]
+            ],
+            id="comic and media links",
+        ),
+        pytest.param(
+            "[[Morlocks (Earth-616)|Morlocks]], [[Morlocks (Earth-616)|Morlocks]]",
+            [("Morlocks (Earth-616)", "Morlocks")],
+            id="repeated link",
+        ),
+        pytest.param("[[#Notes|see notes]]", [], id="section of this page"),
+        pytest.param("[[{{PAGENAME}}#Notes|see notes]]", [], id="template in a target"),
+        pytest.param("[[File:Storm.jpg|thumb]][[Category:Mutants]]", [], id="no text"),
+        pytest.param("Storm<ref>[[Uncanny X-Men Vol 1 94]]</ref>", [], id="footnote"),
+        pytest.param("{{Power|Flight}} {{WP|Harlem}}", [], id="not a page link"),
+    ],
+)
+def test_a_field_links_to_the_pages_it_names(
+    wikitext: str, links: list[tuple[str, str]]
+) -> None:
+    record = parse_character(character_page(Affiliation=wikitext))
+
+    assert record is not None
+    assert record.links == tuple(Link("affiliation", *link) for link in links)
+
+
+def test_links_keep_the_field_they_are_in() -> None:
+    page = character_page(Name="[[Ororo Munroe]]", Affiliation="[[X-Men (Earth-616)]]")
+    record = parse_character(page)
+
+    assert record is not None
+    assert record.links == (
+        Link("name", "Ororo Munroe", "Ororo Munroe"),
+        Link("affiliation", "X-Men (Earth-616)", "X-Men (Earth-616)"),
+    )
 
 
 def test_name_comes_from_name_then_real_name_then_the_title() -> None:
