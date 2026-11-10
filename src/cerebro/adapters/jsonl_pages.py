@@ -6,10 +6,10 @@ from dataclasses import asdict
 from pathlib import Path
 
 from cerebro.domain.pages import Category, PageRef, RawPage
-from cerebro.ports.pages import PageStore
+from cerebro.ports.pages import PageReader, PageStore
 
 
-class JsonlPageStore(PageStore):
+class JsonlPageStore(PageStore, PageReader):
     """Raw pages in one folder, e.g. `characters.jsonl` and `characters-titles.json`.
 
     Pages are only ever appended, so an interrupted crawl resumes where it stopped.

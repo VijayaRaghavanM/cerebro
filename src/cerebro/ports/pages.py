@@ -1,7 +1,7 @@
-"""Where the crawler keeps raw pages between runs."""
+"""Raw pages between runs: where the crawler keeps them and where parsing reads them."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 
 from cerebro.domain.pages import Category, PageRef, RawPage
 
@@ -27,3 +27,11 @@ class PageStore(ABC):
     @abstractmethod
     def append(self, category: Category, pages: Iterable[RawPage]) -> None:
         """Save pages after the ones already saved, without rewriting those."""
+
+
+class PageReader(ABC):
+    """Saved raw pages, read back for parsing."""
+
+    @abstractmethod
+    def read(self, category: Category) -> Iterator[RawPage]:
+        """Every saved page in the category, one at a time, in the order saved."""

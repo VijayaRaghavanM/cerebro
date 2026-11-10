@@ -272,3 +272,7 @@ class Comic:
     stories: tuple[Story, ...]
     categories: tuple[str, ...]
     links: tuple[Link, ...]
+
+
+# A record of any kind, as parsing produces and the record store keeps them.
+type Record = Character | Team | Comic
