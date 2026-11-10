@@ -225,6 +225,32 @@ def test_every_text_template_shows_its_text() -> None:
             id="section headings",
         ),
         pytest.param("X-Men\n==\nMorlocks", "X-Men\n==\nMorlocks", id="bare = marks"),
+        pytest.param(
+            "Flight {{Navigation|title=''Former Powers''|body=* [[Mind|Telepathy]]}}",
+            "Flight\n### Former Powers\nTelepathy",
+            id="navigation box",
+        ),
+        pytest.param(
+            "{{Navigation|body=Telepathy}}", "Telepathy", id="navigation box, no title"
+        ),
+        pytest.param(
+            "{{Navigation|title=Former Powers}}", None, id="navigation box, no body"
+        ),
+        pytest.param(
+            "{{Quote|We are Venom.|Venom|Venom Vol 1 1}}",
+            'Venom: "We are Venom."',
+            id="quote",
+        ),
+        pytest.param(
+            "{{Quote|We are Venom.}}", '"We are Venom."', id="quote, no speaker"
+        ),
+        pytest.param("{{Quote}}", None, id="empty quote"),
+        pytest.param("{{g}}", None, id="empty tag"),
+        pytest.param(
+            "{{cl|Tarzan Vol 1 15|to=23}}, {{cl|Conan the Barbarian Vol 1 17|and=18}}",
+            "Tarzan Vol 1 15 to 23, Conan the Barbarian Vol 1 17 and 18",
+            id="issue ranges",
+        ),
     ],
 )
 def test_a_field_keeps_only_the_text_a_reader_sees(

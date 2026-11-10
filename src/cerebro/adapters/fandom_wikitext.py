@@ -9,13 +9,15 @@ The page's category links are kept apart from the text.
 import re
 
 import mwparserfromhell
-from mwparserfromhell.nodes import Template
+from mwparserfromhell.nodes import Template, Text
 from mwparserfromhell.wikicode import Wikicode
 
 from cerebro.adapters.fandom_templates import (
     CHARACTER_FIELDS,
     CHARACTER_TEMPLATE,
     FIXED_TEXT_TEMPLATES,
+    NAVIGATION_TEMPLATE,
+    QUOTE_TEMPLATE,
     TAG_TEMPLATE,
     TEXT_TEMPLATES,
 )
@@ -154,14 +156,62 @@ def _shown_text(template: Template) -> Wikicode | str | None:
     name = _normalise(str(template.name))
     if name in FIXED_TEXT_TEMPLATES:
         return FIXED_TEXT_TEMPLATES[name]
-    if name == TAG_TEMPLATE and template.has("1", ignore_empty=True):
-        tag = str(template.get("1").value).strip()
-        return f"({tag})"
+    if name == TAG_TEMPLATE:
+        tag = _param(template, "1")
+        return f"({tag})" if tag else None
+    if name == NAVIGATION_TEMPLATE:
+        return _navigation_text(template)
+    if name == QUOTE_TEMPLATE:
+        return _quote_text(template)
 
     for param in TEXT_TEMPLATES.get(name, ()):
         if template.has(param, ignore_empty=True):
-            return template.get(param).value
+            shown = template.get(param).value
+            issue_range = _issue_range(template)
+            return f"{shown}{issue_range}" if issue_range else shown
     return None
+
+
+def _navigation_text(template: Template) -> Wikicode | None:
+    """A box such as "Former Powers": its title as a heading over its body."""
+    if not template.has("body"):
+        return None
+    box = template.get("body").value
+    title = _param(template, "title")
+
+    # Plain text nodes, so the parser can't read the heading as a heading of its own:
+    # it stays text for _tidy to write as Markdown, like headings written in a field.
+    # The newlines put the box on lines of its own when it follows other text.
+    box.insert(0, Text(f"\n=== {title} ===\n" if title else "\n"))
+    box.append(Text("\n"))
+    return box
+
+
+def _quote_text(template: Template) -> str | None:
+    """A quote and its speaker. The source issue is a citation, so it's dropped."""
+    quote = _param(template, "1")
+    speaker = _param(template, "2")
+    if quote is None:
+        return None
+
+    return f'{speaker}: "{quote}"' if speaker else f'"{quote}"'
+
+
+def _issue_range(template: Template) -> str:
+    """What a comic link's range adds: " to 23" for to=23, " and 18" for and=18."""
+    issue_range = ""
+    if end := _param(template, "to"):
+        issue_range += f" to {end}"
+    if also := _param(template, "and"):
+        issue_range += f" and {also}"
+    return issue_range
+
+
+def _param(template: Template, name: str) -> str | None:
+    """A parameter's trimmed text, or None if it's missing or empty."""
+    if not template.has(name, ignore_empty=True):
+        return None
+    return str(template.get(name).value).strip()
 
 
 def _drop_non_text_links(value: Wikicode) -> None:

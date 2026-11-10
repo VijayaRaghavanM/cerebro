@@ -142,3 +142,9 @@ FIXED_TEXT_TEMPLATES = {
 # The general tag template, which names its own tag: {{g|Chronologically}} shows
 # "(Chronologically)".
 TAG_TEMPLATE = "G"
+
+# A collapsible box, such as "Former Powers": {{Navigation|title=...|body=...}}.
+NAVIGATION_TEMPLATE = "Navigation"
+
+# A quote, its speaker and the issue it comes from: {{Quote|...|Venom|Venom Vol 1 1}}.
+QUOTE_TEMPLATE = "Quote"
