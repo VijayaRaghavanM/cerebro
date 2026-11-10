@@ -22,6 +22,45 @@ WIKI_FIELDS = """
     First2 Creators History Personality Overview Notes Trivia
 """.split()
 
+# One call of each template that shows text, and the text the wiki shows for it. Like
+# WIKI_FIELDS, the list is kept apart from the parser's table, so a dropped or
+# mistyped row shows.
+TEXT_TEMPLATE_CALLS = [
+    ("{{m|X-Men (Earth-616)|X-Men}}", "X-Men"),
+    ("{{DC|Kent Nelson (New Earth)|Doctor Fate}}", "Doctor Fate"),
+    (
+        "{{wc|heykidscomics|Amazing Man Comics Vol 1 5|Amazing Man #5}}",
+        "Amazing Man #5",
+    ),
+    ("{{Doctor Who|Robot (TV story)|Robot}}", "Robot"),
+    ("{{Image Wiki|Spawn (Al Simmons)|Spawn}}", "Spawn"),
+    ("{{lovecraft|Azathoth|the Blind Idiot God}}", "the Blind Idiot God"),
+    ("{{Star Wars|Anakin Skywalker|Darth Vader}}", "Darth Vader"),
+    ("{{Star Trek|James T. Kirk|Captain Kirk}}", "Captain Kirk"),
+    ("{{WP|Harlem, New York|Harlem}}", "Harlem"),
+    ("{{Wikipedia|New York City|New York}}", "New York"),
+    ("{{Appendix|Appendix/earthavataars.htm|Eurth Hawkeye}}", "Eurth Hawkeye"),
+    ("{{cl|Tarzan Vol 1 15|Tarzan #15}}", "Tarzan #15"),
+    ("{{c|Hulk: Gray Vol 1 1|Hulk: Gray #1}}", "Hulk: Gray #1"),
+    ("{{sld|She-Hulk Vol 2 25|She-Hulk #25}}", "She-Hulk #25"),
+    ("{{Cid|Renew Your Vows Vol 1 5}}", "Renew Your Vows Vol 1 5"),
+    ("{{sl|Kull the Conqueror Vol 1 4|previous issue}}", "previous issue"),
+    ("{{ml|X2 (film)|X2}}", "X2"),
+    ("{{vl|Spider-Man (2018 video game)|Spider-Man}}", "Spider-Man"),
+    ("{{elt|Big Hero 6: The Series Season 1 15|Fan Friction}}", "Fan Friction"),
+    (
+        "{{el|X-Men: The Animated Series Season 1 1|Night of the Sentinels}}",
+        "Night of the Sentinels",
+    ),
+    ("{{Power|Weather Manipulation}}", "Weather Manipulation"),
+    ("{{Ability|Martial Arts}}", "Martial Arts"),
+    ("{{Weakness|Claustrophobia|claustrophobic}}", "claustrophobic"),
+    ("{{Speaker|English}}", "English"),
+    ("{{CategoryLink|Mutants|mutant}}", "mutant"),
+    ("{{MessageBox|Message=Gabriel's memories}}", "Gabriel's memories"),
+    ("{{g|Mentioned}}", "Mentioned"),
+]
+
 
 def real_page() -> RawPage:
     """Daniel Berkhart (Earth-616), saved from the crawl. It fills 33 of the fields."""
@@ -116,6 +155,16 @@ def test_every_template_field_lands_in_exactly_one_record_field() -> None:
     assert sorted(texts) == sorted(WIKI_FIELDS)
 
 
+def test_every_text_template_shows_its_text() -> None:
+    calls = [call for call, _ in TEXT_TEMPLATE_CALLS]
+    shown = [text for _, text in TEXT_TEMPLATE_CALLS]
+
+    record = parse_character(character_page(Affiliation="\n".join(calls)))
+
+    assert record is not None
+    assert record.affiliation == "\n".join(shown)
+
+
 # Each rule below is shown on the smallest page that needs it.
 
 
@@ -131,9 +180,6 @@ def test_every_template_field_lands_in_exactly_one_record_field() -> None:
             "{{m|Storm (Earth-616)|}}",
             "Storm (Earth-616)",
             id="link with an empty name",
-        ),
-        pytest.param(
-            "{{cl|Uncanny X-Men Vol 1 94}}", "Uncanny X-Men Vol 1 94", id="comic link"
         ),
         pytest.param("{{r|Uncanny X-Men Vol 1 94}}", None, id="only a citation"),
         pytest.param("Storm<ref>A<ref>B</ref></ref>", "Storm", id="nested footnotes"),

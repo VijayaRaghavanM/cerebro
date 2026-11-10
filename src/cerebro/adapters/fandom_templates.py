@@ -95,13 +95,29 @@ TEXT_TEMPLATES = {
     "M": ("2", "1"),
     "DC": ("2", "1"),
     "Wc": ("3", "2"),  # {{wc|other wiki|Page|Shown name}}
-    "Cl": ("1",),  # comic
-    "Sld": ("1",),  # comic
-    "Sl": ("1",),  # film or TV series
-    "Ml": ("1",),  # film or TV series
-    "Vl": ("1",),  # video game
-    "Elt": ("1",),  # episode
+    # Links to other wikis, for characters from licensed and crossover comics
+    "Doctor Who": ("2", "1"),
+    "Image Wiki": ("2", "1"),
+    "Lovecraft": ("2", "1"),
+    "Star Wars": ("2", "1"),
+    "Star Trek": ("2", "1"),
+    "WP": ("2", "1"),  # redirects to Wikipedia
+    "Wikipedia": ("2", "1"),
+    "Appendix": ("2", "1"),
+    "Cl": ("2", "1"),  # comic
+    "C": ("2", "1"),  # comic, redirects to Cl
+    "Sld": ("2", "1"),  # comic
+    "Cid": ("1",),  # comic, which the wiki shows as its date and story title
+    "Sl": ("2", "1"),  # film or TV series
+    "Ml": ("2", "1"),  # film or TV series
+    "Vl": ("2", "1"),  # video game
+    "Elt": ("2", "1"),  # episode
+    "El": ("2", "1"),  # episode
     "Power": ("1",),
     "Ability": ("1",),
+    "Weakness": ("2", "1"),
+    "Speaker": ("2", "1"),  # a language
+    "CategoryLink": ("2", "1"),
+    "MessageBox": ("1", "Message"),
     "G": ("1",),  # a tag, such as {{g|Mentioned}}
 }
