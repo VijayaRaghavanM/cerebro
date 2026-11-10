@@ -2,15 +2,15 @@
 
 import json
 import sqlite3
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from contextlib import closing
 from dataclasses import fields, is_dataclass
 from pathlib import Path
 from typing import Any
 
 from cerebro.domain.pages import Category
-from cerebro.domain.records import Comic, Link, Record
-from cerebro.ports.records import RecordStore
+from cerebro.domain.records import Character, Comic, Link, Record
+from cerebro.ports.records import RecordReader, RecordStore
 
 SHARED_TABLES = [
     "CREATE TABLE IF NOT EXISTS links "
@@ -26,7 +26,7 @@ SHARED_TABLES = [
 ROW_FIELDS_LEFT_OUT = {"links", "categories", "stories"}
 
 
-class SqliteRecordStore(RecordStore):
+class SqliteRecordStore(RecordStore, RecordReader):
     """Records in one SQLite file.
 
     Each category has a table named after it, with a column per record field, and a
@@ -38,6 +38,8 @@ class SqliteRecordStore(RecordStore):
 
     def __init__(self, path: Path) -> None:
         self.path = path
+
+    # Writing: a whole category at a time.
 
     def replace(self, category: Category, records: Iterable[Record]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -54,6 +56,20 @@ class SqliteRecordStore(RecordStore):
                 created: set[str] = set()
                 for record in records:
                     self._insert(db, category, record, created)
+
+    # Reading: one record at a time, so a category is never held in memory whole.
+
+    def characters(self) -> Iterator[Character]:
+        with closing(sqlite3.connect(self.path)) as db:
+            db.row_factory = sqlite3.Row
+            for row in db.execute("SELECT * FROM characters ORDER BY pageid"):
+                yield Character(
+                    **dict(row),
+                    categories=_categories_of(db, "characters", row["pageid"]),
+                    links=_links_of(db, "characters", row["pageid"]),
+                )
+
+    # Writing, step by step.
 
     def _clear(self, db: sqlite3.Connection, category: Category) -> None:
         # Dropped, not emptied, so a table follows the record type when fields change.
@@ -136,3 +152,20 @@ def _insert_links(
         "INSERT INTO links VALUES (?, ?, ?, ?, ?, ?)",
         [(kind, pageid, story, link.field, link.title, link.text) for link in links],
     )
+
+
+def _categories_of(db: sqlite3.Connection, kind: str, pageid: int) -> tuple[str, ...]:
+    rows = db.execute(
+        "SELECT name FROM categories WHERE kind = ? AND pageid = ? ORDER BY rowid",
+        (kind, pageid),
+    )
+    return tuple(name for (name,) in rows)
+
+
+def _links_of(db: sqlite3.Connection, kind: str, pageid: int) -> tuple[Link, ...]:
+    rows = db.execute(
+        "SELECT field, title, text FROM links"
+        " WHERE kind = ? AND pageid = ? AND story IS NULL ORDER BY rowid",
+        (kind, pageid),
+    )
+    return tuple(Link(field, title, text) for field, title, text in rows)

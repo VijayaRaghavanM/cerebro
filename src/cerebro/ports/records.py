@@ -1,10 +1,10 @@
-"""What parsing needs: a way to read records from pages, and a place to keep them."""
+"""Records: reading them from pages, keeping them, and reading them back."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 
 from cerebro.domain.pages import Category, RawPage
-from cerebro.domain.records import Record
+from cerebro.domain.records import Character, Record
 
 
 class RecordParser(ABC):
@@ -24,3 +24,11 @@ class RecordStore(ABC):
 
         A run that fails partway leaves the category's previous records in place.
         """
+
+
+class RecordReader(ABC):
+    """Stored records, read back."""
+
+    @abstractmethod
+    def characters(self) -> Iterator[Character]:
+        """Every stored character, with its categories and links, one at a time."""

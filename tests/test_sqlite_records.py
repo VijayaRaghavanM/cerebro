@@ -1,6 +1,7 @@
 import json
 import sqlite3
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -110,3 +111,20 @@ def test_a_failed_run_keeps_the_previous_records(tmp_path: Path) -> None:
     path = store.path
     assert rows(path, "SELECT name FROM characters") == [("Daniel Berkhart",)]
     assert len(rows(path, "SELECT * FROM links")) == len(character().links)
+
+
+def test_characters_read_back_as_they_were_stored(tmp_path: Path) -> None:
+    store = SqliteRecordStore(tmp_path / "records.sqlite")
+    berkhart = character()
+    # Another character with a lower page id, one of the links and no categories.
+    other = replace(
+        berkhart,
+        pageid=1,
+        title="Someone (Earth-616)",
+        categories=(),
+        links=berkhart.links[:1],
+    )
+
+    store.replace(Category.CHARACTERS, [berkhart, other])
+
+    assert list(store.characters()) == [other, berkhart]
