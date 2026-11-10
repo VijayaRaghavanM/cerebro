@@ -11,7 +11,7 @@ A research agent that answers questions about Marvel characters, teams and comic
 
 The agent searches a local copy of the Marvel Database wiki and Comic Vine, calls tools to look things up, and cites the record behind every claim. The evaluation suite runs a fixed set of hand-checked questions against several models and reports correctness, grounding, refusals, latency and cost per solved question.
 
-Status: early. The wiki crawler runs; the agent does not exist yet.
+Status: early. The wiki crawler and parser run; the agent does not exist yet.
 
 ## Development
 
@@ -24,6 +24,7 @@ uv run pytest -m live        # check API keys against the real services
 uv run ruff check            # lint
 uv run ruff format           # format
 uv run cerebro crawl fandom  # download raw wiki pages; safe to rerun
+uv run cerebro parse fandom  # turn them into records in data/records.sqlite
 ```
 
 ## Data and credits
