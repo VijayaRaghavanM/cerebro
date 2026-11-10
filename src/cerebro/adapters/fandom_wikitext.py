@@ -1,6 +1,6 @@
 """Turns Marvel Database wikitext into records.
 
-A character page is one call of the character template. Its fields hold wikitext:
+A character or team page is one call of its template. Its fields hold wikitext:
 links, footnotes, citations and the wiki's own link templates. The parser keeps the
 text a reader would see, writes section headings as Markdown, and drops the rest.
 The categories the page is filed under are kept apart from the text, and so are the
@@ -23,10 +23,12 @@ from cerebro.adapters.fandom_templates import (
     PAGE_LINK_TEMPLATES,
     QUOTE_TEMPLATE,
     TAG_TEMPLATE,
+    TEAM_FIELDS,
+    TEAM_TEMPLATE,
     TEXT_TEMPLATES,
 )
 from cerebro.domain.pages import RawPage
-from cerebro.domain.records import Character, Link
+from cerebro.domain.records import Character, Link, Team
 
 # Links that aren't prose: an image link's text is its layout options and caption
 # ("thumb|left|..."), and a category link shows nothing. A leading colon, as in
@@ -64,6 +66,36 @@ def parse_character(page: RawPage) -> Character | None:
     )
 
     return Character(
+        pageid=page.pageid,
+        title=page.title,
+        revid=page.revid,
+        name=name,
+        categories=categories,
+        links=links,
+        **texts,
+    )
+
+
+def parse_team(page: RawPage) -> Team | None:
+    """The team on the page, or None if the page has no team template."""
+    code = _parse(page.wikitext)
+    template = _find_template(code, TEAM_TEMPLATE)
+    if template is None:
+        return None
+
+    # Before the fields are cleaned, which removes the category links, power templates
+    # and links inside them.
+    categories = _categories(code)
+    links = _links(template, TEAM_FIELDS, page.title)
+
+    texts = {field: _field_text(template, wiki) for field, wiki in TEAM_FIELDS.items()}
+    name = (
+        _field_text(template, "Name")
+        or _field_text(template, "OfficialName")
+        or REALITY_SUFFIX.sub("", page.title)
+    )
+
+    return Team(
         pageid=page.pageid,
         title=page.title,
         revid=page.revid,

@@ -123,3 +123,69 @@ class Character:
 
     categories: tuple[str, ...]
     links: tuple[Link, ...]
+
+
+@dataclass(frozen=True)
+class Team:
+    """One team page.
+
+    Text fields, `_note` fields, `categories` and `links` work as they do in
+    `Character`.
+    """
+
+    pageid: int
+    title: str
+    revid: int
+
+    # Names
+    name: str
+    name_note: str | None
+    display_name: str | None  # the name as the page heads its infobox
+    editorial_names: str | None
+    aliases: str | None
+
+    # Members
+    leaders: str | None
+    current_members: str | None
+    former_members: str | None
+
+    # Identity
+    identity: str | None
+    identity_note: str | None
+    affiliation: str | None
+    allies: str | None
+    enemies: str | None
+
+    # Origin and status
+    origin: str | None
+    status: str | None
+    reality: str | None
+    reality_note: str | None
+    base_of_operations: str | None
+    place_of_formation: str | None
+    place_of_dissolution: str | None
+
+    # Paraphernalia
+    equipment: str | None
+    weapons: str | None
+    transportation: str | None
+
+    # Publication
+    creators: str | None
+    first_appearance: str | None
+    first_appearance_note: str | None
+    last_appearance: str | None
+    last_appearance_note: str | None
+    death: str | None  # the issue the team ended in, shown as its last appearance
+    death_note: str | None
+    destruction: str | None  # the same, under the name item and place pages use
+    destruction_note: str | None
+
+    # Prose
+    overview: str | None
+    history: str | None
+    notes: str | None
+    trivia: str | None
+
+    categories: tuple[str, ...]
+    links: tuple[Link, ...]

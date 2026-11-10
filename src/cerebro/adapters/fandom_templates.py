@@ -86,6 +86,55 @@ CHARACTER_FIELDS = {
     "trivia": "Trivia",
 }
 
+TEAM_TEMPLATE = "Marvel Database:Team Template"
+
+# Each Team text field and the template field it comes from. `name` is read on its
+# own, because it falls back to other fields.
+TEAM_FIELDS = {
+    # Names
+    "name_note": "Name2",
+    "display_name": "Title",
+    "editorial_names": "EditorialNames",
+    "aliases": "Aliases",
+    # Members
+    "leaders": "Leaders",
+    "current_members": "CurrentMembers",
+    "former_members": "FormerMembers",
+    # Identity
+    "identity": "Identity",
+    "identity_note": "Identity2",
+    "affiliation": "Affiliation",
+    "allies": "Allies",
+    "enemies": "Enemies",
+    # Origin and status
+    "origin": "Origin",
+    "status": "Status",
+    "reality": "Reality",
+    "reality_note": "Reality2",
+    "base_of_operations": "BaseOfOperations",
+    "place_of_formation": "PlaceOfFormation",
+    "place_of_dissolution": "PlaceOfDissolution",
+    # Paraphernalia
+    "equipment": "Equipment",
+    "weapons": "Weapons",
+    "transportation": "Transportation",
+    # Publication
+    "creators": "Creators",
+    "first_appearance": "First",
+    "first_appearance_note": "First2",
+    "last_appearance": "Last",
+    "last_appearance_note": "Last2",
+    "death": "Death",
+    "death_note": "Death2",
+    "destruction": "Destruction",
+    "destruction_note": "Destruction2",
+    # Prose
+    "overview": "Overview",
+    "history": "History",
+    "notes": "Notes",
+    "trivia": "Trivia",
+}
+
 # Templates that show text, by page name, with the parameters that may hold it.
 # The first one with a value wins: {{m|Page (Earth-616)|Shown name}} shows
 # "Shown name", and {{m|Page (Earth-616)}} shows the page. Page names start with a
