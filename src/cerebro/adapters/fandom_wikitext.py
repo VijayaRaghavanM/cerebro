@@ -310,10 +310,11 @@ def _navigation_text(template: Template) -> Wikicode | None:
     if not template.has("body"):
         return None
     box = template.get("body").value
-    title = _param(template, "title")
+    title = _clean(template.get("title").value) if template.has("title") else None
 
     # Plain text nodes, so the parser can't read the heading as a heading of its own:
     # it stays text for _tidy to write as Markdown, like headings written in a field.
+    # That is also why the title is cleaned first: nothing reads the heading again.
     # The newlines put the box on lines of its own when it follows other text.
     box.insert(0, Text(f"\n=== {title} ===\n" if title else "\n"))
     box.append(Text("\n"))

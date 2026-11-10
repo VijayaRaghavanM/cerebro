@@ -235,6 +235,11 @@ def test_every_text_template_shows_its_text() -> None:
             id="navigation box",
         ),
         pytest.param(
+            "{{Navigation|title=<br>[[Smasher]]s{{r|X-Men Vol 1 107}}|body=Smasher-7}}",
+            "### Smashers\nSmasher-7",
+            id="navigation box, markup in the title",
+        ),
+        pytest.param(
             "{{Navigation|body=Telepathy}}", "Telepathy", id="navigation box, no title"
         ),
         pytest.param(
