@@ -52,8 +52,11 @@ TEXT_TEMPLATE_CALLS = [
         "{{el|X-Men: The Animated Series Season 1 1|Night of the Sentinels}}",
         "Night of the Sentinels",
     ),
-    ("{{Power|Weather Manipulation}}", "Weather Manipulation"),
-    ("{{Ability|Martial Arts}}", "Martial Arts"),
+    (
+        "{{Power|Electricity Generation|Lightning Bolt Projection}}",
+        "Lightning Bolt Projection",
+    ),
+    ("{{Ability|Martial Arts|Master Martial Artist}}", "Master Martial Artist"),
     ("{{Weakness|Claustrophobia|claustrophobic}}", "claustrophobic"),
     ("{{Speaker|English}}", "English"),
     ("{{CategoryLink|Mutants|mutant}}", "mutant"),
@@ -267,22 +270,28 @@ def test_collects_the_categories_and_keeps_them_out_of_the_text() -> None:
         "{{Marvel Database:Character Template",
         "| Reality = Earth-616[[Category:Characters Displaced to Earth-616]]",
         "| Affiliation = [[:Category:Black Skin|black]]",
+        "| Powers = {{Power|Weather Manipulation|weather control}}"
+        " and {{Ability|Combat: Martial Arts}}",
         "}}",
         "[[Category:Time Travelers]]",
         "[[Category:Shared Identities: Successors|Storm]]",
         "[[Category:Time_Travelers]]",
         "[[CATEGORY:Armor Users]]",
+        "[[Category:Combat: Martial Arts]]",
     ]
     record = parse_character(wiki_page("\n".join(lines)))
 
     assert record is not None
     assert record.categories == (
         "Characters Displaced to Earth-616",
+        "Weather Manipulation",
+        "Combat: Martial Arts",
         "Time Travelers",
         "Shared Identities: Successors",
         "Armor Users",
     )
     assert record.reality == "Earth-616"
+    assert record.powers == "weather control and Combat: Martial Arts"
     # The leading colon makes it a visible link to the category, not a category.
     assert record.affiliation == "black"
 

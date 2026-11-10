@@ -113,8 +113,8 @@ TEXT_TEMPLATES = {
     "Vl": ("2", "1"),  # video game
     "Elt": ("2", "1"),  # episode
     "El": ("2", "1"),  # episode
-    "Power": ("1",),
-    "Ability": ("1",),
+    "Power": ("2", "1"),
+    "Ability": ("2", "1"),
     "Weakness": ("2", "1"),
     "Speaker": ("2", "1"),  # a language
     "CategoryLink": ("2", "1"),
@@ -148,3 +148,7 @@ NAVIGATION_TEMPLATE = "Navigation"
 
 # A quote, its speaker and the issue it comes from: {{Quote|...|Venom|Venom Vol 1 1}}.
 QUOTE_TEMPLATE = "Quote"
+
+# Templates that file the page under the category named in their first parameter:
+# {{Power|Flight|flying}} shows "flying" and files the page under Flight.
+CATEGORY_TEMPLATES = {"Power", "Ability"}

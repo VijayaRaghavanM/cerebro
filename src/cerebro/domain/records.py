@@ -11,9 +11,10 @@ class Character:
     into sections, the headings are Markdown: `### Early Life`. A `_note` field
     qualifies the field before it: `death_note` can be `(Off-Panel)`.
 
-    `categories` holds the categories written on the page, such as `Time Travelers`.
-    It is a tuple because each entry is its own tag; list fields such as `aliases`
-    keep the wiki's own layout, usually one entry per line.
+    `categories` holds the categories the page is filed under: those written on it,
+    such as `Time Travelers`, and those its powers and abilities name, such as
+    `Flight`. It is a tuple because each entry is its own tag; list fields such as
+    `aliases` keep the wiki's own layout, usually one entry per line.
     """
 
     pageid: int

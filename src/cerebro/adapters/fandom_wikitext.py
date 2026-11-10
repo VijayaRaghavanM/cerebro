@@ -3,16 +3,17 @@
 A character page is one call of the character template. Its fields hold wikitext:
 links, footnotes, citations and the wiki's own link templates. The parser keeps the
 text a reader would see, writes section headings as Markdown, and drops the rest.
-The page's category links are kept apart from the text.
+The categories the page is filed under are kept apart from the text.
 """
 
 import re
 
 import mwparserfromhell
-from mwparserfromhell.nodes import Template, Text
+from mwparserfromhell.nodes import Node, Template, Text, Wikilink
 from mwparserfromhell.wikicode import Wikicode
 
 from cerebro.adapters.fandom_templates import (
+    CATEGORY_TEMPLATES,
     CHARACTER_FIELDS,
     CHARACTER_TEMPLATE,
     FIXED_TEXT_TEMPLATES,
@@ -45,7 +46,8 @@ def parse_character(page: RawPage) -> Character | None:
     if template is None:
         return None
 
-    # Before the fields are cleaned, which removes the category links inside them.
+    # Before the fields are cleaned, which removes the category links and the power
+    # templates inside them.
     categories = _categories(code)
 
     texts = {
@@ -95,14 +97,32 @@ def _normalise(name: str) -> str:
 
 
 def _categories(code: Wikicode) -> tuple[str, ...]:
-    """Every category the page links to, once each, in page order."""
+    """Every category the page is filed under, once each, in page order."""
     names = []
-    for link in code.filter_wikilinks():
-        # The title is the category; a sort key after the | only orders its listing.
-        title = _normalise(str(link.title))
-        if title.lower().startswith("category:"):
-            names.append(title[len("category:") :])
+    for node in code.filter():
+        name = _category(node)
+        if name:
+            names.append(name)
     return tuple(dict.fromkeys(names))
+
+
+def _category(node: Node) -> str | None:
+    """The category a link or a template files the page under, or None."""
+    if isinstance(node, Wikilink):
+        # The title is the category; a sort key after the | only orders its listing.
+        title = _normalise(str(node.title))
+    elif (
+        isinstance(node, Template) and _normalise(str(node.name)) in CATEGORY_TEMPLATES
+    ):
+        # Named as a category link would be, so a power and a link to its category
+        # come out the same.
+        title = _normalise(f"Category:{_param(node, '1') or ''}")
+    else:
+        return None
+
+    if not title.lower().startswith("category:"):
+        return None
+    return title[len("category:") :]
 
 
 def _field_text(template: Template, field: str) -> str | None:
