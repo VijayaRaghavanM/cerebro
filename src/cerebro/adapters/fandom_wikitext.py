@@ -133,7 +133,14 @@ def _field_text(template: Template, field: str) -> str | None:
     if not template.has(field):
         return None
 
-    value = template.get(field).value
+    return _clean(template.get(field).value)
+
+
+def _clean(value: Wikicode) -> str | None:
+    """The text a reader sees in the wikitext, or None if there is none.
+
+    Cleaning edits the wikitext in place.
+    """
     _drop_footnotes(value)
     _show_text_templates(value)
     _drop_non_text_links(value)
