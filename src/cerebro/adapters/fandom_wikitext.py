@@ -18,11 +18,11 @@ from cerebro.adapters.fandom_templates import (
     CHARACTER_FIELDS,
     CHARACTER_TEMPLATE,
     FIXED_TEXT_TEMPLATES,
+    MEMBER_OF_TEMPLATE,
     NAVIGATION_TEMPLATE,
     PAGE_LINK_TEMPLATES,
     QUOTE_TEMPLATE,
     TAG_TEMPLATE,
-    TEAM_TEMPLATE,
     TEXT_TEMPLATES,
 )
 from cerebro.domain.pages import RawPage
@@ -171,7 +171,7 @@ def _link(node: Node, field: str, page_title: str) -> Link | None:
         isinstance(node, Template) and _normalise(str(node.name)) in PAGE_LINK_TEMPLATES
     ):
         target = _param(node, "1") or ""
-        if _normalise(str(node.name)) == TEAM_TEMPLATE:
+        if _normalise(str(node.name)) == MEMBER_OF_TEMPLATE:
             target = _in_reality(target, page_title)
     else:
         return None

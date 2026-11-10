@@ -153,9 +153,9 @@ QUOTE_TEMPLATE = "Quote"
 # {{cl|Uncanny X-Men Vol 1 94}} links to that comic.
 PAGE_LINK_TEMPLATES = {"M", "Cl", "C", "Sld", "Sl", "Ml", "Vl", "Elt", "El"}
 
-# The team template, which links to the team in the page's own reality when it names
-# none: {{m|X-Men}} on Storm (Earth-616) links to X-Men (Earth-616).
-TEAM_TEMPLATE = "M"
+# The "Member of" template, which links to a team in the page's own reality when it
+# names none: {{m|X-Men}} on Storm (Earth-616) links to X-Men (Earth-616).
+MEMBER_OF_TEMPLATE = "M"
 
 # Templates that file the page under the category named in their first parameter:
 # {{Power|Flight|flying}} shows "flying" and files the page under Flight.
