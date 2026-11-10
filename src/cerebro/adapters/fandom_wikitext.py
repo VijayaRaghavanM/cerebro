@@ -55,7 +55,7 @@ def parse_character(page: RawPage) -> Character | None:
     # Before the fields are cleaned, which removes the category links, power templates
     # and links inside them.
     categories = _categories(code)
-    links = _links(template, CHARACTER_FIELDS, page.title)
+    links = _links(template, {"name": "Name", **CHARACTER_FIELDS}, page.title)
 
     texts = {
         field: _field_text(template, wiki) for field, wiki in CHARACTER_FIELDS.items()
@@ -87,7 +87,7 @@ def parse_team(page: RawPage) -> Team | None:
     # Before the fields are cleaned, which removes the category links, power templates
     # and links inside them.
     categories = _categories(code)
-    links = _links(template, TEAM_FIELDS, page.title)
+    links = _links(template, {"name": "Name", **TEAM_FIELDS}, page.title)
 
     texts = {field: _field_text(template, wiki) for field, wiki in TEAM_FIELDS.items()}
     name = (
@@ -174,13 +174,13 @@ def _category(node: Node) -> str | None:
 def _links(
     template: Template, fields: dict[str, str], page_title: str
 ) -> tuple[Link, ...]:
-    """Every link in the name and the text fields, in field and page order, once each.
+    """Every link in the fields, in field and page order, once each.
 
     `fields` maps each record field to its template field, as `CHARACTER_FIELDS` does.
     """
     links = [
         link
-        for field, wiki in {"name": "Name", **fields}.items()
+        for field, wiki in fields.items()
         for link in _field_links(template, field, wiki, page_title)
     ]
     return tuple(dict.fromkeys(links))
