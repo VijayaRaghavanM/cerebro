@@ -135,6 +135,82 @@ TEAM_FIELDS = {
     "trivia": "Trivia",
 }
 
+COMIC_TEMPLATE = "Marvel Database:Comic Template"
+
+# Each Comic text field and the template field it comes from.
+COMIC_FIELDS = {
+    # Dates; month and year are the cover date
+    "release_date": "ReleaseDate",
+    "month": "Month",
+    "year": "Year",
+    # Publication
+    "editor_in_chief": "Editor-in-Chief",
+    "pages": "Pages",
+    "original_price": "OriginalPrice",
+    "rating": "Rating",
+    "isbn": "ISBN",
+    "issn": "ISSN",
+    "upc": "UPC",
+    "legacy_number": "LegacyNumber",
+    "canceled": "Canceled",
+    "previous_issue": "PreviousIssue",
+    "next_issue": "NextIssue",
+    # Prose
+    "solicit": "Solicit",
+    "notes": "Notes",
+    "trivia": "Trivia",
+    "accolades": "Accolades",
+}
+
+# The numbered fields each Comic list comes from: Event1, Event2, ...
+EVENT_FIELDS = r"Event(\d+)"
+STORY_ARC_FIELDS = r"StoryArc(\d+)"
+STORYLINE_FIELDS = r"Storyline(\d+)"
+TIE_IN_FIELDS = r"Tie-in(\d+)"
+
+# The fields naming a cover's artists, numbered by cover and then by artist:
+# Image2_Artist1 is the second cover's first artist.
+COVER_ARTIST_FIELDS = r"Image(\d+)_Artist(\d+)"
+
+# Each Story text field and the template field it comes from, numbered by story:
+# StoryTitle2 is the second story's title.
+STORY_FIELDS = {
+    "title": "StoryTitle",
+    "synopsis": "Synopsis",
+    "appearing": "Appearing",
+    "reprint_of": "ReprintOf",
+    "reprint_of_story": "ReprintOfStory",
+}
+
+# Each Credits field and the template fields it comes from, numbered by story and
+# then by person: Writer2_1 is the second story's first writer.
+STORY_CREDITS = {
+    "writers": "Writer",
+    "pencilers": "Penciler",
+    "inkers": "Inker",
+    "colorists": "Colorist",
+    "letterers": "Letterer",
+    "editors": "Editor",
+    "adapted_from": "AdaptedFrom",
+}
+
+# Translators, numbered like credits, and the credit the wiki lists them under.
+TRANSLATION_CREDITS = {"Translator": "writers", "TranslatorLetterer": "letterers"}
+
+# The section labels the template fills a new story's cast list with. A cast list with
+# nothing but these, empty list items and blank lines is empty.
+CAST_LIST_LABELS = (
+    "Featured Characters",
+    "Supporting Characters",
+    "Antagonists",
+    "Other Characters",
+    "Races and Species",
+    "Realities",
+    "Locations",
+    "Items",
+    "Vehicles",
+)
+
 # Templates that show text, by page name, with the parameters that may hold it.
 # The first one with a value wins: {{m|Page (Earth-616)|Shown name}} shows
 # "Shown name", and {{m|Page (Earth-616)}} shows the page. Page names start with a

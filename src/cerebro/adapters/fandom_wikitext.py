@@ -1,6 +1,6 @@
 """Turns Marvel Database wikitext into records.
 
-A character or team page is one call of its template. Its fields hold wikitext:
+A character, team or comic page is one call of its template. Its fields hold wikitext:
 links, footnotes, citations and the wiki's own link templates. The parser keeps the
 text a reader would see, writes section headings as Markdown, and drops the rest.
 The categories the page is filed under are kept apart from the text, and so are the
@@ -8,6 +8,7 @@ pages its fields link to.
 """
 
 import re
+from dataclasses import astuple
 
 import mwparserfromhell
 from mwparserfromhell.nodes import Node, Template, Text, Wikilink
@@ -15,21 +16,32 @@ from mwparserfromhell.wikicode import Wikicode
 
 from cerebro.adapters.fandom_templates import (
     APPEARANCE_TAGS,
+    CAST_LIST_LABELS,
     CATEGORY_TEMPLATES,
     CHARACTER_FIELDS,
     CHARACTER_TEMPLATE,
+    COMIC_FIELDS,
+    COMIC_TEMPLATE,
+    COVER_ARTIST_FIELDS,
+    EVENT_FIELDS,
     FIXED_TEXT_TEMPLATES,
     MEMBER_OF_TEMPLATE,
     NAMING_TAGS,
     NAVIGATION_TEMPLATE,
     PAGE_LINK_TEMPLATES,
     QUOTE_TEMPLATE,
+    STORY_ARC_FIELDS,
+    STORY_CREDITS,
+    STORY_FIELDS,
+    STORYLINE_FIELDS,
     TEAM_FIELDS,
     TEAM_TEMPLATE,
     TEXT_TEMPLATES,
+    TIE_IN_FIELDS,
+    TRANSLATION_CREDITS,
 )
 from cerebro.domain.pages import RawPage
-from cerebro.domain.records import Character, Link, Team
+from cerebro.domain.records import Character, Comic, Credits, Link, Story, Team
 
 # Links that aren't prose: an image link's text is its layout options and caption
 # ("thumb|left|..."), and a category link shows nothing. A leading colon, as in
@@ -101,6 +113,38 @@ def parse_team(page: RawPage) -> Team | None:
         title=page.title,
         revid=page.revid,
         name=name,
+        categories=categories,
+        links=links,
+        **texts,
+    )
+
+
+def parse_comic(page: RawPage) -> Comic | None:
+    """The comic on the page, or None if the page has no comic template."""
+    code = _parse(page.wikitext)
+    template = _find_template(code, COMIC_TEMPLATE)
+    if template is None:
+        return None
+
+    # Before the fields are cleaned, which removes the category links, power templates
+    # and links inside them. Each story reads its own links before its fields too.
+    categories = _categories(code)
+    links = _links(template, COMIC_FIELDS, page.title)
+    stories = _stories(template, page.title)
+
+    texts = {field: _field_text(template, wiki) for field, wiki in COMIC_FIELDS.items()}
+    cover_artists = tuple(dict.fromkeys(_numbered(template, COVER_ARTIST_FIELDS)))
+
+    return Comic(
+        pageid=page.pageid,
+        title=page.title,
+        revid=page.revid,
+        cover_artists=cover_artists,
+        events=_numbered(template, EVENT_FIELDS),
+        story_arcs=_numbered(template, STORY_ARC_FIELDS),
+        storylines=_numbered(template, STORYLINE_FIELDS),
+        tie_ins=_numbered(template, TIE_IN_FIELDS),
+        stories=stories,
         categories=categories,
         links=links,
         **texts,
@@ -230,6 +274,79 @@ def _in_reality(team: str, page_title: str) -> str:
         return team
 
     return f"{team} {reality.group().strip()}"
+
+
+def _stories(template: Template, page_title: str) -> tuple[Story, ...]:
+    """The stories the page fills, in number order.
+
+    The wiki stops at the first number with nothing in it; a story after a gap is kept
+    here, so its credits and cast aren't lost.
+    """
+    prefixes = [*STORY_FIELDS.values(), *STORY_CREDITS.values(), *TRANSLATION_CREDITS]
+    pattern = rf"(?:{'|'.join(map(re.escape, prefixes))})(\d+)(?:_\d+)?"
+    numbers = set()
+    for param in template.params:
+        match = re.fullmatch(pattern, str(param.name).strip())
+        if match:
+            numbers.add(int(match.group(1)))
+
+    stories = [_story(template, number, page_title) for number in sorted(numbers)]
+    return tuple(story for story in stories if _has_content(story))
+
+
+def _story(template: Template, number: int, page_title: str) -> Story:
+    """Story `number` of the page, with its links read before its fields are cleaned."""
+    story_fields = {field: f"{wiki}{number}" for field, wiki in STORY_FIELDS.items()}
+    links = _links(template, story_fields, page_title)
+
+    texts = {field: _field_text(template, wiki) for field, wiki in story_fields.items()}
+    cast = texts["appearing"]
+    if cast is not None and _is_empty_cast_list(cast):
+        texts["appearing"] = None
+
+    credits = {
+        field: _numbered(template, rf"{re.escape(wiki)}{number}_(\d+)")
+        for field, wiki in STORY_CREDITS.items()
+    }
+    for wiki, field in TRANSLATION_CREDITS.items():
+        translated = _numbered(template, rf"{re.escape(wiki)}{number}_(\d+)")
+        credits[field] += tuple(f"{name} (translation)" for name in translated)
+
+    return Story(number=number, credits=Credits(**credits), links=links, **texts)
+
+
+def _is_empty_cast_list(cast: str) -> bool:
+    """Whether a cast list holds only the section labels a new story starts with."""
+    labels = {f"{label}:" for label in CAST_LIST_LABELS}
+    return all(line in labels for line in cast.splitlines() if line)
+
+
+def _has_content(story: Story) -> bool:
+    """Whether the story holds anything besides its number."""
+    texts = [
+        story.title,
+        story.synopsis,
+        story.appearing,
+        story.reprint_of,
+        story.reprint_of_story,
+    ]
+    return any(texts) or any(astuple(story.credits))
+
+
+def _numbered(template: Template, pattern: str) -> tuple[str, ...]:
+    """The text of the fields named by `pattern`, in the order of its numbers.
+
+    `Writer1_(\\d+)` gives Writer1_1, Writer1_2 and so on; empty fields are left out.
+    """
+    found = []
+    for param in template.params:
+        match = re.fullmatch(pattern, str(param.name).strip())
+        if match:
+            found.append(([int(number) for number in match.groups()], param))
+    found.sort(key=lambda item: item[0])
+
+    texts = [_clean(param.value) for _, param in found]
+    return tuple(text for text in texts if text)
 
 
 def _field_text(template: Template, field: str) -> str | None:

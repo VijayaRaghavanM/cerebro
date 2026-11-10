@@ -189,3 +189,86 @@ class Team:
 
     categories: tuple[str, ...]
     links: tuple[Link, ...]
+
+
+@dataclass(frozen=True)
+class Credits:
+    """Who made a story, one entry per person.
+
+    A translator is listed with the credit translated, marked "(translation)".
+    """
+
+    writers: tuple[str, ...]
+    pencilers: tuple[str, ...]
+    inkers: tuple[str, ...]
+    colorists: tuple[str, ...]
+    letterers: tuple[str, ...]
+    editors: tuple[str, ...]
+    adapted_from: tuple[str, ...]  # the work the story adapts
+
+
+@dataclass(frozen=True)
+class Story:
+    """One story in a comic, numbered as the page numbers them, from 1.
+
+    `appearing` is the cast list as text. A reprint names the issue and story it
+    reprints, whose own record holds its credits and cast.
+    """
+
+    number: int
+    title: str | None
+    credits: Credits
+    synopsis: str | None
+    appearing: str | None
+    reprint_of: str | None
+    reprint_of_story: str | None
+
+    links: tuple[Link, ...]
+
+
+@dataclass(frozen=True)
+class Comic:
+    """One comic page: an issue, its stories, and the facts of its publication.
+
+    Text fields, `categories` and `links` work as they do in `Character`; the links
+    in a story's fields are on the story.
+    """
+
+    pageid: int
+    title: str
+    revid: int
+
+    # Dates
+    release_date: str | None
+    month: str | None  # the cover date, with `year`
+    year: str | None
+
+    # Publication
+    editor_in_chief: str | None
+    cover_artists: tuple[str, ...]
+    pages: str | None
+    original_price: str | None
+    rating: str | None
+    isbn: str | None
+    issn: str | None
+    upc: str | None
+    legacy_number: str | None
+    canceled: str | None
+    previous_issue: str | None
+    next_issue: str | None
+
+    # Events
+    events: tuple[str, ...]
+    story_arcs: tuple[str, ...]
+    storylines: tuple[str, ...]
+    tie_ins: tuple[str, ...]
+
+    # Prose
+    solicit: str | None  # the publisher's solicitation text
+    notes: str | None
+    trivia: str | None
+    accolades: str | None
+
+    stories: tuple[Story, ...]
+    categories: tuple[str, ...]
+    links: tuple[Link, ...]
