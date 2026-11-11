@@ -56,8 +56,9 @@ class RecordLookup(ABC):
     def find(self, name: str, limit: int) -> list[PageHit]:
         """Pages whose title or names contain every word of `name`, ignoring case.
 
-        Characters and teams come first, the most appearances first, then comics; at
-        most `limit` in all. Raises RecordsMissing if nothing is stored.
+        At most `limit` characters and teams, the most appearances first, then at
+        most `limit` comics (searched by title and year), the shortest title first.
+        Raises RecordsMissing if nothing is stored.
         """
 
     @abstractmethod

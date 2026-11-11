@@ -68,8 +68,17 @@ ROW_FIELDS_LEFT_OUT = {"links", "categories", "stories"}
 NAME_COLUMNS = {
     Category.CHARACTERS: ["title", "name", "current_alias", "aliases"],
     Category.TEAMS: ["title", "name", "aliases"],
-    Category.COMICS: ["title"],
+    # People write "Avengers #1 (1963)", and the title has no year.
+    Category.COMICS: ["title", "year"],
 }
+
+# Searched and ranked apart, each up to the limit: appearances compare characters
+# with teams but say nothing of comics, where the shortest title is the plainest match
+# ("Avengers Vol 1 1" before "Avengers Annual Vol 1 1").
+SEARCH_GROUPS = [
+    ((Category.CHARACTERS, Category.TEAMS), "appearances DESC, title"),
+    ((Category.COMICS,), "length(title), title"),
+]
 
 # Stripped from both ends of a search word: "#15" matches the "15" of "Vol 1 15",
 # while an apostrophe inside a name ("Xi'an") stays.
@@ -156,23 +165,27 @@ class SqliteRecordStore(
         if not words:
             return []
 
-        selects: list[str] = []
-        params: list[Any] = []
-        for category, columns in NAME_COLUMNS.items():
-            if self._stored(category):
-                condition, condition_params = _all_words_in(columns, words)
-                selects.append(_hits_from(category, condition))
-                params.extend(condition_params)
-
-        # Comics have no appearances, so they sort after any character that has some;
-        # the second key keeps them behind characters and teams that have none.
-        sql = (
-            f"SELECT * FROM ({' UNION ALL '.join(selects)})"
-            " ORDER BY appearances DESC, category = 'comics', title LIMIT ?"
-        )
+        hits: list[PageHit] = []
         with closing(sqlite3.connect(self.path)) as db:
-            found = db.execute(sql, [*params, limit]).fetchall()
-        return [PageHit(title, Category(kind), count) for title, kind, count in found]
+            for categories, order in SEARCH_GROUPS:
+                selects: list[str] = []
+                params: list[Any] = []
+                for category in categories:
+                    if self._stored(category):
+                        condition, more = _all_words_in(NAME_COLUMNS[category], words)
+                        selects.append(_hits_from(category, condition))
+                        params.extend(more)
+                if not selects:
+                    continue
+
+                sql = (
+                    f"SELECT * FROM ({' UNION ALL '.join(selects)})"
+                    f" ORDER BY {order} LIMIT ?"
+                )
+                found = db.execute(sql, [*params, limit]).fetchall()
+                hits += [PageHit(title, Category(kind), n) for title, kind, n in found]
+
+        return hits
 
     def record(self, title: str) -> Record | None:
         if not self._stored("characters"):

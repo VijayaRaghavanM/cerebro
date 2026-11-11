@@ -180,16 +180,52 @@ def test_hits_are_ranked_by_appearances_with_comics_last(tmp_path: Path) -> None
     ]
 
 
-def test_find_returns_at_most_the_limit(tmp_path: Path) -> None:
+def test_find_returns_at_most_the_limit_of_each_kind(tmp_path: Path) -> None:
     store = SqliteRecordStore(tmp_path / "records.sqlite")
     berkhart = character()
     others = [
         replace(berkhart, pageid=n, title=f"Berkhart {n} (Earth-616)")
         for n in range(1, 4)
     ]
+    comics = [
+        replace(comic(), pageid=n, title=f"Berkhart Vol 1 {n}") for n in (1, 2, 3)
+    ]
     store.replace(Category.CHARACTERS, others)
+    store.replace(Category.COMICS, comics)
 
-    assert len(store.find("berkhart", 2)) == 2
+    hits = store.find("berkhart", 2)
+
+    # Characters filling the limit don't crowd out the comics.
+    assert [hit.category for hit in hits] == [
+        Category.CHARACTERS,
+        Category.CHARACTERS,
+        Category.COMICS,
+        Category.COMICS,
+    ]
+
+
+def test_the_shortest_comic_title_comes_first(tmp_path: Path) -> None:
+    store = SqliteRecordStore(tmp_path / "records.sqlite")
+    titles = ["Berkhart Annual Vol 1 1", "Berkhart Vol 1 1", "Berkhart Vol 2 1"]
+    comics = [replace(comic(), pageid=n, title=t) for n, t in enumerate(titles)]
+    store.replace(Category.CHARACTERS, [character()])
+    store.replace(Category.COMICS, comics)
+
+    hits = store.find("berkhart vol 1", 10)
+
+    assert [hit.title for hit in hits if hit.category is Category.COMICS] == [
+        "Berkhart Vol 1 1",
+        "Berkhart Vol 2 1",
+        "Berkhart Annual Vol 1 1",
+    ]
+
+
+def test_a_comic_is_found_by_its_year(tmp_path: Path) -> None:
+    store = stored(tmp_path)
+
+    hits = store.find(f"marvel comics presents ({comic().year})", 10)
+
+    assert hits == [PageHit(comic().title, Category.COMICS, 0)]
 
 
 def test_find_without_stored_records_says_so(tmp_path: Path) -> None:
