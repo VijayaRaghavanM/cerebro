@@ -1,4 +1,4 @@
-"""What matching needs from Comic Vine, and where the matches go."""
+"""What matching needs from Comic Vine, and where its data and the matches go."""
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
@@ -16,3 +16,9 @@ class MatchStore(ABC):
     @abstractmethod
     def replace_matches(self, matches: Iterable[CharacterMatch]) -> None:
         """Make `matches` the stored matches, all at once."""
+
+
+class ComicVineStore(ABC):
+    @abstractmethod
+    def replace_comicvine(self, characters: Iterable[ComicVineCharacter]) -> None:
+        """Make `characters` the stored Comic Vine characters, all at once."""

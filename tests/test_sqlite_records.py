@@ -8,7 +8,12 @@ import pytest
 
 from cerebro.adapters.fandom_wikitext import parse_character, parse_comic, parse_team
 from cerebro.adapters.sqlite_records import SqliteRecordStore
-from cerebro.domain.comicvine import CharacterMatch
+from cerebro.domain.comicvine import (
+    CharacterMatch,
+    ComicVineCharacter,
+    ComicVineDetail,
+    ComicVineIssue,
+)
 from cerebro.domain.pages import Category, RawPage
 from cerebro.domain.records import Character, Comic, Record, Team
 
@@ -162,3 +167,98 @@ def test_a_new_set_of_matches_replaces_the_old_one(tmp_path: Path) -> None:
         "SELECT pageid, comicvine_id, overlap FROM comicvine_matches ORDER BY rowid",
     )
     assert stored == [(3, 30, 0.5), (3, 31, 0.75)]
+
+
+def comicvine_characters() -> list[ComicVineCharacter]:
+    """Made-up characters: one fetched in detail, one only listed."""
+    detail = ComicVineDetail(
+        issues=(ComicVineIssue("Strange Tales", "3", "1951-05-01"),),
+        deck="Controls the weather.",
+        birth=None,
+        gender="female",
+        origin="Mutant",
+        powers=("Flight", "Lightning"),
+        creators=(),
+        teams=("Storm Watch",),
+        team_friends=(),
+        team_enemies=(),
+        friends=(),
+        enemies=(),
+        volumes=("Strange Tales",),
+        movies=(),
+        died_in=(ComicVineIssue("Strange Tales", "4", None),),
+        story_arcs=(),
+        updated="2020-01-02 03:04:05",
+    )
+    witch = ComicVineCharacter(
+        1,
+        "Weather Witch",
+        "Ann Doe",
+        ("Stormcaller",),
+        12,
+        "https://cv.example/1",
+        detail,
+    )
+    nobody = ComicVineCharacter(2, "Nobody", None, (), 0, "https://cv.example/2", None)
+    return [witch, nobody]
+
+
+def test_comic_vine_characters_are_stored_with_their_detail(tmp_path: Path) -> None:
+    path = tmp_path / "records.sqlite"
+
+    SqliteRecordStore(path).replace_comicvine(comicvine_characters())
+
+    witch, nobody = rows(
+        path,
+        "SELECT id, name, real_name, aliases, appearances, url, deck, birth, gender,"
+        " powers, creators, died_in, updated FROM comicvine_characters ORDER BY id",
+    )
+    assert witch[:6] == (
+        1,
+        "Weather Witch",
+        "Ann Doe",
+        '["Stormcaller"]',
+        12,
+        "https://cv.example/1",
+    )
+    assert witch[6:11] == (
+        "Controls the weather.",
+        None,
+        "female",
+        '["Flight", "Lightning"]',
+        "[]",
+    )
+    assert json.loads(str(witch[11])) == [
+        {"series": "Strange Tales", "number": "4", "cover_date": None}
+    ]
+    assert witch[12] == "2020-01-02 03:04:05"
+    # Not fetched in detail: NULL, which is not the empty list of a fetched one.
+    assert nobody[6:] == (None, None, None, None, None, None, None)
+    assert nobody[3] == "[]"
+
+
+def test_comic_vine_characters_have_a_column_per_field(tmp_path: Path) -> None:
+    path = tmp_path / "records.sqlite"
+
+    # No row fixes the schema: a character without detail still gets every column.
+    SqliteRecordStore(path).replace_comicvine(comicvine_characters()[1:])
+
+    columns = rows(path, "SELECT name FROM pragma_table_info('comicvine_characters')")
+    expected = (
+        "id name real_name aliases appearances url deck birth gender origin powers "
+        "creators teams team_friends team_enemies friends enemies volumes movies "
+        "died_in story_arcs updated"
+    ).split()
+    assert [name for (name,) in columns] == expected
+
+
+def test_a_new_set_of_comic_vine_characters_replaces_the_old_one(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "records.sqlite"
+    store = SqliteRecordStore(path)
+    store.replace_comicvine(comicvine_characters())
+
+    store.replace_comicvine(comicvine_characters()[1:])
+
+    assert rows(path, "SELECT id FROM comicvine_characters") == [(2,)]

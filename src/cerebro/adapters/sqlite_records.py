@@ -4,14 +4,18 @@ import json
 import sqlite3
 from collections.abc import Iterable, Iterator
 from contextlib import closing
-from dataclasses import fields, is_dataclass
+from dataclasses import Field, asdict, fields, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, get_origin
 
-from cerebro.domain.comicvine import CharacterMatch
+from cerebro.domain.comicvine import (
+    CharacterMatch,
+    ComicVineCharacter,
+    ComicVineDetail,
+)
 from cerebro.domain.pages import Category
 from cerebro.domain.records import Character, Comic, Link, Record, Story
-from cerebro.ports.comicvine import MatchStore
+from cerebro.ports.comicvine import ComicVineStore, MatchStore
 from cerebro.ports.records import RecordReader, RecordsMissing, RecordStore
 
 if TYPE_CHECKING:
@@ -31,15 +35,15 @@ SHARED_TABLES = [
 ROW_FIELDS_LEFT_OUT = {"links", "categories", "stories"}
 
 
-class SqliteRecordStore(RecordStore, RecordReader, MatchStore):
+class SqliteRecordStore(RecordStore, RecordReader, MatchStore, ComicVineStore):
     """Records in one SQLite file.
 
     Each category has a table named after it, with a column per record field, and a
     comic's stories are in `stories`. Every record's links are in `links` and its
     categories in `categories`, keyed by category and page id, so they can be queried
     across kinds: which records link to X-Men (Earth-616)? Lists of names, such as a
-    story's writers, are JSON arrays. `comicvine_matches` pairs Comic Vine ids with
-    character pages.
+    story's writers, are JSON arrays. `comicvine_characters` holds what Comic Vine says
+    of each character, and `comicvine_matches` pairs its ids with character pages.
     """
 
     def __init__(self, path: Path) -> None:
@@ -134,6 +138,23 @@ class SqliteRecordStore(RecordStore, RecordReader, MatchStore):
                 )
                 db.executemany("INSERT INTO comicvine_matches VALUES (?, ?, ?)", rows)
 
+    # Comic Vine's characters, replaced all at once like the matches.
+
+    def replace_comicvine(self, characters: Iterable[ComicVineCharacter]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        columns = _comicvine_columns()
+        marks = ", ".join("?" for _ in columns)
+
+        with closing(sqlite3.connect(self.path, autocommit=False)) as db:
+            with db:
+                db.execute("DROP TABLE IF EXISTS comicvine_characters")
+                db.execute(f"CREATE TABLE comicvine_characters ({', '.join(columns)})")
+                for character in characters:
+                    values = _comicvine_values(character)
+                    db.execute(
+                        f"INSERT INTO comicvine_characters VALUES ({marks})", values
+                    )
+
     # Writing, step by step.
 
     def _clear(self, db: sqlite3.Connection, category: Category) -> None:
@@ -180,6 +201,42 @@ def _columns(item: Any) -> dict[str, Any]:
         else:
             row[field.name] = value
     return row
+
+
+def _character_fields() -> list[Field[Any]]:
+    return [f for f in fields(ComicVineCharacter) if f.name != "detail"]
+
+
+def _detail_fields() -> list[Field[Any]]:
+    # The issue lists stay in the download; Fandom's cast lists cover them.
+    return [f for f in fields(ComicVineDetail) if f.name != "issues"]
+
+
+def _comicvine_columns() -> list[str]:
+    """Column definitions from the types, so they don't depend on the first row."""
+    columns = []
+    for field in _character_fields() + _detail_fields():
+        kind = "INTEGER" if field.type is int else "TEXT"
+        key = " PRIMARY KEY" if field.name == "id" else ""
+        columns.append(f"{field.name} {kind}{key}")
+    return columns
+
+
+def _comicvine_values(character: ComicVineCharacter) -> list[Any]:
+    values = [_cell(getattr(character, f.name)) for f in _character_fields()]
+
+    # NULL when there is no detail, so "not fetched" differs from an empty list.
+    detail = character.detail
+    for field in _detail_fields():
+        values.append(None if detail is None else _cell(getattr(detail, field.name)))
+    return values
+
+
+def _cell(value: Any) -> Any:
+    """A column value: lists as JSON, a died-in issue as an object of its fields."""
+    if isinstance(value, tuple):
+        return json.dumps(value, ensure_ascii=False, default=asdict)
+    return value
 
 
 def _from_columns[T: DataclassInstance](
