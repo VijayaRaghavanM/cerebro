@@ -147,6 +147,8 @@ def test_a_citation_names_only_the_source_it_numbers() -> None:
 
     answer = ask(model, matched=True)
 
+    # The one source cited becomes [1], so the text matches the list printed under it.
+    assert answer.text == "Her real name is Ann [1]."
     assert answer.sources == (
         Source("Comic Vine: Weather Witch", "https://vine.example/5"),
     )
@@ -157,6 +159,7 @@ def test_sources_are_listed_in_citation_order_once_each() -> None:
 
     answer = ask(model, matched=True)
 
+    assert answer.text == "B [1], A [2], B again [1]."
     assert [s.title for s in answer.sources] == [
         "Comic Vine: Weather Witch",
         TITLE,
@@ -196,12 +199,12 @@ def test_a_second_page_is_numbered_after_the_first() -> None:
     assert [s.title for s in answer.sources] == [TITLE, "Bob Roe (Earth-1)"]
 
 
-def test_a_marker_with_no_source_cites_nothing_but_stays_in_the_text() -> None:
+def test_a_marker_with_no_source_cites_nothing_and_shows_as_unknown() -> None:
     model = scripted(call("read_page", TITLE), reply("Made up [7]."))
 
     answer = ask(model)
 
-    assert answer.text == "Made up [7]."
+    assert answer.text == "Made up [?]."
     assert answer.sources == ()
 
 

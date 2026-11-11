@@ -62,8 +62,7 @@ class LangGraphAgent(Agent):
 
         ai = [m for m in messages if isinstance(m, AIMessage)]
         tool_replies = [m for m in messages if isinstance(m, ToolMessage)]
-        text = ai[-1].text if ai else ""
-        cited = self._cited(text, numbered)
+        text, cited = self._cited(ai[-1].text if ai else "", numbered)
         # The run stopped while the model still wanted a tool.
         if ai and ai[-1].tool_calls:
             text, cited = GAVE_UP, ()
@@ -123,16 +122,26 @@ class LangGraphAgent(Agent):
         return [search, read]
 
     @staticmethod
-    def _cited(text: str, numbered: dict[Source, int]) -> tuple[Source, ...]:
-        """The numbered sources the text cites, in citation order, each once."""
+    def _cited(
+        text: str, numbered: dict[Source, int]
+    ) -> tuple[str, tuple[Source, ...]]:
+        """The text with its citations renumbered 1, 2, 3 in citation order, and the
+        sources they cite, each once. A marker that names no source becomes [?].
+        """
         by_number = {number: source for source, number in numbered.items()}
-        cited: dict[int, Source] = {}
-        for match in CITATION.finditer(text):
-            number = int(match.group(1))
-            if number in by_number:
-                cited.setdefault(number, by_number[number])
+        renumbered: dict[int, int] = {}
+        cited: list[Source] = []
 
-        return tuple(cited.values())
+        def renumber(match: re.Match[str]) -> str:
+            number = int(match.group(1))
+            if number not in by_number:
+                return "[?]"
+            if number not in renumbered:
+                cited.append(by_number[number])
+                renumbered[number] = len(cited)
+            return f"[{renumbered[number]}]"
+
+        return CITATION.sub(renumber, text), tuple(cited)
 
 
 def _with_numbers(result: ToolResult, numbered: dict[Source, int]) -> str:
