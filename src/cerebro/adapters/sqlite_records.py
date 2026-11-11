@@ -86,7 +86,7 @@ SEARCH_GROUPS = [
 EDGE_PUNCTUATION = "#.,;:!?\"'()"
 
 # Builds a record from its row and the connection its links and categories are in.
-type RowReader = Callable[[sqlite3.Connection, sqlite3.Row], Record]
+type RowReader[R] = Callable[[sqlite3.Connection, sqlite3.Row], R]
 
 WIKI_PAGES = "https://marvel.fandom.com/wiki/"
 # Left readable in a citation; quote() encodes the rest.
@@ -128,21 +128,19 @@ class SqliteRecordStore(
                 self._insert(db, category, record, created)
 
             # The table only exists once a record has been written to it.
-            if str(category) in created:
+            if category in created:
                 names = ", ".join(NAME_COLUMNS[category])
                 db.execute(f'CREATE INDEX "{category}_names" ON "{category}" ({names})')
 
     # Reading: one record at a time, so a category is never held in memory whole.
 
     def characters(self) -> Iterator[Character]:
-        return self._read(Category.CHARACTERS, _character)
+        return self._read(Category.CHARACTERS, _reader(Character, Category.CHARACTERS))
 
     def comics(self) -> Iterator[Comic]:
         return self._read(Category.COMICS, _comic)
 
-    def _read[R](
-        self, category: Category, read: Callable[[sqlite3.Connection, sqlite3.Row], R]
-    ) -> Iterator[R]:
+    def _read[R](self, category: Category, read: RowReader[R]) -> Iterator[R]:
         # Checked before the generator starts, so a missing table fails at the call,
         # before a caller has opened anything to write the results to.
         if not has_table(self.path, category):
@@ -150,9 +148,7 @@ class SqliteRecordStore(
 
         return self._rows(category, read)
 
-    def _rows[R](
-        self, category: Category, read: Callable[[sqlite3.Connection, sqlite3.Row], R]
-    ) -> Iterator[R]:
+    def _rows[R](self, category: Category, read: RowReader[R]) -> Iterator[R]:
         with closing(sqlite3.connect(self.path)) as db:
             db.row_factory = sqlite3.Row
             for row in db.execute(f'SELECT * FROM "{category}" ORDER BY pageid'):
@@ -195,9 +191,9 @@ class SqliteRecordStore(
         if not has_table(self.path, Category.CHARACTERS):
             raise RecordsMissing("No characters are stored yet")
 
-        readers: list[tuple[Category, RowReader]] = [
-            (Category.CHARACTERS, _character),
-            (Category.TEAMS, _team),
+        readers: list[tuple[Category, RowReader[Record]]] = [
+            (Category.CHARACTERS, _reader(Character, Category.CHARACTERS)),
+            (Category.TEAMS, _reader(Team, Category.TEAMS)),
             (Category.COMICS, _comic),
         ]
         with closing(sqlite3.connect(self.path)) as db:
@@ -273,8 +269,8 @@ class SqliteRecordStore(
         db.execute(f'DROP TABLE IF EXISTS "{category}"')
         if category is Category.COMICS:
             db.execute("DROP TABLE IF EXISTS stories")
-        db.execute("DELETE FROM links WHERE kind = ?", (str(category),))
-        db.execute("DELETE FROM categories WHERE kind = ?", (str(category),))
+        db.execute("DELETE FROM links WHERE kind = ?", (category,))
+        db.execute("DELETE FROM categories WHERE kind = ?", (category,))
 
     def _insert(
         self,
@@ -425,24 +421,19 @@ def _insert_links(
     )
 
 
-def _character(db: sqlite3.Connection, row: sqlite3.Row) -> Character:
-    pageid = row["pageid"]
-    return _from_columns(
-        Character,
-        row,
-        categories=_categories_of(db, Category.CHARACTERS, pageid),
-        links=_links_of(db, Category.CHARACTERS, pageid, story=None),
-    )
+def _reader[R: DataclassInstance](cls: type[R], category: Category) -> RowReader[R]:
+    """A reader for the records of one category that have no stories."""
 
+    def read(db: sqlite3.Connection, row: sqlite3.Row) -> R:
+        pageid = row["pageid"]
+        return _from_columns(
+            cls,
+            row,
+            categories=_categories_of(db, category, pageid),
+            links=_links_of(db, category, pageid, story=None),
+        )
 
-def _team(db: sqlite3.Connection, row: sqlite3.Row) -> Team:
-    pageid = row["pageid"]
-    return _from_columns(
-        Team,
-        row,
-        categories=_categories_of(db, Category.TEAMS, pageid),
-        links=_links_of(db, Category.TEAMS, pageid, story=None),
-    )
+    return read
 
 
 def _comic(db: sqlite3.Connection, row: sqlite3.Row) -> Comic:
