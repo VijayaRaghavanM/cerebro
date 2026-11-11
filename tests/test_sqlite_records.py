@@ -262,3 +262,31 @@ def test_a_new_set_of_comic_vine_characters_replaces_the_old_one(
     store.replace_comicvine(comicvine_characters()[1:])
 
     assert rows(path, "SELECT id FROM comicvine_characters") == [(2,)]
+
+
+def test_matched_characters_are_ranked_by_appearances(tmp_path: Path) -> None:
+    path = tmp_path / "records.sqlite"
+    store = SqliteRecordStore(path)
+    berkhart = character()
+    other = replace(berkhart, pageid=1, title="Someone (Earth-616)")
+    store.replace(Category.CHARACTERS, [berkhart, other])
+    witch, nobody = comicvine_characters()
+    # Same appearances as the witch, so only the id orders them.
+    twin = replace(nobody, id=3, name="Twin", appearances=12)
+    store.replace_comicvine([witch, nobody, twin])
+    store.replace_matches(
+        [
+            CharacterMatch(other.pageid, 1, 0.5),
+            CharacterMatch(berkhart.pageid, 2, 0.5),
+            CharacterMatch(berkhart.pageid, 3, 0.25),
+        ]
+    )
+
+    # Again, as a rerun would: the view already exists.
+    store.replace_comicvine([witch, nobody, twin])
+
+    assert rows(path, "SELECT * FROM character_ranking ORDER BY rank") == [
+        (1, 1, "Someone (Earth-616)", 1, 12),
+        (2, berkhart.pageid, berkhart.title, 3, 12),
+        (3, berkhart.pageid, berkhart.title, 2, 0),
+    ]

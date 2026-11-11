@@ -31,6 +31,17 @@ SHARED_TABLES = [
     "CREATE INDEX IF NOT EXISTS categories_by_record ON categories (kind, pageid)",
 ]
 
+# A view, so the ranking always reflects the latest load and match without copying
+# data. The id breaks ties between characters with the same appearances.
+CHARACTER_RANKING = (
+    "CREATE VIEW IF NOT EXISTS character_ranking AS"
+    " SELECT ROW_NUMBER() OVER (ORDER BY cv.appearances DESC, cv.id) AS rank,"
+    " page.pageid, page.title, cv.id AS comicvine_id, cv.appearances"
+    " FROM comicvine_matches m"
+    " JOIN comicvine_characters cv ON cv.id = m.comicvine_id"
+    " JOIN characters page ON page.pageid = m.pageid"
+)
+
 # Fields stored in tables of their own rather than in a column.
 ROW_FIELDS_LEFT_OUT = {"links", "categories", "stories"}
 
@@ -43,7 +54,8 @@ class SqliteRecordStore(RecordStore, RecordReader, MatchStore, ComicVineStore):
     categories in `categories`, keyed by category and page id, so they can be queried
     across kinds: which records link to X-Men (Earth-616)? Lists of names, such as a
     story's writers, are JSON arrays. `comicvine_characters` holds what Comic Vine says
-    of each character, and `comicvine_matches` pairs its ids with character pages.
+    of each character, `comicvine_matches` pairs its ids with character pages, and the
+    view `character_ranking` lists the matched characters by Comic Vine appearances.
     """
 
     def __init__(self, path: Path) -> None:
@@ -149,6 +161,7 @@ class SqliteRecordStore(RecordStore, RecordReader, MatchStore, ComicVineStore):
             with db:
                 db.execute("DROP TABLE IF EXISTS comicvine_characters")
                 db.execute(f"CREATE TABLE comicvine_characters ({', '.join(columns)})")
+                db.execute(CHARACTER_RANKING)
                 for character in characters:
                     values = _comicvine_values(character)
                     db.execute(
