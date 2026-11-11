@@ -1,16 +1,15 @@
 """Records in a SQLite file, where the agent's tools can query them."""
 
 import json
-import re
 import sqlite3
 from collections.abc import Callable, Iterable, Iterator
-from contextlib import closing, contextmanager
-from dataclasses import Field, asdict, astuple, fields, is_dataclass
+from contextlib import closing
+from dataclasses import Field, asdict, fields, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, get_args, get_origin
 from urllib.parse import quote
 
-from cerebro.domain.chunks import Chunk, ChunkHit
+from cerebro.adapters.sqlite import has_table, transaction
 from cerebro.domain.comicvine import (
     CharacterMatch,
     ComicVineCharacter,
@@ -27,7 +26,6 @@ from cerebro.domain.records import (
     Story,
     Team,
 )
-from cerebro.ports.chunks import ChunkSearch, ChunkStore
 from cerebro.ports.comicvine import ComicVineStore, MatchStore
 from cerebro.ports.records import (
     RecordLookup,
@@ -87,11 +85,6 @@ SEARCH_GROUPS = [
 # while an apostrophe inside a name ("Xi'an") stays.
 EDGE_PUNCTUATION = "#.,;:!?\"'()"
 
-# What a chunk search reads from a query: runs of letters and digits, as the index's
-# tokenizer splits text. Keeping "Wolverine's" whole would make it the two-word
-# phrase "wolverine s", which almost never occurs.
-SEARCH_WORD = re.compile(r"\w+")
-
 # Builds a record from its row and the connection its links and categories are in.
 type RowReader = Callable[[sqlite3.Connection, sqlite3.Row], Record]
 
@@ -106,8 +99,6 @@ class SqliteRecordStore(
     RecordLookup,
     MatchStore,
     ComicVineStore,
-    ChunkStore,
-    ChunkSearch,
 ):
     """Records in one SQLite file.
 
@@ -118,7 +109,8 @@ class SqliteRecordStore(
     story's writers, are JSON arrays. `comicvine_characters` holds what Comic Vine says
     of each character, `comicvine_matches` pairs its ids with character pages, and the
     view `character_ranking` lists the matched characters by Comic Vine appearances.
-    `chunks` holds the pieces of each character page that a search ranks.
+    The chunks of the character pages are in the same file but belong to
+    `SqliteChunkIndex`.
     """
 
     def __init__(self, path: Path) -> None:
@@ -127,7 +119,7 @@ class SqliteRecordStore(
     # Writing: a whole category at a time.
 
     def replace(self, category: Category, records: Iterable[Record]) -> None:
-        with self._transaction() as db:
+        with transaction(self.path) as db:
             for statement in SHARED_TABLES:
                 db.execute(statement)
             self._clear(db, category)
@@ -153,7 +145,7 @@ class SqliteRecordStore(
     ) -> Iterator[R]:
         # Checked before the generator starts, so a missing table fails at the call,
         # before a caller has opened anything to write the results to.
-        if not self._stored(category):
+        if not has_table(self.path, category):
             raise RecordsMissing(f"No {category} are stored yet")
 
         return self._rows(category, read)
@@ -169,7 +161,7 @@ class SqliteRecordStore(
     # Lookup: by name, then by title.
 
     def find(self, name: str, limit: int) -> list[PageHit]:
-        if not self._stored("characters"):
+        if not has_table(self.path, "characters"):
             raise RecordsMissing("No characters are stored yet")
 
         words = [word.strip(EDGE_PUNCTUATION) for word in name.split()]
@@ -183,7 +175,7 @@ class SqliteRecordStore(
                 selects: list[str] = []
                 params: list[Any] = []
                 for category in categories:
-                    if self._stored(category):
+                    if has_table(self.path, category):
                         condition, more = _all_words_in(NAME_COLUMNS[category], words)
                         selects.append(_hits_from(category, condition))
                         params.extend(more)
@@ -200,7 +192,7 @@ class SqliteRecordStore(
         return hits
 
     def record(self, title: str) -> Record | None:
-        if not self._stored("characters"):
+        if not has_table(self.path, "characters"):
             raise RecordsMissing("No characters are stored yet")
 
         readers: list[tuple[Category, RowReader]] = [
@@ -211,7 +203,7 @@ class SqliteRecordStore(
         with closing(sqlite3.connect(self.path)) as db:
             db.row_factory = sqlite3.Row
             for category, read in readers:
-                if not self._stored(category):
+                if not has_table(self.path, category):
                     continue
                 row = db.execute(
                     f'SELECT * FROM "{category}" WHERE title = ?', (title,)
@@ -223,7 +215,8 @@ class SqliteRecordStore(
     def comicvine(self, pageid: int) -> ComicVineCharacter | None:
         # Either table is missing until `cerebro load comicvine` and the match have run.
         if not (
-            self._stored("comicvine_matches") and self._stored("comicvine_characters")
+            has_table(self.path, "comicvine_matches")
+            and has_table(self.path, "comicvine_characters")
         ):
             return None
 
@@ -243,23 +236,12 @@ class SqliteRecordStore(
     def url(self, title: str) -> str:
         return WIKI_PAGES + quote(title.replace(" ", "_"), safe=URL_SAFE)
 
-    def _stored(self, table: str) -> bool:
-        # Checked before connecting, which would create an empty file.
-        if not self.path.exists():
-            return False
-        with closing(sqlite3.connect(self.path)) as db:
-            found = db.execute(
-                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-                (table,),
-            )
-            return found.fetchone() is not None
-
     # Matches to Comic Vine, replaced all at once like a category.
 
     def replace_matches(self, matches: Iterable[CharacterMatch]) -> None:
         rows = [(m.comicvine_id, m.pageid, m.overlap) for m in matches]
 
-        with self._transaction() as db:
+        with transaction(self.path) as db:
             db.execute("DROP TABLE IF EXISTS comicvine_matches")
             # Keyed by Comic Vine id: two Comic Vine entries can be one Fandom page.
             db.execute(
@@ -274,7 +256,7 @@ class SqliteRecordStore(
         columns = _comicvine_columns()
         marks = ", ".join("?" for _ in columns)
 
-        with self._transaction() as db:
+        with transaction(self.path) as db:
             db.execute("DROP TABLE IF EXISTS comicvine_characters")
             db.execute(f"CREATE TABLE comicvine_characters ({', '.join(columns)})")
             # Recreated, not kept, so a changed definition takes effect on rerun.
@@ -284,82 +266,7 @@ class SqliteRecordStore(
                 values = _comicvine_values(character)
                 db.execute(f"INSERT INTO comicvine_characters VALUES ({marks})", values)
 
-    # Chunks, replaced all at once like Comic Vine's characters.
-
-    def replace_chunks(self, chunks: Iterable[Chunk]) -> None:
-        with self._transaction() as db:
-            db.execute("DROP TABLE IF EXISTS chunks")
-            db.execute(
-                "CREATE TABLE chunks (id TEXT PRIMARY KEY, pageid INTEGER,"
-                " revid INTEGER, number INTEGER, title TEXT, section TEXT,"
-                " text TEXT)"
-            )
-            db.execute("CREATE INDEX chunks_by_page ON chunks (pageid)")
-            # The columns follow `Chunk`'s field order.
-            db.executemany(
-                "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (astuple(chunk) for chunk in chunks),
-            )
-
-            # Porter stems inflections ("powers" finds "power"); unicode61 folds
-            # diacritics, so "Xuan" finds "Xuân". The text is read from `chunks`,
-            # not stored a second time.
-            db.execute("DROP TABLE IF EXISTS chunks_fts")
-            db.execute(
-                "CREATE VIRTUAL TABLE chunks_fts USING fts5(text,"
-                " content='chunks', content_rowid='rowid',"
-                " tokenize='porter unicode61 remove_diacritics 2')"
-            )
-            db.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')")
-
-    # Searching chunks.
-
-    def search(self, query: str, limit: int) -> list[ChunkHit]:
-        if not self._stored("chunks"):
-            raise RecordsMissing("No chunks are stored yet")
-
-        words = SEARCH_WORD.findall(query)
-        if not words:
-            return []
-
-        # OR, because a natural question rarely has every word in one chunk; bm25
-        # weighs the rare words most. Each term is quoted so that a word like "AND" or
-        # "NEAR" is read as text; a word never holds a quote, so none needs escaping.
-        terms = [f'"{word}"' for word in words]
-        with closing(sqlite3.connect(self.path)) as db:
-            # bm25 is lower for a better match, so the score is its negation. The top
-            # rows are picked before the join, so it no longer reads every matching
-            # chunk; the outer ORDER BY keeps them best first.
-            found = db.execute(
-                "SELECT c.*, top.score FROM ("
-                "SELECT rowid, -bm25(chunks_fts) AS score FROM chunks_fts"
-                " WHERE chunks_fts MATCH ? ORDER BY score DESC, rowid LIMIT ?"
-                ") AS top JOIN chunks c ON c.rowid = top.rowid"
-                " ORDER BY top.score DESC, top.rowid",
-                (" OR ".join(terms), limit),
-            ).fetchall()
-
-        return [ChunkHit(Chunk(*row[:-1]), row[-1]) for row in found]
-
     # Writing, step by step.
-
-    @contextmanager
-    def _transaction(self) -> Iterator[sqlite3.Connection]:
-        """One write: it commits when the block ends, and rolls back if it raises."""
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-
-        # A write can stream from a reader open on this same file, as the chunk step
-        # does; without WAL it would wait on that reader forever. The mode is kept in
-        # the file and can only change outside a transaction, hence the autocommit
-        # connection.
-        with closing(sqlite3.connect(self.path, autocommit=True)) as db:
-            db.execute("PRAGMA journal_mode = WAL")
-
-        # autocommit=False keeps every statement in the transaction, the DROP TABLE
-        # included; by default sqlite3 runs that outside one.
-        with closing(sqlite3.connect(self.path, autocommit=False)) as db:
-            with db:
-                yield db
 
     def _clear(self, db: sqlite3.Connection, category: Category) -> None:
         # Dropped, not emptied, so a table follows the record type when fields change.

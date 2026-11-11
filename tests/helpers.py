@@ -1,6 +1,7 @@
 """Helpers that more than one test file uses."""
 
 import json
+import sqlite3
 from dataclasses import fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, get_origin
@@ -21,6 +22,12 @@ if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 
 FIXTURES = Path(__file__).parent / "fixtures" / "fandom"
+
+
+def rows(path: Path, sql: str, *params: object) -> list[tuple[object, ...]]:
+    """What a query returns from the SQLite file at `path`."""
+    with sqlite3.connect(path) as db:
+        return db.execute(sql, params).fetchall()
 
 
 def blank[T: DataclassInstance](cls: type[T], **values: Any) -> T:
