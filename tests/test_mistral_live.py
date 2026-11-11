@@ -8,11 +8,15 @@ import urllib.error
 import urllib.request
 
 import pytest
+from test_tools import FakeLookup, character
 
+from cerebro.adapters.langgraph_agent import LangGraphAgent
+from cerebro.adapters.mistral import MODEL, ministral
+from cerebro.domain.pages import Category
+from cerebro.domain.records import PageHit
 from cerebro.settings import Settings
 
 MODELS_URL = "https://api.mistral.ai/v1/models"
-MAIN_MODEL = "ministral-14b-2512"
 
 
 @pytest.mark.live
@@ -33,4 +37,20 @@ def test_mistral_key_can_see_main_model() -> None:
         pytest.fail(f"Mistral returned HTTP {error.code}", pytrace=False)
 
     model_ids = {model["id"] for model in body["data"]}
-    assert MAIN_MODEL in model_ids
+    assert MODEL in model_ids
+
+
+@pytest.mark.live
+def test_the_agent_answers_from_the_records() -> None:
+    key = Settings().mistral_api_key
+    if key is None:
+        pytest.skip("MISTRAL_API_KEY is not set")
+
+    ann = character(name="Anna Doe-Smith", current_alias="Ann Doe")
+    hits = [PageHit(ann.title, Category.CHARACTERS, 5)]
+    answer = LangGraphAgent(ministral(key), FakeLookup(hits, [ann])).answer(
+        "What is Ann Doe's real name?"
+    )
+
+    assert answer.tool_calls >= 1
+    assert len(answer.sources) >= 1
