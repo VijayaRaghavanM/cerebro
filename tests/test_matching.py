@@ -1,5 +1,5 @@
 from collections.abc import Iterable, Iterator
-from dataclasses import fields
+from dataclasses import fields, replace
 from typing import TYPE_CHECKING, Any, get_origin
 
 import pytest
@@ -62,6 +62,14 @@ def issue(number: int, cover_date: str | None = "1990-01-01") -> ComicVineIssue:
     return ComicVineIssue("Strange Tales", str(number), cover_date)
 
 
+URL = "https://comicvine.example/character/4005-1/"
+
+
+def detail_of(issues: tuple[ComicVineIssue, ...]) -> ComicVineDetail:
+    """Detail with these issues and nothing else; matching reads only the issues."""
+    return blank(ComicVineDetail, issues=issues)
+
+
 def comicvine(
     name: str,
     real_name: str | None,
@@ -69,8 +77,8 @@ def comicvine(
     *,
     cvid: int = 1,
 ) -> ComicVineCharacter:
-    detail = None if issues is None else ComicVineDetail(issues)
-    return ComicVineCharacter(cvid, name, real_name, (), 10, detail)
+    detail = None if issues is None else detail_of(issues)
+    return ComicVineCharacter(cvid, name, real_name, (), 10, URL, detail)
 
 
 def matched(
@@ -150,17 +158,10 @@ def test_a_whole_name_anywhere_on_the_page_beats_a_shared_word(
 @pytest.mark.parametrize(
     "character",
     [
-        ComicVineCharacter(1, "Ann Doe", None, (), 10, ComicVineDetail((issue(1),))),
-        ComicVineCharacter(
-            1, "Weather Witch", "Ann Doe", (), 10, ComicVineDetail((issue(1),))
-        ),
-        ComicVineCharacter(
-            1,
-            "Weather Witch",
-            None,
-            ("Stormy", "Ann Doe"),
-            10,
-            ComicVineDetail((issue(1),)),
+        comicvine("Ann Doe", None, (issue(1),)),
+        comicvine("Weather Witch", "Ann Doe", (issue(1),)),
+        replace(
+            comicvine("Weather Witch", None, (issue(1),)), aliases=("Stormy", "Ann Doe")
         ),
     ],
 )

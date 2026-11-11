@@ -63,9 +63,15 @@ def write_comicvine(data_dir: Path) -> None:
         "real_name": "Daniel Berkhart",
         "aliases": None,
         "count_of_issue_appearances": 40,
+        "site_detail_url": "https://comicvine.example/mysterio/4005-1/",
     }
     # Listed, but with no issue list downloaded.
-    nobody = {"id": 2, "name": "Nobody", "count_of_issue_appearances": 1}
+    nobody = {
+        "id": 2,
+        "name": "Nobody",
+        "count_of_issue_appearances": 1,
+        "site_detail_url": "https://comicvine.example/nobody/4005-2/",
+    }
     rows = {
         "characters.jsonl": [mysterio, nobody],
         "character-issues.jsonl": [{"id": 1, "name": "Mysterio", "issue_ids": [7]}],
