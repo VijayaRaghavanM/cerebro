@@ -7,11 +7,15 @@ from pydantic import SecretStr
 
 MODEL = "ministral-14b-2512"
 # The account's limit, from Mistral's x-ratelimit-limit-req-minute header on
-# 2026-11-11. Pacing keeps requests at that rate.
+# 2026-11-11.
 REQUESTS_PER_MINUTE = 2
+# Requests spaced exactly at the limit drew 429s, most likely because network
+# delay put three inside one 60-second window. The margin leaves room for it.
+MARGIN_SECONDS = 5
+SECONDS_BETWEEN_REQUESTS = 60 / REQUESTS_PER_MINUTE + MARGIN_SECONDS
 # The limit is per account, so every model in the process shares one pace.
 PACE = InMemoryRateLimiter(
-    requests_per_second=REQUESTS_PER_MINUTE / 60, max_bucket_size=1
+    requests_per_second=1 / SECONDS_BETWEEN_REQUESTS, max_bucket_size=1
 )
 
 

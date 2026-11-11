@@ -16,7 +16,13 @@ from langchain_mistralai import ChatMistralAI
 from pydantic import SecretStr
 
 from cerebro.adapters.langgraph_agent import LangGraphAgent
-from cerebro.adapters.mistral import MODEL, REQUESTS_PER_MINUTE, ministral
+from cerebro.adapters.mistral import (
+    MODEL,
+    PACE,
+    REQUESTS_PER_MINUTE,
+    SECONDS_BETWEEN_REQUESTS,
+    ministral,
+)
 from cerebro.domain.pages import Category
 from cerebro.domain.records import PageHit
 from cerebro.ports.agent import RateLimited
@@ -84,6 +90,10 @@ def test_models_share_one_rate_limiter() -> None:
     assert first.rate_limiter is second.rate_limiter
 
 
+def test_the_shared_pace_stays_under_the_account_limit() -> None:
+    assert PACE.requests_per_second < REQUESTS_PER_MINUTE / 60
+
+
 @pytest.mark.live
 @pytest.mark.skipif(
     os.environ.get("CEREBRO_RECORD_MISTRAL") != "1",
@@ -94,9 +104,9 @@ def test_record_mistral_exchanges() -> None:
     if key is None:
         pytest.skip("MISTRAL_API_KEY is not set")
 
-    # The same pacing the app uses, so recording the answer never trips a 429.
+    # The same spacing the app uses, with its margin below the limit.
     pace = InMemoryRateLimiter(
-        requests_per_second=REQUESTS_PER_MINUTE / 60, max_bucket_size=1
+        requests_per_second=1 / SECONDS_BETWEEN_REQUESTS, max_bucket_size=1
     )
     answering = RecordingTransport()
     final_answer(ann_agent(model_over(answering, key, pace)), QUESTION)
