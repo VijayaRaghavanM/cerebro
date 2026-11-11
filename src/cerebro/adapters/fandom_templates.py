@@ -88,6 +88,10 @@ CHARACTER_FIELDS = {
 
 TEAM_TEMPLATE = "Marvel Database:Team Template"
 
+# The wiki's template for organizations (the Avengers, Hydra) has the team template's
+# fields, so both are read with TEAM_FIELDS.
+ORGANIZATION_TEMPLATE = "Marvel Database:Organization Template"
+
 # Each Team text field and the template field it comes from. `name` is read on its
 # own, because it falls back to other fields.
 TEAM_FIELDS = {

@@ -28,6 +28,7 @@ from cerebro.adapters.fandom_templates import (
     MEMBER_OF_TEMPLATE,
     NAMING_TAGS,
     NAVIGATION_TEMPLATE,
+    ORGANIZATION_TEMPLATE,
     PAGE_LINK_TEMPLATES,
     QUOTE_TEMPLATE,
     STORY_ARC_FIELDS,
@@ -90,9 +91,13 @@ def parse_character(page: RawPage) -> Character | None:
 
 
 def parse_team(page: RawPage) -> Team | None:
-    """The team on the page, or None if the page has no team template."""
+    """The team on the page, or None if it has neither the team template nor the
+    organization template, which the wiki uses for groups such as the Avengers.
+    """
     code = _parse(page.wikitext)
     template = _find_template(code, TEAM_TEMPLATE)
+    if template is None:
+        template = _find_template(code, ORGANIZATION_TEMPLATE)
     if template is None:
         return None
 

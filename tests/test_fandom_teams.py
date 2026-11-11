@@ -2,6 +2,8 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+from helpers import fixture
+
 from cerebro.adapters.fandom_wikitext import parse_team
 from cerebro.domain.pages import RawPage
 from cerebro.domain.records import Link
@@ -106,6 +108,23 @@ def test_name_comes_from_name_then_official_name_then_the_title() -> None:
     assert named.name == "X-Men"
     assert officially_named.name == "The X-Men"
     assert unnamed.name == "X-Men"
+
+
+def test_an_organization_page_is_read_as_a_team() -> None:
+    record = parse_team(fixture("hydra.json"))
+    assert record is not None
+
+    assert record.name == "Hydra"
+    assert record.reality == "Earth-71246"
+    assert record.status == "Active"
+    assert record.leaders == "Supreme Hydra"
+    assert record.current_members == "Unnamed members"
+    assert record.first_appearance == "Cable & Deadpool Vol 1 46"
+    assert record.history == "Hydra was led by Bob."
+    assert record.categories == ("Terrorist Organizations",)
+    assert (
+        Link("leaders", "Bob Dobalina (Earth-71246)", "Supreme Hydra") in record.links
+    )
 
 
 def test_pages_without_the_team_template_are_skipped() -> None:
