@@ -7,6 +7,7 @@ import typer
 
 from cerebro import bootstrap
 from cerebro.domain.pages import Category
+from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
 from cerebro.ports.records import RecordsMissing
 from cerebro.ports.wiki import WikiUnavailable
 
@@ -115,6 +116,46 @@ def match_comicvine() -> None:
         f"{report.matched:,} of the {report.with_issues:,} Comic Vine characters "
         f"with an issue list matched ({report.comicvine:,} listed in all; "
         f"{report.pages_claimed_twice:,} pages claimed twice)"
+    )
+
+
+@app.command()
+def ask(question: str) -> None:
+    """Answer a question from the stored records, with citations."""
+    try:
+        answer = bootstrap.ask(question)
+    except bootstrap.MissingKey as error:
+        typer.echo(f"Set {error} to ask questions.", err=True)
+        raise typer.Exit(1) from None
+    except RecordsMissing as error:
+        typer.echo(f"{error}. Run `cerebro parse fandom` first.", err=True)
+        raise typer.Exit(1) from None
+    except RateLimited:
+        typer.echo(
+            "Mistral is rate limiting requests; try again in a minute.", err=True
+        )
+        raise typer.Exit(1) from None
+    except ModelTimeout:
+        typer.echo("Mistral did not reply in time.", err=True)
+        raise typer.Exit(1) from None
+    except ProviderError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(1) from None
+
+    typer.echo(answer.text)
+    typer.echo()
+
+    if answer.sources:
+        for number, source in enumerate(answer.sources, start=1):
+            typer.echo(f"[{number}] {source.title}: {source.url}")
+    else:
+        typer.echo("No sources cited.")
+    typer.echo()
+
+    typer.echo(
+        f"{answer.model_calls} model calls, {answer.tool_calls} tool calls, "
+        f"{answer.input_tokens:,} tokens in, {answer.output_tokens:,} out, "
+        f"{answer.seconds:.0f} s"
     )
 
 
