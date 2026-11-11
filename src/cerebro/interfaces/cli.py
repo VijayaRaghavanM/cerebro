@@ -120,6 +120,21 @@ def match_comicvine() -> None:
 
 
 @app.command()
+def chunk() -> None:
+    """Cut the parsed character pages into chunks for search. Safe to rerun.
+
+    A rerun replaces the stored chunks.
+    """
+    try:
+        report = bootstrap.chunk_records()
+    except RecordsMissing as error:
+        typer.echo(f"{error}. Run `cerebro parse fandom` first.", err=True)
+        raise typer.Exit(1) from None
+
+    typer.echo(f"{report.pages:,} pages, {report.chunks:,} chunks")
+
+
+@app.command()
 def ask(question: str) -> None:
     """Answer a question from the stored records, with citations."""
     try:

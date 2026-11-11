@@ -13,6 +13,7 @@ from helpers import (
 )
 
 from cerebro.adapters.sqlite_records import SqliteRecordStore
+from cerebro.application.chunking import chunk_character
 from cerebro.domain.comicvine import (
     CharacterMatch,
 )
@@ -239,3 +240,28 @@ def test_matched_characters_are_ranked_by_appearances(tmp_path: Path) -> None:
         (2, berkhart.pageid, berkhart.title, 3, 12),
         (3, berkhart.pageid, berkhart.title, 2, 0),
     ]
+
+
+def test_chunks_are_stored_and_a_rerun_replaces_them(tmp_path: Path) -> None:
+    path = tmp_path / "records.sqlite"
+    store = SqliteRecordStore(path)
+    chunks = chunk_character(real_character())
+    assert len(chunks) > 1
+
+    store.replace_chunks(chunks)
+    store.replace_chunks(chunks[:1])
+
+    stored = rows(path, "SELECT id, pageid, revid, number, title FROM chunks")
+    first = chunks[0]
+    assert stored == [(first.id, first.pageid, first.revid, 0, first.title)]
+
+
+def test_every_chunk_gets_a_row_with_its_own_id(tmp_path: Path) -> None:
+    path = tmp_path / "records.sqlite"
+    chunks = chunk_character(real_character())
+
+    SqliteRecordStore(path).replace_chunks(chunks)
+
+    stored = rows(path, "SELECT id, section, text FROM chunks ORDER BY number")
+    assert stored == [(c.id, c.section, c.text) for c in chunks]
+    assert len({id for id, _, _ in stored}) == len(chunks)

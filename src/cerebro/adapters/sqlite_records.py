@@ -4,11 +4,12 @@ import json
 import sqlite3
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import closing
-from dataclasses import Field, asdict, fields, is_dataclass
+from dataclasses import Field, asdict, astuple, fields, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, get_args, get_origin
 from urllib.parse import quote
 
+from cerebro.domain.chunks import Chunk
 from cerebro.domain.comicvine import (
     CharacterMatch,
     ComicVineCharacter,
@@ -25,6 +26,7 @@ from cerebro.domain.records import (
     Story,
     Team,
 )
+from cerebro.ports.chunks import ChunkStore
 from cerebro.ports.comicvine import ComicVineStore, MatchStore
 from cerebro.ports.records import (
     RecordLookup,
@@ -93,7 +95,7 @@ URL_SAFE = "()',-:!&/"
 
 
 class SqliteRecordStore(
-    RecordStore, RecordReader, RecordLookup, MatchStore, ComicVineStore
+    RecordStore, RecordReader, RecordLookup, MatchStore, ComicVineStore, ChunkStore
 ):
     """Records in one SQLite file.
 
@@ -104,6 +106,7 @@ class SqliteRecordStore(
     story's writers, are JSON arrays. `comicvine_characters` holds what Comic Vine says
     of each character, `comicvine_matches` pairs its ids with character pages, and the
     view `character_ranking` lists the matched characters by Comic Vine appearances.
+    `chunks` holds the pieces of each character page that a search ranks.
     """
 
     def __init__(self, path: Path) -> None:
@@ -277,6 +280,32 @@ class SqliteRecordStore(
                     db.execute(
                         f"INSERT INTO comicvine_characters VALUES ({marks})", values
                     )
+
+    # Chunks, replaced all at once like Comic Vine's characters.
+
+    def replace_chunks(self, chunks: Iterable[Chunk]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+        # The chunks stream from a reader open on this same file; without WAL the
+        # write would wait on that reader forever. The mode is kept in the file and
+        # can only change outside a transaction, hence the autocommit connection.
+        with closing(sqlite3.connect(self.path, autocommit=True)) as db:
+            db.execute("PRAGMA journal_mode = WAL")
+
+        with closing(sqlite3.connect(self.path, autocommit=False)) as db:
+            with db:
+                db.execute("DROP TABLE IF EXISTS chunks")
+                db.execute(
+                    "CREATE TABLE chunks (id TEXT PRIMARY KEY, pageid INTEGER,"
+                    " revid INTEGER, number INTEGER, title TEXT, section TEXT,"
+                    " text TEXT)"
+                )
+                db.execute("CREATE INDEX chunks_by_page ON chunks (pageid)")
+                # The columns follow `Chunk`'s field order.
+                db.executemany(
+                    "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (astuple(chunk) for chunk in chunks),
+                )
 
     # Writing, step by step.
 

@@ -1,10 +1,13 @@
 """Cut a character page into chunks a search can rank and an answer can cite."""
 
 import re
-from dataclasses import fields
+from collections.abc import Iterator
+from dataclasses import dataclass, fields
 
 from cerebro.domain.chunks import Chunk
 from cerebro.domain.records import Character
+from cerebro.ports.chunks import ChunkStore
+from cerebro.ports.records import RecordReader
 
 # The prose fields, in the order a page reads them.
 PROSE_FIELDS = (
@@ -34,6 +37,32 @@ CHARS_PER_TOKEN = 4
 HEADING = re.compile(r"^#+\s+(?P<text>.+?)\s*$")
 PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
 SENTENCE_END = re.compile(r"(?<=[.!?]) +(?=[A-Z\"'])")
+
+
+@dataclass(frozen=True)
+class ChunkReport:
+    pages: int
+    chunks: int
+
+
+def chunk_records(records: RecordReader, store: ChunkStore) -> ChunkReport:
+    """Replace the stored chunks with the stored characters' chunks.
+
+    Chunks stream through one at a time, so they are never held in memory whole.
+    """
+    pages = chunks = 0
+
+    def stream() -> Iterator[Chunk]:
+        nonlocal pages, chunks
+        for character in records.characters():
+            pages += 1
+            for chunk in chunk_character(character):
+                chunks += 1
+                yield chunk
+
+    store.replace_chunks(stream())
+
+    return ChunkReport(pages=pages, chunks=chunks)
 
 
 def chunk_character(character: Character) -> list[Chunk]:

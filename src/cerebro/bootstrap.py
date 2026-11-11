@@ -7,7 +7,7 @@ from cerebro.adapters.jsonl_pages import JsonlPageStore
 from cerebro.adapters.langgraph_agent import LangGraphAgent
 from cerebro.adapters.mistral import ministral
 from cerebro.adapters.sqlite_records import SqliteRecordStore
-from cerebro.application import loading, matching
+from cerebro.application import chunking, loading, matching
 from cerebro.application.crawl import CrawlReport, Progress, crawl
 from cerebro.application.parse import ParseReport, parse
 from cerebro.application.parse import Progress as ParseProgress
@@ -61,6 +61,13 @@ def match_comicvine() -> matching.MatchReport:
     comicvine = ComicVineDump(data_dir / "raw" / "comicvine")
 
     return matching.match_comicvine(store, comicvine, store)
+
+
+def chunk_records() -> chunking.ChunkReport:
+    """Cut the stored character pages into chunks in DATA_DIR/records.sqlite."""
+    store = SqliteRecordStore(Settings().data_dir / "records.sqlite")
+
+    return chunking.chunk_records(store, store)
 
 
 def ask(question: str) -> Answer:
