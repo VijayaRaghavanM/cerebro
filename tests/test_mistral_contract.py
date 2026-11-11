@@ -20,8 +20,11 @@ from cerebro.adapters.mistral import (
     MODEL,
     PACE,
     REQUESTS_PER_MINUTE,
+    RETRIES,
+    RETRY_WAIT_SECONDS,
     SECONDS_BETWEEN_REQUESTS,
     ministral,
+    retrying_client,
 )
 from cerebro.domain.pages import Category
 from cerebro.domain.records import PageHit
@@ -80,6 +83,76 @@ def test_a_recorded_429_is_rate_limited() -> None:
 
     with pytest.raises(RateLimited):
         final_answer(agent, "Hi")
+
+
+def refusing(
+    times: int, then: httpx.BaseTransport, headers: dict[str, str] | None = None
+) -> httpx.MockTransport:
+    """Answers 429 to the first `times` requests, then passes them on."""
+    recorded = json.loads((RECORDINGS / "rate_limited.json").read_text("utf-8"))
+    refusal = recorded[0]["response"]["body"]
+    sent: list[httpx.Request] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        if len(sent) <= times:
+            return httpx.Response(429, json=refusal, headers=headers)
+        return then.handle_request(request)
+
+    return httpx.MockTransport(answer)
+
+
+def retrying_model(inner: httpx.BaseTransport, waits: list[float]) -> ChatMistralAI:
+    """A model with the client ministral() gives it, its waits kept in `waits`."""
+    return ChatMistralAI(
+        model_name=MODEL,
+        api_key=FAKE_KEY,
+        temperature=0,
+        client=retrying_client(FAKE_KEY, inner, waits.append),
+    )
+
+
+def test_a_429_is_retried_after_a_pause() -> None:
+    waits: list[float] = []
+    inner = refusing(1, replay(RECORDINGS / "answer.json"))
+    agent = ann_agent(retrying_model(inner, waits))
+
+    answer = final_answer(agent, QUESTION)
+
+    assert "[1]" in answer.text
+    assert waits == [RETRY_WAIT_SECONDS]
+
+
+def test_a_429_is_retried_a_limited_number_of_times() -> None:
+    waits: list[float] = []
+    inner = refusing(RETRIES + 5, replay(RECORDINGS / "answer.json"))
+    agent = ann_agent(retrying_model(inner, waits))
+
+    with pytest.raises(RateLimited):
+        final_answer(agent, QUESTION)
+
+    assert waits == [RETRY_WAIT_SECONDS] * RETRIES
+
+
+def test_the_servers_retry_after_sets_the_pause() -> None:
+    waits: list[float] = []
+    inner = refusing(2, replay(RECORDINGS / "answer.json"), {"Retry-After": "7"})
+    agent = ann_agent(retrying_model(inner, waits))
+
+    final_answer(agent, QUESTION)
+
+    assert waits == [7.0, 7.0]
+
+
+def test_other_errors_are_not_retried() -> None:
+    waits: list[float] = []
+    inner = httpx.MockTransport(lambda request: httpx.Response(500))
+    client = retrying_client(FAKE_KEY, inner, waits.append)
+
+    response = client.post("/chat/completions", json={})
+
+    assert response.status_code == 500
+    assert waits == []
 
 
 def test_models_share_one_rate_limiter() -> None:
