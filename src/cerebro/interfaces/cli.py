@@ -193,6 +193,24 @@ def ask(question: str) -> None:
         raise typer.Exit(1) from None
 
 
+@app.command()
+def serve(
+    host: Annotated[
+        str,
+        typer.Option(help="Address to listen on. The default is this machine only."),
+    ] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port to listen on.")] = 8000,
+) -> None:
+    """Serve the question API on the given address."""
+    # Imported here: uvicorn and FastAPI take over 100 ms to load, which every
+    # other command would otherwise pay.
+    import uvicorn
+
+    from cerebro.interfaces.api import app as api
+
+    uvicorn.run(api, host=host, port=port)
+
+
 def show_step(step: Step) -> None:
     match step:
         case ToolCall():
