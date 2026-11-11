@@ -50,10 +50,18 @@ ROW_FIELDS_LEFT_OUT = {"links", "categories", "stories"}
 
 # The columns a search looks in, per table. A team has no current alias. Each table
 # gets an index on them, so a search scans the names and never the long text fields.
-# The display name is searched because some pages give their best-known name only
-# there, such as "S.H.I.E.L.D." on the Earth-616 page.
+# The display name and the codenames are searched because some pages give their
+# best-known name only there, such as "S.H.I.E.L.D." on the Earth-616 page and
+# "Beast" on Henry McCoy's.
 NAME_COLUMNS = {
-    Category.CHARACTERS: ["title", "name", "current_alias", "aliases", "display_name"],
+    Category.CHARACTERS: [
+        "title",
+        "name",
+        "current_alias",
+        "aliases",
+        "codenames",
+        "display_name",
+    ],
     Category.TEAMS: ["title", "name", "aliases", "display_name"],
     # People write "Avengers #1 (1963)", and the title has no year.
     Category.COMICS: ["title", "year"],

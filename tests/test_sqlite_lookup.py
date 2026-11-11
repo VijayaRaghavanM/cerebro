@@ -87,6 +87,16 @@ def test_a_character_is_found_by_its_display_name(tmp_path: Path) -> None:
     assert hits == [PageHit(person.title, Category.CHARACTERS, 0)]
 
 
+def test_a_character_is_found_by_a_codename(tmp_path: Path) -> None:
+    store = stored(tmp_path)
+    person = replace(real_character(), codenames="Zorgon\nThe Tall One")
+    store.replace(Category.CHARACTERS, [person])
+
+    hits = store.find("zorgon", 10)
+
+    assert hits == [PageHit(person.title, Category.CHARACTERS, 0)]
+
+
 def test_a_comic_is_found_by_words_of_its_title(tmp_path: Path) -> None:
     store = stored(tmp_path)
 
