@@ -5,6 +5,8 @@ from dataclasses import fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, get_origin
 
+import httpx
+
 from cerebro.adapters.fandom_wikitext import parse_character, parse_comic, parse_team
 from cerebro.domain.comicvine import (
     ComicVineCharacter,
@@ -142,3 +144,57 @@ class FakeLookup(RecordLookup):
 
     def url(self, title: str) -> str:
         return f"https://wiki.example/{title.replace(' ', '_')}"
+
+
+# Recorded Mistral exchanges
+
+
+def _contract(body: dict[str, Any]) -> tuple[Any, list[str]]:
+    """What a request must keep matching: the model and the tools it offers."""
+    tools = [tool["function"]["name"] for tool in body.get("tools", [])]
+    return body.get("model"), tools
+
+
+def replay(path: Path) -> httpx.MockTransport:
+    """Answers each request with the next recorded reply, in order.
+
+    A request whose model or tool names differ from the recording fails: our
+    requests have drifted, so the recording needs redoing.
+    """
+    exchanges = iter(json.loads(path.read_text(encoding="utf-8")))
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        exchange = next(exchanges, None)
+        assert exchange is not None, "more requests than recorded exchanges"
+
+        sent = json.loads(request.content)
+        assert _contract(sent) == _contract(exchange["request"]), "re-record"
+
+        reply = exchange["response"]
+        return httpx.Response(reply["status"], json=reply["body"])
+
+    return httpx.MockTransport(answer)
+
+
+class RecordingTransport(httpx.BaseTransport):
+    """Passes requests to the real API and keeps each body, never the headers."""
+
+    def __init__(self) -> None:
+        self.inner = httpx.HTTPTransport()
+        self.exchanges: list[dict[str, Any]] = []
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        response = self.inner.handle_request(request)
+        body = json.loads(response.read())
+        self.exchanges.append(
+            {
+                "request": json.loads(request.content),
+                "response": {"status": response.status_code, "body": body},
+            }
+        )
+        return httpx.Response(response.status_code, json=body)
+
+    def save(self, path: Path, last_only: bool = False) -> None:
+        exchanges = self.exchanges[-1:] if last_only else self.exchanges
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(exchanges, indent=2) + "\n", encoding="utf-8")
