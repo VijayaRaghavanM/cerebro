@@ -1,0 +1,89 @@
+:root {
+  --text: #1b2a4a;
+  --background: #ffffff;
+  --muted: #5b6987;
+  --accent: #d7263d;
+
+  color: var(--text);
+  background: var(--background);
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #e6ecf7;
+    --background: #121a2e;
+    --muted: #9aa8c7;
+    --accent: #ff4d61;
+  }
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+a {
+  color: inherit;
+}
+
+a:hover {
+  color: var(--accent);
+}
+
+form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+input {
+  flex: 1;
+  padding: 0.5rem;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--muted);
+  border-radius: 4px;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  font: inherit;
+  color: #ffffff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.trace {
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.trace span {
+  display: block;
+  margin-left: 1rem;
+}
+
+.answer {
+  white-space: pre-wrap;
+}
+
+.cost {
+  color: var(--muted);
+  font-size: 0.85rem;
+}

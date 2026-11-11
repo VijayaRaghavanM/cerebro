@@ -32,6 +32,15 @@ uv run cerebro match comicvine   # match Comic Vine's characters to the parsed o
 uv run cerebro ask "..."         # answer a question, with citations (needs MISTRAL_API_KEY)
 ```
 
+To use the chat page, start the API and then the page, which needs Node 22 (`nvm use` reads it from `web/.nvmrc`):
+
+```sh
+uv run cerebro serve             # the question API, on port 8000
+cd web && nvm use && npm install && npm run dev
+```
+
+Open the address Vite prints. Vite sends `/ask` to the API.
+
 ## Data and credits
 
 - Character, team and comic pages, including comic creators and appearances, come from the [Marvel Database](https://marvel.fandom.com) on Fandom, licensed under [CC BY-SA](https://creativecommons.org/licenses/by-sa/3.0/). Text derived from it keeps that license.
