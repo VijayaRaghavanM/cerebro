@@ -2,21 +2,36 @@
 
 import json
 import sqlite3
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import closing
 from dataclasses import Field, asdict, fields, is_dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, get_origin
+from typing import TYPE_CHECKING, Any, get_args, get_origin
+from urllib.parse import quote
 
 from cerebro.domain.comicvine import (
     CharacterMatch,
     ComicVineCharacter,
     ComicVineDetail,
+    ComicVineIssue,
 )
 from cerebro.domain.pages import Category
-from cerebro.domain.records import Character, Comic, Link, Record, Story
+from cerebro.domain.records import (
+    Character,
+    Comic,
+    Link,
+    PageHit,
+    Record,
+    Story,
+    Team,
+)
 from cerebro.ports.comicvine import ComicVineStore, MatchStore
-from cerebro.ports.records import RecordReader, RecordsMissing, RecordStore
+from cerebro.ports.records import (
+    RecordLookup,
+    RecordReader,
+    RecordsMissing,
+    RecordStore,
+)
 
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
@@ -26,6 +41,9 @@ SHARED_TABLES = [
     "(kind TEXT, pageid INTEGER, story INTEGER, field TEXT, title TEXT, text TEXT)",
     "CREATE INDEX IF NOT EXISTS links_by_title ON links (title)",
     "CREATE INDEX IF NOT EXISTS links_by_record ON links (kind, pageid)",
+    # Cast lists only, so counting a page's appearances never reads the link rows.
+    "CREATE INDEX IF NOT EXISTS links_in_casts ON links (title, pageid)"
+    " WHERE kind = 'comics' AND field = 'appearing'",
     "CREATE TABLE IF NOT EXISTS categories (kind TEXT, pageid INTEGER, name TEXT)",
     "CREATE INDEX IF NOT EXISTS categories_by_name ON categories (name)",
     "CREATE INDEX IF NOT EXISTS categories_by_record ON categories (kind, pageid)",
@@ -45,8 +63,25 @@ CHARACTER_RANKING = (
 # Fields stored in tables of their own rather than in a column.
 ROW_FIELDS_LEFT_OUT = {"links", "categories", "stories"}
 
+# The columns a search looks in, per table. A team has no current alias. Each table
+# gets an index on them, so a search scans the names and never the long text fields.
+NAME_COLUMNS = {
+    Category.CHARACTERS: ["title", "name", "current_alias", "aliases"],
+    Category.TEAMS: ["title", "name", "aliases"],
+    Category.COMICS: ["title"],
+}
 
-class SqliteRecordStore(RecordStore, RecordReader, MatchStore, ComicVineStore):
+# Builds a record from its row and the connection its links and categories are in.
+type RowReader = Callable[[sqlite3.Connection, sqlite3.Row], Record]
+
+WIKI_PAGES = "https://marvel.fandom.com/wiki/"
+# Left readable in a citation; quote() encodes the rest.
+URL_SAFE = "()',-:!&/"
+
+
+class SqliteRecordStore(
+    RecordStore, RecordReader, RecordLookup, MatchStore, ComicVineStore
+):
     """Records in one SQLite file.
 
     Each category has a table named after it, with a column per record field, and a
@@ -79,6 +114,13 @@ class SqliteRecordStore(RecordStore, RecordReader, MatchStore, ComicVineStore):
                 for record in records:
                     self._insert(db, category, record, created)
 
+                # The table only exists once a record has been written to it.
+                if str(category) in created:
+                    names = ", ".join(NAME_COLUMNS[category])
+                    db.execute(
+                        f'CREATE INDEX "{category}_names" ON "{category}" ({names})'
+                    )
+
     # Reading: one record at a time, so a category is never held in memory whole.
 
     def characters(self) -> Iterator[Character]:
@@ -98,6 +140,78 @@ class SqliteRecordStore(RecordStore, RecordReader, MatchStore, ComicVineStore):
             db.row_factory = sqlite3.Row
             for row in db.execute("SELECT * FROM comics ORDER BY pageid"):
                 yield _comic(db, row)
+
+    # Lookup: by name, then by title.
+
+    def find(self, name: str, limit: int) -> list[PageHit]:
+        if not self._stored("characters"):
+            raise RecordsMissing("No characters are stored yet")
+
+        words = name.split()
+        if not words:
+            return []
+
+        selects: list[str] = []
+        params: list[Any] = []
+        for category, columns in NAME_COLUMNS.items():
+            if self._stored(category):
+                condition, condition_params = _all_words_in(columns, words)
+                selects.append(_hits_from(category, condition))
+                params.extend(condition_params)
+
+        # Comics have no appearances, so they sort after any character that has some;
+        # the second key keeps them behind characters and teams that have none.
+        sql = (
+            f"SELECT * FROM ({' UNION ALL '.join(selects)})"
+            " ORDER BY appearances DESC, category = 'comics', title LIMIT ?"
+        )
+        with closing(sqlite3.connect(self.path)) as db:
+            found = db.execute(sql, [*params, limit]).fetchall()
+        return [PageHit(title, Category(kind), count) for title, kind, count in found]
+
+    def record(self, title: str) -> Record | None:
+        if not self._stored("characters"):
+            raise RecordsMissing("No characters are stored yet")
+
+        readers: list[tuple[Category, RowReader]] = [
+            (Category.CHARACTERS, _character),
+            (Category.TEAMS, _team),
+            (Category.COMICS, _comic),
+        ]
+        with closing(sqlite3.connect(self.path)) as db:
+            db.row_factory = sqlite3.Row
+            for category, read in readers:
+                if not self._stored(category):
+                    continue
+                row = db.execute(
+                    f'SELECT * FROM "{category}" WHERE title = ?', (title,)
+                ).fetchone()
+                if row is not None:
+                    return read(db, row)
+        return None
+
+    def comicvine(self, pageid: int) -> ComicVineCharacter | None:
+        # Either table is missing until `cerebro load comicvine` and the match have run.
+        if not (
+            self._stored("comicvine_matches") and self._stored("comicvine_characters")
+        ):
+            return None
+
+        with closing(sqlite3.connect(self.path)) as db:
+            db.row_factory = sqlite3.Row
+            row = db.execute(
+                "SELECT cv.* FROM comicvine_matches m"
+                " JOIN comicvine_characters cv ON cv.id = m.comicvine_id"
+                " WHERE m.pageid = ? ORDER BY m.overlap DESC, cv.id LIMIT 1",
+                (pageid,),
+            ).fetchone()
+        if row is None:
+            return None
+
+        return _comicvine_character(row)
+
+    def url(self, title: str) -> str:
+        return WIKI_PAGES + quote(title.replace(" ", "_"), safe=URL_SAFE)
 
     def _stored(self, table: str) -> bool:
         # Checked before connecting, which would create an empty file.
@@ -225,6 +339,30 @@ def _cell(value: Any) -> Any:
     return value
 
 
+def _uncell(field: Field[Any], value: Any) -> Any:
+    """The reverse of `_cell`: JSON lists back to tuples, issue objects to issues."""
+    if get_origin(field.type) is not tuple:
+        return value
+
+    items = json.loads(value)
+    if get_args(field.type)[0] is ComicVineIssue:
+        return tuple(ComicVineIssue(**item) for item in items)
+    return tuple(items)
+
+
+def _comicvine_character(row: sqlite3.Row) -> ComicVineCharacter:
+    values = {f.name: _uncell(f, row[f.name]) for f in _character_fields()}
+
+    # Every detail column is NULL for a character fetched without detail.
+    detail = None
+    if row["issues"] is not None:
+        detail = ComicVineDetail(
+            **{f.name: _uncell(f, row[f.name]) for f in fields(ComicVineDetail)}
+        )
+
+    return ComicVineCharacter(**values, detail=detail)
+
+
 def _from_columns[T: DataclassInstance](
     cls: type[T], row: sqlite3.Row, **left_out: Any
 ) -> T:
@@ -292,6 +430,16 @@ def _character(db: sqlite3.Connection, row: sqlite3.Row) -> Character:
     )
 
 
+def _team(db: sqlite3.Connection, row: sqlite3.Row) -> Team:
+    pageid = row["pageid"]
+    return _from_columns(
+        Team,
+        row,
+        categories=_categories_of(db, "teams", pageid),
+        links=_links_of(db, "teams", pageid, story=None),
+    )
+
+
 def _comic(db: sqlite3.Connection, row: sqlite3.Row) -> Comic:
     pageid = row["pageid"]
     story_rows = db.execute(
@@ -334,3 +482,33 @@ def _links_of(
         (kind, pageid, story),
     )
     return tuple(Link(field, title, text) for field, title, text in rows)
+
+
+def _all_words_in(columns: list[str], words: list[str]) -> tuple[str, list[str]]:
+    """A condition that holds when every word is in at least one of the columns."""
+    clauses = []
+    params = []
+    for word in words:
+        # Escaped, so a % or _ in the word matches itself.
+        escaped = word.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        likes = [f"{column} LIKE ? ESCAPE '\\'" for column in columns]
+        clauses.append(f"({' OR '.join(likes)})")
+        params.extend([f"%{escaped}%"] * len(columns))
+    return " AND ".join(clauses), params
+
+
+def _hits_from(category: Category, condition: str) -> str:
+    """The SELECT for one table's hits: title, category and appearances."""
+    if category is Category.COMICS:
+        count = "0"
+    else:
+        # The page's title is what a cast list links to; a comic counts once however
+        # many of its stories list the page. The `links_in_casts` index answers it.
+        count = (
+            "(SELECT COUNT(DISTINCT pageid) FROM links"
+            " WHERE kind = 'comics' AND field = 'appearing' AND title = page.title)"
+        )
+    return (
+        f"SELECT title, '{category}' AS category, {count} AS appearances"
+        f' FROM "{category}" AS page WHERE {condition}'
+    )

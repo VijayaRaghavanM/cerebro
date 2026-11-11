@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from cerebro.domain.pages import Category
+
 
 @dataclass(frozen=True)
 class Link:
@@ -276,3 +278,14 @@ class Comic:
 
 # A record of any kind, as parsing produces and the record store keeps them.
 type Record = Character | Team | Comic
+
+
+@dataclass(frozen=True)
+class PageHit:
+    """A page whose names match a search, with the number of comics whose cast lists
+    it appears in.
+    """
+
+    title: str
+    category: Category
+    appearances: int

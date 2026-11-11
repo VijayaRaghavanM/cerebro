@@ -3,8 +3,9 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
 
+from cerebro.domain.comicvine import ComicVineCharacter
 from cerebro.domain.pages import Category, RawPage
-from cerebro.domain.records import Character, Comic, Record
+from cerebro.domain.records import Character, Comic, PageHit, Record
 
 
 class RecordsMissing(Exception):
@@ -46,3 +47,33 @@ class RecordReader(ABC):
 
         Raises RecordsMissing if no comics are stored.
         """
+
+
+class RecordLookup(ABC):
+    """Stored records, found by name and read by title."""
+
+    @abstractmethod
+    def find(self, name: str, limit: int) -> list[PageHit]:
+        """Pages whose title or names contain every word of `name`, ignoring case.
+
+        Characters and teams come first, the most appearances first, then comics; at
+        most `limit` in all. Raises RecordsMissing if nothing is stored.
+        """
+
+    @abstractmethod
+    def record(self, title: str) -> Record | None:
+        """The character, team or comic with this title, or None.
+
+        Raises RecordsMissing if nothing is stored.
+        """
+
+    @abstractmethod
+    def comicvine(self, pageid: int) -> ComicVineCharacter | None:
+        """The Comic Vine character matched to this page, or None.
+
+        If several are matched, the one whose issues overlap the page's the most.
+        """
+
+    @abstractmethod
+    def url(self, title: str) -> str:
+        """The page's public address, for citations."""
