@@ -1,8 +1,9 @@
 from collections.abc import Iterable, Iterator
-from dataclasses import fields, replace
-from typing import TYPE_CHECKING, Any, get_origin
+from dataclasses import replace
+from typing import Any
 
 import pytest
+from helpers import blank
 
 from cerebro.application.matching import MatchReport, match_characters, match_comicvine
 from cerebro.domain.comicvine import (
@@ -14,18 +15,6 @@ from cerebro.domain.comicvine import (
 from cerebro.domain.records import Character, Comic, Credits, Link, Story
 from cerebro.ports.comicvine import ComicVineSource, MatchStore
 from cerebro.ports.records import RecordReader
-
-if TYPE_CHECKING:
-    from _typeshed import DataclassInstance
-
-
-def blank[T: DataclassInstance](cls: type[T], **values: Any) -> T:
-    """A record with only `values` filled: None for text, () for lists."""
-    empty = {
-        field.name: () if get_origin(field.type) is tuple else None
-        for field in fields(cls)
-    }
-    return cls(**(empty | values))
 
 
 def page(pageid: int, title: str, name: str, **values: Any) -> Character:

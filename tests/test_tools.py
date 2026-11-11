@@ -1,5 +1,4 @@
-from dataclasses import fields
-from typing import TYPE_CHECKING, Any, get_origin
+from helpers import FakeLookup, blank, character, detail, vine
 
 from cerebro.application.tools import (
     FIELD_LIMIT,
@@ -10,73 +9,16 @@ from cerebro.application.tools import (
 )
 from cerebro.domain.answers import Source
 from cerebro.domain.comicvine import (
-    ComicVineCharacter,
-    ComicVineDetail,
     ComicVineIssue,
 )
 from cerebro.domain.pages import Category
 from cerebro.domain.records import (
-    Character,
     Comic,
     Credits,
     PageHit,
-    Record,
     Story,
     Team,
 )
-from cerebro.ports.records import RecordLookup
-
-if TYPE_CHECKING:
-    from _typeshed import DataclassInstance
-
-
-def blank[T: DataclassInstance](cls: type[T], **values: Any) -> T:
-    """A record with only `values` filled: None for text, () for lists."""
-    empty = {
-        field.name: () if get_origin(field.type) is tuple else None
-        for field in fields(cls)
-    }
-    return cls(**(empty | values))
-
-
-class FakeLookup(RecordLookup):
-    def __init__(
-        self,
-        hits: list[PageHit] | None = None,
-        records: list[Record] | None = None,
-        comicvine: ComicVineCharacter | None = None,
-    ) -> None:
-        self.hits = hits or []
-        self.records = {record.title: record for record in records or []}
-        self.matched = comicvine
-        self.limits: list[int] = []
-
-    def find(self, name: str, limit: int) -> list[PageHit]:
-        self.limits.append(limit)
-        return self.hits[:limit]
-
-    def record(self, title: str) -> Record | None:
-        return self.records.get(title)
-
-    def comicvine(self, pageid: int) -> ComicVineCharacter | None:
-        return self.matched
-
-    def url(self, title: str) -> str:
-        return f"https://wiki.example/{title.replace(' ', '_')}"
-
-
-def character(**values: Any) -> Character:
-    return blank(Character, pageid=1, title="Ann Doe (Earth-1)", revid=7, **values)
-
-
-def detail(**values: Any) -> ComicVineDetail:
-    return blank(ComicVineDetail, **values)
-
-
-def vine(detail: ComicVineDetail | None = None) -> ComicVineCharacter:
-    return ComicVineCharacter(
-        5, "Weather Witch", "Ann Doe", (), 321, "https://vine.example/5", detail
-    )
 
 
 def test_a_search_lists_numbered_pages_with_their_appearances() -> None:

@@ -5,41 +5,19 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from helpers import (
+    comicvine_characters,
+    real_character,
+    real_comic,
+    real_team,
+)
 
-from cerebro.adapters.fandom_wikitext import parse_character, parse_comic, parse_team
 from cerebro.adapters.sqlite_records import SqliteRecordStore
 from cerebro.domain.comicvine import (
     CharacterMatch,
-    ComicVineCharacter,
-    ComicVineDetail,
-    ComicVineIssue,
 )
-from cerebro.domain.pages import Category, RawPage
-from cerebro.domain.records import Character, Comic, Record, Team
-
-FIXTURES = Path(__file__).parent / "fixtures" / "fandom"
-
-
-def fixture(name: str) -> RawPage:
-    return RawPage(**json.loads((FIXTURES / name).read_text(encoding="utf-8")))
-
-
-def character() -> Character:
-    record = parse_character(fixture("daniel_berkhart.json"))
-    assert record is not None
-    return record
-
-
-def team() -> Team:
-    record = parse_team(fixture("livewires.json"))
-    assert record is not None
-    return record
-
-
-def comic() -> Comic:
-    record = parse_comic(fixture("marvel_comics_presents_170.json"))
-    assert record is not None
-    return record
+from cerebro.domain.pages import Category
+from cerebro.domain.records import Record
 
 
 def rows(path: Path, sql: str, *params: object) -> list[tuple[object, ...]]:
@@ -49,7 +27,7 @@ def rows(path: Path, sql: str, *params: object) -> list[tuple[object, ...]]:
 
 def test_a_record_is_stored_with_its_links_and_categories(tmp_path: Path) -> None:
     path = tmp_path / "records.sqlite"
-    record = character()
+    record = real_character()
 
     SqliteRecordStore(path).replace(Category.CHARACTERS, [record])
 
@@ -66,7 +44,7 @@ def test_a_record_is_stored_with_its_links_and_categories(tmp_path: Path) -> Non
 
 def test_a_comics_stories_get_rows_of_their_own(tmp_path: Path) -> None:
     path = tmp_path / "records.sqlite"
-    record = comic()
+    record = real_comic()
 
     # Twice, as a rerun would: the second run replaces the first run's stories.
     SqliteRecordStore(path).replace(Category.COMICS, [record])
@@ -90,8 +68,8 @@ def test_a_comics_stories_get_rows_of_their_own(tmp_path: Path) -> None:
 
 def test_replacing_a_category_leaves_the_others(tmp_path: Path) -> None:
     store = SqliteRecordStore(tmp_path / "records.sqlite")
-    store.replace(Category.CHARACTERS, [character()])
-    store.replace(Category.TEAMS, [team()])
+    store.replace(Category.CHARACTERS, [real_character()])
+    store.replace(Category.TEAMS, [real_team()])
 
     store.replace(Category.CHARACTERS, [])
 
@@ -99,16 +77,16 @@ def test_replacing_a_category_leaves_the_others(tmp_path: Path) -> None:
     assert rows(path, "SELECT * FROM links WHERE kind = 'characters'") == []
     assert rows(path, "SELECT name FROM teams") == [("Livewires",)]
     assert len(rows(path, "SELECT * FROM links WHERE kind = 'teams'")) == len(
-        team().links
+        real_team().links
     )
 
 
 def test_a_failed_run_keeps_the_previous_records(tmp_path: Path) -> None:
     store = SqliteRecordStore(tmp_path / "records.sqlite")
-    store.replace(Category.CHARACTERS, [character()])
+    store.replace(Category.CHARACTERS, [real_character()])
 
     def records_then_failure() -> Iterator[Record]:
-        yield character()
+        yield real_character()
         raise RuntimeError("the parser crashed")
 
     with pytest.raises(RuntimeError):
@@ -116,12 +94,12 @@ def test_a_failed_run_keeps_the_previous_records(tmp_path: Path) -> None:
 
     path = store.path
     assert rows(path, "SELECT name FROM characters") == [("Daniel Berkhart",)]
-    assert len(rows(path, "SELECT * FROM links")) == len(character().links)
+    assert len(rows(path, "SELECT * FROM links")) == len(real_character().links)
 
 
 def test_characters_read_back_as_they_were_stored(tmp_path: Path) -> None:
     store = SqliteRecordStore(tmp_path / "records.sqlite")
-    berkhart = character()
+    berkhart = real_character()
     # Another character with a lower page id, one of the links and no categories.
     other = replace(
         berkhart,
@@ -139,7 +117,7 @@ def test_characters_read_back_as_they_were_stored(tmp_path: Path) -> None:
 def test_comics_read_back_as_they_were_stored(tmp_path: Path) -> None:
     store = SqliteRecordStore(tmp_path / "records.sqlite")
     # The fixture page has no categories of its own.
-    issue = replace(comic(), categories=("Marvel Comics Presents Vol 1",))
+    issue = replace(real_comic(), categories=("Marvel Comics Presents Vol 1",))
     # Another comic with a lower page id, one of the links and no stories.
     other = replace(
         issue,
@@ -167,40 +145,6 @@ def test_a_new_set_of_matches_replaces_the_old_one(tmp_path: Path) -> None:
         "SELECT pageid, comicvine_id, overlap FROM comicvine_matches ORDER BY rowid",
     )
     assert stored == [(3, 30, 0.5), (3, 31, 0.75)]
-
-
-def comicvine_characters() -> list[ComicVineCharacter]:
-    """Made-up characters: one fetched in detail, one only listed."""
-    detail = ComicVineDetail(
-        issues=(ComicVineIssue("Strange Tales", "3", "1951-05-01"),),
-        deck="Controls the weather.",
-        birth=None,
-        gender="female",
-        origin="Mutant",
-        powers=("Flight", "Lightning"),
-        creators=(),
-        teams=("Storm Watch",),
-        team_friends=(),
-        team_enemies=(),
-        friends=(),
-        enemies=(),
-        volumes=("Strange Tales",),
-        movies=(),
-        died_in=(ComicVineIssue("Strange Tales", "4", None),),
-        story_arcs=(),
-        updated="2020-01-02 03:04:05",
-    )
-    witch = ComicVineCharacter(
-        1,
-        "Weather Witch",
-        "Ann Doe",
-        ("Stormcaller",),
-        12,
-        "https://cv.example/1",
-        detail,
-    )
-    nobody = ComicVineCharacter(2, "Nobody", None, (), 0, "https://cv.example/2", None)
-    return [witch, nobody]
 
 
 def test_comic_vine_characters_are_stored_with_their_detail(tmp_path: Path) -> None:
@@ -272,7 +216,7 @@ def test_a_new_set_of_comic_vine_characters_replaces_the_old_one(
 def test_matched_characters_are_ranked_by_appearances(tmp_path: Path) -> None:
     path = tmp_path / "records.sqlite"
     store = SqliteRecordStore(path)
-    berkhart = character()
+    berkhart = real_character()
     other = replace(berkhart, pageid=1, title="Someone (Earth-616)")
     store.replace(Category.CHARACTERS, [berkhart, other])
     witch, nobody = comicvine_characters()

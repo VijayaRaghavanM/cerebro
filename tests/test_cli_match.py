@@ -3,48 +3,26 @@ import sqlite3
 from dataclasses import replace
 from pathlib import Path
 
-import pytest
+from helpers import real_character, real_comic
 from typer.testing import CliRunner
 
-from cerebro.adapters.fandom_wikitext import parse_character, parse_comic
 from cerebro.adapters.sqlite_records import SqliteRecordStore
-from cerebro.domain.pages import Category, RawPage
-from cerebro.domain.records import Character, Comic, Link, Record
+from cerebro.domain.pages import Category
+from cerebro.domain.records import Comic, Link, Record
 from cerebro.interfaces.cli import app
-
-FIXTURES = Path(__file__).parent / "fixtures" / "fandom"
-
-
-@pytest.fixture
-def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """The real settings, pointed at a temp folder the way a user would point them."""
-    monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    monkeypatch.chdir(tmp_path)
-    return tmp_path
-
-
-def fixture(name: str) -> RawPage:
-    return RawPage(**json.loads((FIXTURES / name).read_text(encoding="utf-8")))
-
-
-def berkhart() -> Character:
-    record = parse_character(fixture("daniel_berkhart.json"))
-    assert record is not None
-    return record
 
 
 def issue_with_berkhart() -> Comic:
     """Marvel Comics Presents #170 (1994), with Berkhart added to its first story."""
-    record = parse_comic(fixture("marvel_comics_presents_170.json"))
-    assert record is not None
+    record = real_comic()
     first = record.stories[0]
-    cast = (*first.links, Link("appearing", berkhart().title, "Mysterio"))
+    cast = (*first.links, Link("appearing", real_character().title, "Mysterio"))
     return replace(record, stories=(replace(first, links=cast), *record.stories[1:]))
 
 
 def store(data_dir: Path, *categories: Category) -> None:
     records: dict[Category, list[Record]] = {
-        Category.CHARACTERS: [berkhart()],
+        Category.CHARACTERS: [real_character()],
         Category.COMICS: [issue_with_berkhart()],
     }
     for category in categories:
@@ -102,7 +80,7 @@ def test_match_comicvine_stores_the_matches(data_dir: Path) -> None:
     )
     with sqlite3.connect(data_dir / "records.sqlite") as db:
         matches = db.execute("SELECT comicvine_id, pageid FROM comicvine_matches")
-        assert matches.fetchall() == [(1, berkhart().pageid)]
+        assert matches.fetchall() == [(1, real_character().pageid)]
 
 
 def test_matching_before_parsing_says_what_to_run(data_dir: Path) -> None:

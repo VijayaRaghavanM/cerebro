@@ -10,14 +10,6 @@ from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
 from cerebro.ports.records import RecordsMissing
 
 
-@pytest.fixture
-def data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """The real settings, pointed at a temp folder the way a user would point them."""
-    monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    monkeypatch.chdir(tmp_path)
-    return tmp_path
-
-
 def answer(*sources: Source) -> Answer:
     return Answer(
         text="Wolverine's real name is James Howlett [1].",
