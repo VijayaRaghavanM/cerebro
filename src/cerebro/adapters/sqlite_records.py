@@ -393,11 +393,12 @@ def _name_rank(wanted: list[str], title: str, *others: str | None) -> int:
     one, 2 when its words are only scattered across the names or part-words.
     `wanted` is lower case; the title's reality is dropped.
     """
-    columns = [REALITY.sub("", title), *(other for other in others if other)]
-    # A column holds one name, which can have a comma in it, or several names, so
+    columns = [other for other in others if other]
+    # The title is one name, commas and all ("Avengers (1,000,000 BC)"). Another
+    # column holds one name, which can have a comma in it, or several names, so
     # each counts whole and split.
     parts = [part for column in columns for part in NAME_SEPARATORS.split(column)]
-    names = columns + parts
+    names = [REALITY.sub("", title), *columns, *parts]
 
     rank = 2
     size = len(wanted)

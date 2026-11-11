@@ -210,6 +210,14 @@ def test_a_name_with_a_comma_in_it_counts_whole(tmp_path: Path) -> None:
     assert found(tmp_path, query, popular, named) == [named.title, popular.title]
 
 
+def test_a_comma_in_a_title_makes_no_name_of_its_own(tmp_path: Path) -> None:
+    # Split at its comma, this title would hold the name "Zephyr (1".
+    popular = page("Ann Doe (Earth-1)", name="The Zephyr 1 Squad")
+    titled = page("Zephyr (1,000 BC) (Earth-1)")
+
+    assert found(tmp_path, "zephyr 1", popular, titled) == [popular.title, titled.title]
+
+
 def test_the_title_without_its_reality_counts_as_a_name(tmp_path: Path) -> None:
     popular = page("Ann Doe (Earth-1)", name="The Zephyr Choir")
     titled = page("Zephyr (Earth-616)")
