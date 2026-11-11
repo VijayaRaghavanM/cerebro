@@ -13,14 +13,21 @@ class ComicVineIssue:
 
 
 @dataclass(frozen=True)
+class ComicVineDetail:
+    """What Comic Vine gives for a character fetched in detail."""
+
+    issues: tuple[ComicVineIssue, ...]
+
+
+@dataclass(frozen=True)
 class ComicVineCharacter:
     id: int
     name: str
     real_name: str | None
     aliases: tuple[str, ...]
     appearances: int  # issues it appears in, by Comic Vine's count
-    # The issues it appears in, or None when the download has no list for it.
-    issues: tuple[ComicVineIssue, ...] | None
+    # None when the download has no detail for it.
+    detail: ComicVineDetail | None
 
 
 @dataclass(frozen=True)

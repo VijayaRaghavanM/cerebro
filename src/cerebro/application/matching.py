@@ -22,7 +22,7 @@ type IssueKey = tuple[str, str, str]
 @dataclass(frozen=True)
 class MatchReport:
     comicvine: int  # Comic Vine characters read
-    with_issues: int  # of those, the ones with an issue list to match on
+    with_issues: int  # of those, the ones with detail, which carries the issue list
     matched: int
     pages_claimed_twice: int  # Fandom pages matched by more than one of them
 
@@ -38,7 +38,7 @@ def match_comicvine(
     claims = Counter(match.pageid for match in matches)
     return MatchReport(
         comicvine=len(characters),
-        with_issues=sum(character.issues is not None for character in characters),
+        with_issues=sum(character.detail is not None for character in characters),
         matched=len(matches),
         pages_claimed_twice=sum(count > 1 for count in claims.values()),
     )
@@ -111,11 +111,11 @@ class _Casts:
 def _match(
     character: ComicVineCharacter, page_names: dict[int, _Names], casts: _Casts
 ) -> CharacterMatch | None:
-    if character.issues is None:
+    if character.detail is None:
         return None
 
     names = _Names.of([character.name, character.real_name or "", *character.aliases])
-    keys = {key for issue in character.issues if (key := _comicvine_key(issue))}
+    keys = {key for issue in character.detail.issues if (key := _comicvine_key(issue))}
     found = [cast for key in keys if (cast := casts.in_issue(key)) is not None]
     shared = Counter(
         page for cast in found for page in cast if names.words & page_names[page].words

@@ -2,7 +2,11 @@ import json
 from pathlib import Path
 
 from cerebro.adapters.comicvine_dump import ComicVineDump
-from cerebro.domain.comicvine import ComicVineCharacter, ComicVineIssue
+from cerebro.domain.comicvine import (
+    ComicVineCharacter,
+    ComicVineDetail,
+    ComicVineIssue,
+)
 
 
 def write_lines(path: Path, rows: list[dict[str, object]]) -> None:
@@ -62,18 +66,20 @@ def test_characters_come_with_their_issues(tmp_path: Path) -> None:
             real_name="Ann Doe",
             aliases=("Stormcaller", "The Witch"),
             appearances=12,
-            issues=(
-                ComicVineIssue("Strange Tales", "4", cover_date=None),
-                ComicVineIssue("Strange Tales", "3", cover_date="1951-05-01"),
+            detail=ComicVineDetail(
+                issues=(
+                    ComicVineIssue("Strange Tales", "4", cover_date=None),
+                    ComicVineIssue("Strange Tales", "3", cover_date="1951-05-01"),
+                ),
             ),
         ),
-        # No issue list was downloaded for it, and "None" means no real name.
+        # No detail was downloaded for it, and "None" means no real name.
         ComicVineCharacter(
             id=2,
             name="Nobody",
             real_name=None,
             aliases=(),
             appearances=0,
-            issues=None,
+            detail=None,
         ),
     ]

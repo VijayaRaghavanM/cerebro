@@ -5,7 +5,12 @@ from typing import TYPE_CHECKING, Any, get_origin
 import pytest
 
 from cerebro.application.matching import MatchReport, match_characters, match_comicvine
-from cerebro.domain.comicvine import CharacterMatch, ComicVineCharacter, ComicVineIssue
+from cerebro.domain.comicvine import (
+    CharacterMatch,
+    ComicVineCharacter,
+    ComicVineDetail,
+    ComicVineIssue,
+)
 from cerebro.domain.records import Character, Comic, Credits, Link, Story
 from cerebro.ports.comicvine import ComicVineSource, MatchStore
 from cerebro.ports.records import RecordReader
@@ -64,7 +69,8 @@ def comicvine(
     *,
     cvid: int = 1,
 ) -> ComicVineCharacter:
-    return ComicVineCharacter(cvid, name, real_name, (), 10, issues)
+    detail = None if issues is None else ComicVineDetail(issues)
+    return ComicVineCharacter(cvid, name, real_name, (), 10, detail)
 
 
 def matched(
@@ -144,10 +150,17 @@ def test_a_whole_name_anywhere_on_the_page_beats_a_shared_word(
 @pytest.mark.parametrize(
     "character",
     [
-        ComicVineCharacter(1, "Ann Doe", None, (), 10, (issue(1),)),
-        ComicVineCharacter(1, "Weather Witch", "Ann Doe", (), 10, (issue(1),)),
+        ComicVineCharacter(1, "Ann Doe", None, (), 10, ComicVineDetail((issue(1),))),
         ComicVineCharacter(
-            1, "Weather Witch", None, ("Stormy", "Ann Doe"), 10, (issue(1),)
+            1, "Weather Witch", "Ann Doe", (), 10, ComicVineDetail((issue(1),))
+        ),
+        ComicVineCharacter(
+            1,
+            "Weather Witch",
+            None,
+            ("Stormy", "Ann Doe"),
+            10,
+            ComicVineDetail((issue(1),)),
         ),
     ],
 )

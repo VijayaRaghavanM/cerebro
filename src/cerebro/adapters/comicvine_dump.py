@@ -5,7 +5,11 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from cerebro.domain.comicvine import ComicVineCharacter, ComicVineIssue
+from cerebro.domain.comicvine import (
+    ComicVineCharacter,
+    ComicVineDetail,
+    ComicVineIssue,
+)
 from cerebro.ports.comicvine import ComicVineSource
 
 
@@ -21,7 +25,7 @@ class ComicVineDump(ComicVineSource):
         self.root = root
 
     def characters(self) -> Iterator[ComicVineCharacter]:
-        issue_lists = self._issue_lists()
+        details = self._details()
 
         for row in self._rows("characters.jsonl"):
             aliases = (_text(row.get("aliases")) or "").splitlines()
@@ -31,11 +35,11 @@ class ComicVineDump(ComicVineSource):
                 real_name=_text(row.get("real_name")),
                 aliases=tuple(alias.strip() for alias in aliases if alias.strip()),
                 appearances=int(row.get("count_of_issue_appearances") or 0),
-                issues=issue_lists.get(int(row["id"])),
+                detail=details.get(int(row["id"])),
             )
 
-    def _issue_lists(self) -> dict[int, tuple[ComicVineIssue, ...]]:
-        """The issues of each character fetched in detail, by character id.
+    def _details(self) -> dict[int, ComicVineDetail]:
+        """What the download holds for each character fetched in detail, by id.
 
         An issue the download doesn't describe is left out.
         """
@@ -47,11 +51,12 @@ class ComicVineDump(ComicVineSource):
             )
             for row in self._rows("issues.jsonl")
         }
-        lists = {}
+        details = {}
         for row in self._rows("character-issues.jsonl"):
             ids = row["issue_ids"]
-            lists[int(row["id"])] = tuple(issues[i] for i in ids if i in issues)
-        return lists
+            found = tuple(issues[i] for i in ids if i in issues)
+            details[int(row["id"])] = ComicVineDetail(issues=found)
+        return details
 
     def _rows(self, name: str) -> Iterator[dict[str, Any]]:
         with (self.root / name).open(encoding="utf-8") as fh:
