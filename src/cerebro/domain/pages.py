@@ -5,7 +5,7 @@ from enum import StrEnum
 
 
 class Category(StrEnum):
-    """The wiki categories Cerebro collects pages from."""
+    """The kinds of page Cerebro collects."""
 
     CHARACTERS = "characters"
     TEAMS = "teams"

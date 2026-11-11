@@ -32,20 +32,48 @@ def client(api: FakeApi, sleeps: list[float]) -> FandomClient:
     return FandomClient(get_json=api, sleep=sleeps.append)
 
 
-def members(*titles: str) -> dict[str, Any]:
-    items = [{"pageid": i, "title": t} for i, t in enumerate(titles, 1)]
+def members(*pages: tuple[int, str]) -> dict[str, Any]:
+    """One listing response, from (page id, title) pairs."""
+    items = [{"pageid": pageid, "title": title} for pageid, title in pages]
     return {"query": {"categorymembers": items}}
 
 
 def test_lists_titles_across_continuation_pages() -> None:
     more = {"cmcontinue": "page|2", "continue": "-||"}
-    api = FakeApi({**members("Storm"), "continue": more}, members("Wolverine"))
+    api = FakeApi(
+        {**members((1, "Storm")), "continue": more},
+        members((2, "Wolverine")),
+    )
 
     refs = list(client(api, []).category_titles(Category.CHARACTERS))
 
     assert [ref.title for ref in refs] == ["Storm", "Wolverine"]
     assert api.params(0)["cmtitle"] == "Category:Characters"
     assert api.params(1)["cmcontinue"] == "page|2"
+
+
+def test_teams_list_both_wiki_categories_in_order() -> None:
+    api = FakeApi(
+        members((1, "X-Men")),
+        members((2, "Avengers"), (3, "Hydra")),
+    )
+
+    refs = list(client(api, []).category_titles(Category.TEAMS))
+
+    assert [ref.title for ref in refs] == ["X-Men", "Avengers", "Hydra"]
+    assert api.params(0)["cmtitle"] == "Category:Teams"
+    assert api.params(1)["cmtitle"] == "Category:Organizations"
+
+
+def test_a_page_in_both_wiki_categories_is_listed_once() -> None:
+    api = FakeApi(
+        members((1, "X-Men"), (2, "Avengers")),
+        members((2, "Avengers"), (3, "Hydra")),
+    )
+
+    refs = list(client(api, []).category_titles(Category.TEAMS))
+
+    assert [ref.pageid for ref in refs] == [1, 2, 3]
 
 
 def test_fetch_returns_pages_and_leaves_out_missing_ones() -> None:
@@ -75,7 +103,7 @@ def test_fetch_returns_pages_and_leaves_out_missing_ones() -> None:
 
 def test_waits_before_every_request() -> None:
     sleeps: list[float] = []
-    api = FakeApi(members("Storm"))
+    api = FakeApi(members((1, "Storm")))
 
     list(client(api, sleeps).category_titles(Category.CHARACTERS))
 
@@ -84,7 +112,7 @@ def test_waits_before_every_request() -> None:
 
 def test_retries_after_a_network_error() -> None:
     sleeps: list[float] = []
-    api = FakeApi(urllib.error.URLError("connection reset"), members("Storm"))
+    api = FakeApi(urllib.error.URLError("connection reset"), members((1, "Storm")))
 
     refs = list(client(api, sleeps).category_titles(Category.CHARACTERS))
 
@@ -95,7 +123,7 @@ def test_retries_after_a_network_error() -> None:
 def test_backs_off_when_the_wiki_reports_maxlag() -> None:
     sleeps: list[float] = []
     lagging = {"error": {"code": "maxlag", "info": "Waiting for a database server"}}
-    api = FakeApi(lagging, members("Storm"))
+    api = FakeApi(lagging, members((1, "Storm")))
 
     refs = list(client(api, sleeps).category_titles(Category.CHARACTERS))
 

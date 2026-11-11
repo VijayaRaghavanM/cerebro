@@ -13,10 +13,12 @@ from cerebro.domain.pages import Category, PageRef, RawPage
 from cerebro.ports.wiki import WikiSource, WikiUnavailable
 
 FANDOM_API = "https://marvel.fandom.com/api.php"
+# The wiki files organizations such as the Avengers and Hydra in a category of their
+# own, on a template with the team template's fields, so teams come from both.
 CATEGORY_TITLES = {
-    Category.CHARACTERS: "Category:Characters",
-    Category.TEAMS: "Category:Teams",
-    Category.COMICS: "Category:Comics",
+    Category.CHARACTERS: ("Category:Characters",),
+    Category.TEAMS: ("Category:Teams", "Category:Organizations"),
+    Category.COMICS: ("Category:Comics",),
 }
 
 # MediaWiki asks every client to name itself and give a way to reach its owner.
@@ -55,13 +57,22 @@ class FandomClient(WikiSource):
         self._sleep = sleep
 
     def category_titles(self, category: Category) -> Iterator[PageRef]:
+        # A page can sit in more than one of the wiki categories. Yield it once.
+        seen: set[int] = set()
+        for wiki_category in CATEGORY_TITLES[category]:
+            for ref in self._list_wiki_category(wiki_category):
+                if ref.pageid not in seen:
+                    seen.add(ref.pageid)
+                    yield ref
+
+    def _list_wiki_category(self, wiki_category: str) -> Iterator[PageRef]:
         # "cm" parameters belong to the categorymembers module: main articles only
         # (namespace 0), no subcategories or files, 500 per response (the non-bot max).
         # https://www.mediawiki.org/wiki/API:Categorymembers
         params = {
             "action": "query",
             "list": "categorymembers",
-            "cmtitle": CATEGORY_TITLES[category],
+            "cmtitle": wiki_category,
             "cmnamespace": "0",
             "cmtype": "page",
             "cmlimit": "500",
