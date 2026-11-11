@@ -8,8 +8,10 @@ from dataclasses import fields, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, get_origin
 
+from cerebro.domain.comicvine import CharacterMatch
 from cerebro.domain.pages import Category
 from cerebro.domain.records import Character, Comic, Link, Record, Story
+from cerebro.ports.comicvine import MatchStore
 from cerebro.ports.records import RecordReader, RecordStore
 
 if TYPE_CHECKING:
@@ -29,14 +31,15 @@ SHARED_TABLES = [
 ROW_FIELDS_LEFT_OUT = {"links", "categories", "stories"}
 
 
-class SqliteRecordStore(RecordStore, RecordReader):
+class SqliteRecordStore(RecordStore, RecordReader, MatchStore):
     """Records in one SQLite file.
 
     Each category has a table named after it, with a column per record field, and a
     comic's stories are in `stories`. Every record's links are in `links` and its
     categories in `categories`, keyed by category and page id, so they can be queried
     across kinds: which records link to X-Men (Earth-616)? Lists of names, such as a
-    story's writers, are JSON arrays.
+    story's writers, are JSON arrays. `comicvine_matches` pairs Comic Vine ids with
+    character pages.
     """
 
     def __init__(self, path: Path) -> None:
@@ -97,6 +100,22 @@ class SqliteRecordStore(RecordStore, RecordReader):
                     categories=_categories_of(db, "comics", pageid),
                     links=_links_of(db, "comics", pageid, story=None),
                 )
+
+    # Matches to Comic Vine, replaced all at once like a category.
+
+    def replace_matches(self, matches: Iterable[CharacterMatch]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        rows = [(m.comicvine_id, m.pageid, m.overlap) for m in matches]
+
+        with closing(sqlite3.connect(self.path, autocommit=False)) as db:
+            with db:
+                db.execute("DROP TABLE IF EXISTS comicvine_matches")
+                # Keyed by Comic Vine id: two Comic Vine entries can be one Fandom page.
+                db.execute(
+                    "CREATE TABLE comicvine_matches"
+                    " (comicvine_id INTEGER PRIMARY KEY, pageid INTEGER, overlap REAL)"
+                )
+                db.executemany("INSERT INTO comicvine_matches VALUES (?, ?, ?)", rows)
 
     # Writing, step by step.
 

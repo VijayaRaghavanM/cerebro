@@ -8,6 +8,7 @@ import pytest
 
 from cerebro.adapters.fandom_wikitext import parse_character, parse_comic, parse_team
 from cerebro.adapters.sqlite_records import SqliteRecordStore
+from cerebro.domain.comicvine import CharacterMatch
 from cerebro.domain.pages import Category, RawPage
 from cerebro.domain.records import Character, Comic, Record, Team
 
@@ -147,3 +148,17 @@ def test_comics_read_back_as_they_were_stored(tmp_path: Path) -> None:
     store.replace(Category.COMICS, [issue, other])
 
     assert list(store.comics()) == [other, issue]
+
+
+def test_a_new_set_of_matches_replaces_the_old_one(tmp_path: Path) -> None:
+    store = SqliteRecordStore(tmp_path / "records.sqlite")
+    store.replace_matches([CharacterMatch(1, 10, 0.5), CharacterMatch(2, 20, 0.25)])
+
+    # Two Comic Vine entries can be the same Fandom page.
+    store.replace_matches([CharacterMatch(3, 30, 0.5), CharacterMatch(3, 31, 0.75)])
+
+    stored = rows(
+        store.path,
+        "SELECT pageid, comicvine_id, overlap FROM comicvine_matches ORDER BY rowid",
+    )
+    assert stored == [(3, 30, 0.5), (3, 31, 0.75)]
