@@ -211,7 +211,8 @@ def test_comic_vine_characters_are_stored_with_their_detail(tmp_path: Path) -> N
     witch, nobody = rows(
         path,
         "SELECT id, name, real_name, aliases, appearances, url, deck, birth, gender,"
-        " powers, creators, died_in, updated FROM comicvine_characters ORDER BY id",
+        " powers, creators, died_in, updated, issues"
+        " FROM comicvine_characters ORDER BY id",
     )
     assert witch[:6] == (
         1,
@@ -232,8 +233,11 @@ def test_comic_vine_characters_are_stored_with_their_detail(tmp_path: Path) -> N
         {"series": "Strange Tales", "number": "4", "cover_date": None}
     ]
     assert witch[12] == "2020-01-02 03:04:05"
+    assert json.loads(str(witch[13])) == [
+        {"series": "Strange Tales", "number": "3", "cover_date": "1951-05-01"}
+    ]
     # Not fetched in detail: NULL, which is not the empty list of a fetched one.
-    assert nobody[6:] == (None, None, None, None, None, None, None)
+    assert nobody[6:] == (None,) * 8
     assert nobody[3] == "[]"
 
 
@@ -245,7 +249,8 @@ def test_comic_vine_characters_have_a_column_per_field(tmp_path: Path) -> None:
 
     columns = rows(path, "SELECT name FROM pragma_table_info('comicvine_characters')")
     expected = (
-        "id name real_name aliases appearances url deck birth gender origin powers "
+        "id name real_name aliases appearances url issues deck birth gender origin "
+        "powers "
         "creators teams team_friends team_enemies friends enemies volumes movies "
         "died_in story_arcs updated"
     ).split()

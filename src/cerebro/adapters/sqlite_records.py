@@ -222,15 +222,10 @@ def _character_fields() -> list[Field[Any]]:
     return [f for f in fields(ComicVineCharacter) if f.name != "detail"]
 
 
-def _detail_fields() -> list[Field[Any]]:
-    # The issue lists stay in the download; Fandom's cast lists cover them.
-    return [f for f in fields(ComicVineDetail) if f.name != "issues"]
-
-
 def _comicvine_columns() -> list[str]:
     """Column definitions from the types, so they don't depend on the first row."""
     columns = []
-    for field in _character_fields() + _detail_fields():
+    for field in _character_fields() + list(fields(ComicVineDetail)):
         kind = "INTEGER" if field.type is int else "TEXT"
         key = " PRIMARY KEY" if field.name == "id" else ""
         columns.append(f"{field.name} {kind}{key}")
@@ -242,13 +237,13 @@ def _comicvine_values(character: ComicVineCharacter) -> list[Any]:
 
     # NULL when there is no detail, so "not fetched" differs from an empty list.
     detail = character.detail
-    for field in _detail_fields():
+    for field in fields(ComicVineDetail):
         values.append(None if detail is None else _cell(getattr(detail, field.name)))
     return values
 
 
 def _cell(value: Any) -> Any:
-    """A column value: lists as JSON, a died-in issue as an object of its fields."""
+    """A column value: lists as JSON, an issue as an object of its fields."""
     if isinstance(value, tuple):
         return json.dumps(value, ensure_ascii=False, default=asdict)
     return value
