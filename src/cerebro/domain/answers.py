@@ -12,6 +12,24 @@ class Source:
 
 
 @dataclass(frozen=True)
+class ToolCall:
+    """The agent calling a tool. Each tool takes one string: a name to search for
+    or a title to read.
+    """
+
+    tool: str
+    argument: str
+
+
+@dataclass(frozen=True)
+class ToolReply:
+    """What a tool sent back: the text the model reads, with its source labels."""
+
+    tool: str
+    text: str
+
+
+@dataclass(frozen=True)
 class Answer:
     """An answer, the sources it cites, and what it cost to get."""
 
@@ -22,3 +40,6 @@ class Answer:
     input_tokens: int
     output_tokens: int
     seconds: float
+
+
+type Step = ToolCall | ToolReply | Answer

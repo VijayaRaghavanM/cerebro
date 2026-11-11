@@ -2,6 +2,7 @@
 
 import re
 import time
+from collections.abc import Generator, Iterator
 from typing import Any
 
 import httpx
@@ -12,7 +13,7 @@ from langchain_core.tools import BaseTool, tool
 from langgraph.errors import GraphRecursionError
 
 from cerebro.application.tools import ToolResult, read_page, search_pages
-from cerebro.domain.answers import Answer, Source
+from cerebro.domain.answers import Answer, Source, Step, ToolCall, ToolReply
 from cerebro.ports.agent import Agent, ModelTimeout, ProviderError, RateLimited
 from cerebro.ports.records import RecordLookup
 
@@ -49,7 +50,7 @@ class LangGraphAgent(Agent):
         self.model = model
         self.lookup = lookup
 
-    def answer(self, question: str) -> Answer:
+    def steps(self, question: str) -> Iterator[Step]:
         started = time.perf_counter()
         numbered: dict[Source, int] = {}
         agent = create_agent(
@@ -58,7 +59,7 @@ class LangGraphAgent(Agent):
             system_prompt=SYSTEM_PROMPT,
         )
 
-        messages = self._run(agent, question)
+        messages = yield from self._run(agent, question)
 
         ai = [m for m in messages if isinstance(m, AIMessage)]
         tool_replies = [m for m in messages if isinstance(m, ToolMessage)]
@@ -68,7 +69,7 @@ class LangGraphAgent(Agent):
             text, cited = GAVE_UP, ()
 
         usage = [m.usage_metadata for m in ai if m.usage_metadata]
-        return Answer(
+        yield Answer(
             text=text,
             sources=cited,
             model_calls=len(ai),
@@ -80,8 +81,12 @@ class LangGraphAgent(Agent):
 
     # Running the graph
 
-    def _run(self, agent: Any, question: str) -> list[BaseMessage]:
-        """The conversation so far, kept even if the step cap stops the run."""
+    def _run(
+        self, agent: Any, question: str
+    ) -> Generator[Step, None, list[BaseMessage]]:
+        """Yields each tool call and reply as the graph produces it, and returns the
+        conversation, kept even if the step cap stops the run.
+        """
         messages: list[BaseMessage] = []
         try:
             for state in agent.stream(
@@ -89,7 +94,11 @@ class LangGraphAgent(Agent):
                 {"recursion_limit": RECURSION_LIMIT},
                 stream_mode="values",
             ):
+                # Each state holds every message so far; only the new ones are steps.
+                new = state["messages"][len(messages) :]
                 messages = state["messages"]
+                for message in new:
+                    yield from _steps_in(message)
         except GraphRecursionError:
             pass
         except httpx.TimeoutException as error:
@@ -142,6 +151,16 @@ class LangGraphAgent(Agent):
             return f"[{renumbered[number]}]"
 
         return CITATION.sub(renumber, text), tuple(cited)
+
+
+def _steps_in(message: BaseMessage) -> Iterator[ToolCall | ToolReply]:
+    if isinstance(message, AIMessage):
+        for call in message.tool_calls:
+            (argument,) = call["args"].values()
+            yield ToolCall(call["name"], str(argument))
+
+    if isinstance(message, ToolMessage):
+        yield ToolReply(message.name or "", message.text)
 
 
 def _with_numbers(result: ToolResult, numbered: dict[Source, int]) -> str:

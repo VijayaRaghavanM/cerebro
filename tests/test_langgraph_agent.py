@@ -17,7 +17,7 @@ from cerebro.adapters.langgraph_agent import (
     SYSTEM_PROMPT,
     LangGraphAgent,
 )
-from cerebro.domain.answers import Source
+from cerebro.domain.answers import Answer, Source, ToolCall, ToolReply
 from cerebro.domain.pages import Category
 from cerebro.domain.records import PageHit
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
@@ -122,6 +122,41 @@ def test_a_search_a_read_and_a_cited_reply_make_an_answer() -> None:
     assert answer.input_tokens == 10 + 20 + 30
     assert answer.output_tokens == 2 + 3 + 5
     assert answer.seconds > 0
+
+
+def test_steps_show_each_call_and_reply_in_order_then_the_answer() -> None:
+    model = scripted(
+        call("search_pages", "ann"),
+        call("read_page", TITLE),
+        reply("Ann Doe controls the weather [1]."),
+    )
+
+    steps = list(LangGraphAgent(model, lookup()).steps("Who is Ann Doe?"))
+
+    search, found, read, page, final = steps
+    assert search == ToolCall("search_pages", "ann")
+    assert isinstance(found, ToolReply)
+    assert found.tool == "search_pages"
+    assert TITLE in found.text
+    assert read == ToolCall("read_page", TITLE)
+    assert isinstance(page, ToolReply)
+    assert page.tool == "read_page"
+    assert page.text.endswith(f"Sources: [1] {TITLE}")
+    assert isinstance(final, Answer)
+    assert final.text == "Ann Doe controls the weather [1]."
+
+
+def test_a_run_stopped_by_the_cap_still_ends_with_the_gave_up_answer() -> None:
+    loop = [call("search_pages", f"ann{n}") for n in range(MAX_TOOL_CALLS + 5)]
+
+    steps = list(LangGraphAgent(scripted(*loop), lookup()).steps("Who?"))
+
+    final = steps[-1]
+    assert isinstance(final, Answer)
+    assert final.text == GAVE_UP
+    # Each call that ran has its reply; the last call is the one the cap stopped.
+    expected = [ToolCall, ToolReply] * MAX_TOOL_CALLS + [ToolCall]
+    assert [type(step) for step in steps[:-1]] == expected
 
 
 def test_the_model_is_given_the_system_prompt() -> None:
