@@ -18,6 +18,11 @@ app.add_typer(crawl_app, name="crawl")
 parse_app = typer.Typer(no_args_is_help=True, help="Turn raw pages into records.")
 app.add_typer(parse_app, name="parse")
 
+load_app = typer.Typer(
+    no_args_is_help=True, help="Load other sources into the record store."
+)
+app.add_typer(load_app, name="load")
+
 match_app = typer.Typer(no_args_is_help=True, help="Match records across sources.")
 app.add_typer(match_app, name="match")
 
@@ -71,6 +76,24 @@ def parse_fandom(
 
         # The leading \r writes the final counts over the progress line.
         typer.echo(f"\r  {report.pages} pages, {report.records} records")
+
+
+@load_app.command("comicvine")
+def load_comicvine() -> None:
+    """Store Comic Vine's characters next to the parsed records. Safe to rerun.
+
+    A rerun replaces the stored Comic Vine characters.
+    """
+    try:
+        report = bootstrap.load_comicvine()
+    except FileNotFoundError as error:
+        typer.echo(f"No Comic Vine data: {error.filename} is missing.", err=True)
+        raise typer.Exit(1) from None
+
+    typer.echo(
+        f"{report.characters:,} Comic Vine characters stored, "
+        f"{report.with_detail:,} with detail"
+    )
 
 
 @match_app.command("comicvine")

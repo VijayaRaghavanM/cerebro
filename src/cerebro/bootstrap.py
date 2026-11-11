@@ -5,7 +5,7 @@ from cerebro.adapters.fandom import FandomClient
 from cerebro.adapters.fandom_records import FandomRecordParser
 from cerebro.adapters.jsonl_pages import JsonlPageStore
 from cerebro.adapters.sqlite_records import SqliteRecordStore
-from cerebro.application import matching
+from cerebro.application import loading, matching
 from cerebro.application.crawl import CrawlReport, Progress, crawl
 from cerebro.application.parse import ParseReport, parse
 from cerebro.application.parse import Progress as ParseProgress
@@ -36,6 +36,15 @@ def parse_fandom(
     return parse(
         pages, FandomRecordParser(category), store, category, progress=progress
     )
+
+
+def load_comicvine() -> loading.LoadReport:
+    """Store Comic Vine's characters in DATA_DIR/raw/comicvine/ in the record store."""
+    data_dir = Settings().data_dir
+    store = SqliteRecordStore(data_dir / "records.sqlite")
+    comicvine = ComicVineDump(data_dir / "raw" / "comicvine")
+
+    return loading.load_comicvine(comicvine, store)
 
 
 def match_comicvine() -> matching.MatchReport:
