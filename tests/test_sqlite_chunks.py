@@ -34,9 +34,7 @@ def made_up_chunks(
     ]
 
 
-def test_a_search_finds_a_chunk_through_a_word_only_its_prefix_has(
-    tmp_path: Path,
-) -> None:
+def test_a_search_reads_the_text_not_the_prefix(tmp_path: Path) -> None:
     store = SqliteChunkIndex(tmp_path / "records.sqlite")
     store.replace_chunks(
         made_up_chunks(
@@ -46,9 +44,8 @@ def test_a_search_finds_a_chunk_through_a_word_only_its_prefix_has(
         )
     )
 
-    hits = store.search("Witch", limit=5)
-
-    assert [hit.chunk.number for hit in hits] == [0, 1]
+    assert store.search("Witch", limit=5) == []
+    assert [hit.chunk.number for hit in store.search("claws", limit=5)] == [0]
 
 
 def test_a_chunk_with_a_rare_word_ranks_above_ones_with_common_words(

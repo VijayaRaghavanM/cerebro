@@ -21,8 +21,8 @@ SEARCH_WORD = re.compile(r"\w+")
 class SqliteChunkIndex(ChunkStore, ChunkSearch):
     """Character page chunks and their BM25 index, in the records file.
 
-    The index covers each chunk's prefix and its text, so a name in the prefix
-    finds chunks that never repeat it.
+    The index holds each chunk's prefix and its text as two columns, so the prefix
+    arms can be compared on one index; `search` reads the text.
     """
 
     def __init__(self, path: Path) -> None:
@@ -70,6 +70,10 @@ class SqliteChunkIndex(ChunkStore, ChunkSearch):
         # weighs the rare words most. Each term is quoted so that a word like "AND" or
         # "NEAR" is read as text; a word never holds a quote, so none needs escaping.
         terms = [f'"{word}"' for word in words]
+        # The text column only: matching the prefix too ranked worse on the
+        # measured questions (a name in the query then matches every chunk of every
+        # same-named page). The prefix stays indexed for the other prefix arms.
+        match = f"text : ({' OR '.join(terms)})"
         with closing(sqlite3.connect(self.path)) as db:
             # bm25 is lower for a better match, so the score is its negation. The top
             # rows are picked before the join, so it no longer reads every matching
@@ -80,7 +84,7 @@ class SqliteChunkIndex(ChunkStore, ChunkSearch):
                 " WHERE chunks_fts MATCH ? ORDER BY score DESC, rowid LIMIT ?"
                 ") AS top JOIN chunks c ON c.rowid = top.rowid"
                 " ORDER BY top.score DESC, top.rowid",
-                (" OR ".join(terms), limit),
+                (match, limit),
             ).fetchall()
 
         return [ChunkHit(Chunk(*row[:-1]), row[-1]) for row in found]
