@@ -89,9 +89,9 @@ def test_a_search_lists_numbered_pages_with_their_appearances() -> None:
     result = search_pages(FakeLookup(hits), "storm")
 
     assert result.text == (
-        "1. Ann Doe (Earth-1): character, in 4,990 comics' cast lists\n"
-        "2. Storm Club (Earth-1): team, in 12 comics' cast lists\n"
-        "3. Storm Tales Vol 1 1: comic"
+        '1. "Ann Doe (Earth-1)": character, in 4,990 comics\' cast lists\n'
+        '2. "Storm Club (Earth-1)": team, in 12 comics\' cast lists\n'
+        '3. "Storm Tales Vol 1 1": comic'
     )
 
 

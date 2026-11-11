@@ -47,7 +47,8 @@ def search_pages(lookup: RecordLookup, name: str) -> ToolResult:
     lines = []
     for number, hit in enumerate(hits, start=1):
         kind = SEARCH_KINDS[hit.category]
-        line = f"{number}. {hit.title}: {kind}"
+        # Quoted, so the model passes the exact title on: titles can contain colons.
+        line = f'{number}. "{hit.title}": {kind}'
         if hit.category != Category.COMICS:
             line += f", in {hit.appearances:,} comics' cast lists"
         lines.append(line)
