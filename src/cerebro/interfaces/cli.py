@@ -8,6 +8,7 @@ import typer
 from cerebro import bootstrap
 from cerebro.domain.pages import Category
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
+from cerebro.ports.embeddings import EmbedderUnavailable
 from cerebro.ports.records import RecordsMissing
 from cerebro.ports.wiki import WikiUnavailable
 
@@ -132,6 +133,35 @@ def chunk() -> None:
         raise typer.Exit(1) from None
 
     typer.echo(f"{report.pages:,} pages, {report.chunks:,} chunks")
+
+
+@app.command()
+def embed() -> None:
+    """Embed every chunk with nomic-embed-text on the Ollama server.
+
+    Safe to rerun: finished parts are kept.
+    """
+    try:
+        report = bootstrap.embed_chunks(progress=show_progress)
+    except bootstrap.MissingKey as error:
+        typer.echo(f"Set {error} to embed chunks.", err=True)
+        raise typer.Exit(1) from None
+    except RecordsMissing as error:
+        typer.echo(f"{error}. Run `cerebro chunk` first.", err=True)
+        raise typer.Exit(1) from None
+    except EmbedderUnavailable:
+        typer.echo(
+            "\nThe embedding server is unavailable; finished parts are kept, "
+            "rerun to resume.",
+            err=True,
+        )
+        raise typer.Exit(1) from None
+
+    # The leading \r writes the final counts over the progress line.
+    typer.echo(
+        f"\r{report.chunks:,} chunks in {report.parts} parts "
+        f"({report.skipped_parts} already done)"
+    )
 
 
 @app.command()

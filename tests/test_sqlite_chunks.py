@@ -162,6 +162,25 @@ def test_searching_before_chunks_are_stored_says_so(tmp_path: Path) -> None:
         SqliteChunkIndex(path).search("telescope", limit=5)
 
 
+def test_chunks_are_read_back_whole_in_the_order_they_were_stored(
+    tmp_path: Path,
+) -> None:
+    store = SqliteChunkIndex(tmp_path / "records.sqlite")
+    chunks = chunk_character(real_character())
+    store.replace_chunks(chunks)
+
+    assert list(store.chunks()) == chunks
+
+
+def test_reading_chunks_before_they_are_stored_says_so(tmp_path: Path) -> None:
+    path = tmp_path / "records.sqlite"
+    SqliteRecordStore(path).replace(Category.CHARACTERS, [real_character()])
+
+    # Raised at the call, not on the first chunk read.
+    with pytest.raises(RecordsMissing):
+        SqliteChunkIndex(path).chunks()
+
+
 def test_every_chunk_gets_a_row_with_its_own_id(tmp_path: Path) -> None:
     path = tmp_path / "records.sqlite"
     chunks = chunk_character(real_character())

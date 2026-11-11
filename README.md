@@ -26,6 +26,7 @@ uv run ruff format               # format
 uv run cerebro crawl fandom      # download raw wiki pages; safe to rerun
 uv run cerebro parse fandom      # turn them into records in data/records.sqlite
 uv run cerebro chunk             # cut the parsed character pages into chunks for search
+uv run cerebro embed             # embed every chunk; safe to resume (needs OLLAMA_BASE_URL)
 uv run cerebro load comicvine    # store Comic Vine's characters next to them
 uv run cerebro match comicvine   # match Comic Vine's characters to the parsed ones
 uv run cerebro ask "..."         # answer a question, with citations (needs MISTRAL_API_KEY)
