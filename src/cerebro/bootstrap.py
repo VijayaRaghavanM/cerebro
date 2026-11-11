@@ -1,5 +1,7 @@
 """The only place that picks concrete classes and wires them together."""
 
+from collections.abc import Iterator
+
 from cerebro.adapters.comicvine_dump import ComicVineDump
 from cerebro.adapters.fandom import FandomClient
 from cerebro.adapters.fandom_records import FandomRecordParser
@@ -12,7 +14,7 @@ from cerebro.adapters.sqlite_chunks import SqliteChunkIndex
 from cerebro.adapters.sqlite_comicvine import SqliteComicVineStore
 from cerebro.adapters.sqlite_records import SqliteRecordStore
 from cerebro.application import chunking, crawl, embedding, loading, matching, parse
-from cerebro.domain.answers import Answer
+from cerebro.domain.answers import Step
 from cerebro.domain.pages import Category
 from cerebro.settings import Settings
 
@@ -72,15 +74,19 @@ def embed_chunks(progress: embedding.Progress | None = None) -> embedding.EmbedR
     return embedding.embed_chunks(_chunks(), embedder, store, progress=progress)
 
 
-def ask(question: str) -> Answer:
-    """Answer a question from DATA_DIR/records.sqlite with Mistral's model."""
+def ask(question: str) -> Iterator[Step]:
+    """Answer a question from DATA_DIR/records.sqlite with Mistral's model.
+
+    Returns the agent's steps, ending with the answer. The key is checked here, not
+    on the first step, so a missing key fails before any step is read.
+    """
     settings = Settings()
     if settings.mistral_api_key is None:
         raise MissingKey("MISTRAL_API_KEY")
 
     model = ministral(settings.mistral_api_key)
 
-    return LangGraphAgent(model, _records()).answer(question)
+    return LangGraphAgent(model, _records()).steps(question)
 
 
 def _pages() -> JsonlPageStore:

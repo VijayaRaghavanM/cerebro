@@ -6,6 +6,7 @@ from typing import Annotated
 import typer
 
 from cerebro import bootstrap
+from cerebro.domain.answers import Answer, Step, ToolCall, ToolReply
 from cerebro.domain.pages import Category
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
 from cerebro.ports.embeddings import EmbedderUnavailable
@@ -166,9 +167,13 @@ def embed() -> None:
 
 @app.command()
 def ask(question: str) -> None:
-    """Answer a question from the stored records, with citations."""
+    """Answer a question from the stored records, with citations.
+
+    Prints each tool call and what it returned as the agent works, then the answer.
+    """
     try:
-        answer = bootstrap.ask(question)
+        for step in bootstrap.ask(question):
+            show_step(step)
     except bootstrap.MissingKey as error:
         typer.echo(f"Set {error} to ask questions.", err=True)
         raise typer.Exit(1) from None
@@ -187,6 +192,21 @@ def ask(question: str) -> None:
         typer.echo(str(error), err=True)
         raise typer.Exit(1) from None
 
+
+def show_step(step: Step) -> None:
+    match step:
+        case ToolCall():
+            typer.echo(f"{step.tool}: {step.argument}")
+        case ToolReply():
+            # A reply runs to thousands of characters; its first line says what it is.
+            first_line = step.text.partition("\n")[0]
+            typer.echo(f"  {first_line}")
+        case Answer():
+            show_answer(step)
+
+
+def show_answer(answer: Answer) -> None:
+    typer.echo()
     typer.echo(answer.text)
     typer.echo()
 
