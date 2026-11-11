@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, get_origin
 
 from cerebro.domain.pages import Category
-from cerebro.domain.records import Character, Comic, Link, Record
+from cerebro.domain.records import Character, Comic, Link, Record, Story
 from cerebro.ports.records import RecordReader, RecordStore
 
 if TYPE_CHECKING:
@@ -70,7 +70,32 @@ class SqliteRecordStore(RecordStore, RecordReader):
                     Character,
                     row,
                     categories=_categories_of(db, "characters", row["pageid"]),
-                    links=_links_of(db, "characters", row["pageid"]),
+                    links=_links_of(db, "characters", row["pageid"], story=None),
+                )
+
+    def comics(self) -> Iterator[Comic]:
+        with closing(sqlite3.connect(self.path)) as db:
+            db.row_factory = sqlite3.Row
+            for row in db.execute("SELECT * FROM comics ORDER BY pageid"):
+                pageid = row["pageid"]
+                story_rows = db.execute(
+                    "SELECT * FROM stories WHERE pageid = ? ORDER BY number", (pageid,)
+                )
+                stories = tuple(
+                    _from_columns(
+                        Story,
+                        story,
+                        links=_links_of(db, "comics", pageid, story=story["number"]),
+                    )
+                    for story in story_rows
+                )
+
+                yield _from_columns(
+                    Comic,
+                    row,
+                    stories=stories,
+                    categories=_categories_of(db, "comics", pageid),
+                    links=_links_of(db, "comics", pageid, story=None),
                 )
 
     # Writing, step by step.
@@ -186,10 +211,14 @@ def _categories_of(db: sqlite3.Connection, kind: str, pageid: int) -> tuple[str,
     return tuple(name for (name,) in rows)
 
 
-def _links_of(db: sqlite3.Connection, kind: str, pageid: int) -> tuple[Link, ...]:
+def _links_of(
+    db: sqlite3.Connection, kind: str, pageid: int, *, story: int | None
+) -> tuple[Link, ...]:
+    """A record's own links when `story` is None, else the links in that story."""
+    # IS matches a None story to the NULL on a record's own links; = would match none.
     rows = db.execute(
         "SELECT field, title, text FROM links"
-        " WHERE kind = ? AND pageid = ? AND story IS NULL ORDER BY rowid",
-        (kind, pageid),
+        " WHERE kind = ? AND pageid = ? AND story IS ? ORDER BY rowid",
+        (kind, pageid, story),
     )
     return tuple(Link(field, title, text) for field, title, text in rows)

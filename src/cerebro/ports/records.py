@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator
 
 from cerebro.domain.pages import Category, RawPage
-from cerebro.domain.records import Character, Record
+from cerebro.domain.records import Character, Comic, Record
 
 
 class RecordParser(ABC):
@@ -32,3 +32,7 @@ class RecordReader(ABC):
     @abstractmethod
     def characters(self) -> Iterator[Character]:
         """Every stored character, with its categories and links, one at a time."""
+
+    @abstractmethod
+    def comics(self) -> Iterator[Comic]:
+        """Every stored comic, with its stories, categories and links, one at a time."""

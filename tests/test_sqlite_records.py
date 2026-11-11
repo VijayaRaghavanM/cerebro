@@ -128,3 +128,22 @@ def test_characters_read_back_as_they_were_stored(tmp_path: Path) -> None:
     store.replace(Category.CHARACTERS, [berkhart, other])
 
     assert list(store.characters()) == [other, berkhart]
+
+
+def test_comics_read_back_as_they_were_stored(tmp_path: Path) -> None:
+    store = SqliteRecordStore(tmp_path / "records.sqlite")
+    # The fixture page has no categories of its own.
+    issue = replace(comic(), categories=("Marvel Comics Presents Vol 1",))
+    # Another comic with a lower page id, one of the links and no stories.
+    other = replace(
+        issue,
+        pageid=1,
+        title="Someone Vol 1 1",
+        stories=(),
+        categories=(),
+        links=issue.links[:1],
+    )
+
+    store.replace(Category.COMICS, [issue, other])
+
+    assert list(store.comics()) == [other, issue]
