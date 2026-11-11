@@ -67,6 +67,26 @@ def test_a_team_is_found_by_an_alias(tmp_path: Path) -> None:
     assert hits == [PageHit(real_team().title, Category.TEAMS, 0)]
 
 
+def test_a_team_is_found_by_its_display_name(tmp_path: Path) -> None:
+    store = stored(tmp_path)
+    team = replace(real_team(), display_name="Zorgon Lords")
+    store.replace(Category.TEAMS, [team])
+
+    hits = store.find("zorgon", 10)
+
+    assert hits == [PageHit(team.title, Category.TEAMS, 0)]
+
+
+def test_a_character_is_found_by_its_display_name(tmp_path: Path) -> None:
+    store = stored(tmp_path)
+    person = replace(real_character(), display_name="Zorgon the Tall")
+    store.replace(Category.CHARACTERS, [person])
+
+    hits = store.find("zorgon", 10)
+
+    assert hits == [PageHit(person.title, Category.CHARACTERS, 0)]
+
+
 def test_a_comic_is_found_by_words_of_its_title(tmp_path: Path) -> None:
     store = stored(tmp_path)
 
