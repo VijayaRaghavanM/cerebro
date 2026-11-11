@@ -1,10 +1,12 @@
 """Records in a SQLite file, where the agent's tools can query them."""
 
 import json
+import re
 import sqlite3
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import closing
 from dataclasses import fields, is_dataclass
+from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, get_origin
 from urllib.parse import quote
@@ -67,17 +69,25 @@ NAME_COLUMNS = {
     Category.COMICS: ["title", "year"],
 }
 
-# Searched and ranked apart, each up to the limit: appearances compare characters
-# with teams but say nothing of comics, where the shortest title is the plainest match
-# ("Avengers Vol 1 1" before "Avengers Annual Vol 1 1").
+# Searched and ranked apart, each up to the limit. A character or team whose name is
+# the search ("Vision") comes before one that only holds it in a longer name
+# ("... Intervention, Enforcement and Logistics Division"); then appearances, which
+# compare characters with teams but say nothing of comics, where the shortest title is
+# the plainest match ("Avengers Vol 1 1" before "Avengers Annual Vol 1 1").
 SEARCH_GROUPS = [
-    ((Category.CHARACTERS, Category.TEAMS), "appearances DESC, title"),
+    ((Category.CHARACTERS, Category.TEAMS), "name_rank, appearances DESC, title"),
     ((Category.COMICS,), "length(title), title"),
 ]
 
 # Stripped from both ends of a search word: "#15" matches the "15" of "Vol 1 15",
 # while an apostrophe inside a name ("Xi'an") stays.
 EDGE_PUNCTUATION = "#.,;:!?\"'()"
+
+# A title's reality, as in "Ororo Munroe (Earth-616)". Not part of anyone's name.
+REALITY = re.compile(r"\s*\([^()]*\)$")
+
+# Where one name ends and the next begins in a column that holds several.
+NAME_SEPARATORS = re.compile(r"[\n,;]")
 
 # Builds a record from its row and the connection its links and categories are in.
 type RowReader[R] = Callable[[sqlite3.Connection, sqlite3.Row], R]
@@ -147,13 +157,16 @@ class SqliteRecordStore(RecordStore, RecordReader, RecordLookup):
         if not has_table(self.path, Category.CHARACTERS):
             raise RecordsMissing("No characters are stored yet")
 
-        words = [word.strip(EDGE_PUNCTUATION) for word in name.split()]
-        words = [word for word in words if word]
+        words = _words(name)
         if not words:
             return []
 
         hits: list[PageHit] = []
         with closing(sqlite3.connect(self.path)) as db:
+            # SQLite calls it only for the pages the words matched.
+            ranking = partial(_name_rank, [word.lower() for word in words])
+            db.create_function("name_rank", -1, ranking, deterministic=True)
+
             for categories, order in SEARCH_GROUPS:
                 selects: list[str] = []
                 params: list[Any] = []
@@ -166,7 +179,8 @@ class SqliteRecordStore(RecordStore, RecordReader, RecordLookup):
                     continue
 
                 sql = (
-                    f"SELECT * FROM ({' UNION ALL '.join(selects)})"
+                    "SELECT title, category, appearances"
+                    f" FROM ({' UNION ALL '.join(selects)})"
                     f" ORDER BY {order} LIMIT ?"
                 )
                 found = db.execute(sql, [*params, limit]).fetchall()
@@ -366,6 +380,37 @@ def _links_of(
     return tuple(Link(field, title, text) for field, title, text in rows)
 
 
+def _words(text: str) -> list[str]:
+    """The words of a search or a name, without the punctuation around them."""
+    stripped = [word.strip(EDGE_PUNCTUATION) for word in text.split()]
+    return [word for word in stripped if word]
+
+
+def _name_rank(wanted: list[str], title: str, *others: str | None) -> int:
+    """How closely a page's names match the search: 0 is best.
+
+    0 when the search is one of the names, 1 when it is a run of whole words inside
+    one, 2 when its words are only scattered across the names or part-words.
+    `wanted` is lower case; the title's reality is dropped.
+    """
+    columns = [REALITY.sub("", title), *(other for other in others if other)]
+    # A column holds one name, which can have a comma in it, or several names, so
+    # each counts whole and split.
+    parts = [part for column in columns for part in NAME_SEPARATORS.split(column)]
+    names = columns + parts
+
+    rank = 2
+    size = len(wanted)
+    for name in names:
+        words = _words(name.lower())
+        if words == wanted:
+            return 0
+
+        if any(words[start : start + size] == wanted for start in range(len(words))):
+            rank = 1
+    return rank
+
+
 def _all_words_in(columns: list[str], words: list[str]) -> tuple[str, list[str]]:
     """A condition that holds when every word is in at least one of the columns."""
     clauses = []
@@ -380,10 +425,13 @@ def _all_words_in(columns: list[str], words: list[str]) -> tuple[str, list[str]]
 
 
 def _hits_from(category: Category, condition: str) -> str:
-    """The SELECT for one table's hits: title, category and appearances."""
+    """The SELECT for one table's hits: title, category, appearances and name rank."""
     if category is Category.COMICS:
         count = "0"
+        rank = "0"
     else:
+        # The title comes first in every table's name columns, as `_name_rank` expects.
+        rank = f"name_rank({', '.join(NAME_COLUMNS[category])})"
         # The page's title is what a cast list links to; a comic counts once however
         # many of its stories list the page. The `links_in_casts` index answers it.
         count = (
@@ -392,6 +440,7 @@ def _hits_from(category: Category, condition: str) -> str:
             " AND title = page.title)"
         )
     return (
-        f"SELECT title, '{category}' AS category, {count} AS appearances"
+        f"SELECT title, '{category}' AS category, {count} AS appearances,"
+        f" {rank} AS name_rank"
         f' FROM "{category}" AS page WHERE {condition}'
     )

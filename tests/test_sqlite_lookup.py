@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from helpers import (
+    character,
     comicvine_characters,
     real_character,
     real_comic,
@@ -15,7 +16,7 @@ from cerebro.domain.comicvine import (
     CharacterMatch,
 )
 from cerebro.domain.pages import Category
-from cerebro.domain.records import Comic, Link, PageHit
+from cerebro.domain.records import Character, Comic, Link, PageHit
 from cerebro.ports.records import RecordsMissing
 
 
@@ -152,6 +153,68 @@ def test_hits_are_ranked_by_appearances_with_comics_last(tmp_path: Path) -> None
         PageHit(unseen.title, Category.CHARACTERS, 0),
         PageHit(second.title, Category.COMICS, 0),
     ]
+
+
+def page(title: str, **names: str) -> Character:
+    """A made-up character with only the `names` given, such as `aliases`."""
+    return replace(character(**names), title=title)
+
+
+def found(
+    tmp_path: Path, query: str, popular: Character, other: Character
+) -> list[str]:
+    """The titles for `query` when only `popular` has an appearance.
+
+    Appearances alone would put `popular` first, so any other order is the work of
+    how well the names match.
+    """
+    store = SqliteRecordStore(tmp_path / "records.sqlite")
+    store.replace(Category.CHARACTERS, [popular, replace(other, pageid=2)])
+    store.replace(Category.COMICS, [cast(real_comic(), popular.title)])
+
+    return titles(store.find(query, 10))[:2]
+
+
+def test_a_page_named_by_the_search_comes_before_one_with_more_appearances(
+    tmp_path: Path,
+) -> None:
+    popular = page("Ann Doe (Earth-1)", name="The Zephyrs Choir")
+    named = page("Bob Roe (Earth-1)", current_alias="Zephyr")
+
+    assert found(tmp_path, "zephyr", popular, named) == [named.title, popular.title]
+
+
+def test_words_in_a_row_come_before_words_scattered_across_names(
+    tmp_path: Path,
+) -> None:
+    popular = page("Ann Doe (Earth-1)", name="Spider Man", current_alias="Iron Fist")
+    phrase = page("Bob Roe (Earth-1)", name="Tony the Iron Man")
+
+    assert found(tmp_path, "iron man", popular, phrase) == [phrase.title, popular.title]
+
+
+@pytest.mark.parametrize("separator", ["\n", ", ", "; "])
+def test_each_alias_counts_as_a_name(tmp_path: Path, separator: str) -> None:
+    # Both hold the search as whole words, so only the alias that is exactly it wins.
+    popular = page("Ann Doe (Earth-1)", name="The Zephyr Choir")
+    aliased = page("Bob Roe (Earth-1)", aliases=f"Blaze{separator}Zephyr")
+
+    assert found(tmp_path, "zephyr", popular, aliased) == [aliased.title, popular.title]
+
+
+def test_a_name_with_a_comma_in_it_counts_whole(tmp_path: Path) -> None:
+    popular = page("Ann Doe (Earth-1)", name="The Zephyr Gale and Squall Band")
+    named = page("Bob Roe (Earth-1)", name="Zephyr, Gale and Squall")
+
+    query = "Zephyr, Gale and Squall"
+    assert found(tmp_path, query, popular, named) == [named.title, popular.title]
+
+
+def test_the_title_without_its_reality_counts_as_a_name(tmp_path: Path) -> None:
+    popular = page("Ann Doe (Earth-1)", name="The Zephyr Choir")
+    titled = page("Zephyr (Earth-616)")
+
+    assert found(tmp_path, "zephyr", popular, titled) == [titled.title, popular.title]
 
 
 def test_find_returns_at_most_the_limit_of_each_kind(tmp_path: Path) -> None:
