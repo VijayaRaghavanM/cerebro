@@ -37,34 +37,26 @@ def crawl_fandom(
     progress: Progress | None = None,
 ) -> CrawlReport:
     """Crawl one Marvel Database category into DATA_DIR/raw/fandom/."""
-    store = JsonlPageStore(Settings().data_dir / "raw" / "fandom")
-
-    return crawl(FandomClient(), store, category, limit=limit, progress=progress)
+    return crawl(FandomClient(), _pages(), category, limit=limit, progress=progress)
 
 
 def parse_fandom(
     category: Category, *, progress: ParseProgress | None = None
 ) -> ParseReport:
     """Parse one category's saved Marvel Database pages into DATA_DIR/records.sqlite."""
-    pages = JsonlPageStore(Settings().data_dir / "raw" / "fandom")
-
     return parse(
-        pages, FandomRecordParser(category), _records(), category, progress=progress
+        _pages(), FandomRecordParser(category), _records(), category, progress=progress
     )
 
 
 def load_comicvine() -> loading.LoadReport:
     """Store Comic Vine's characters in DATA_DIR/raw/comicvine/ in the record store."""
-    comicvine = ComicVineDump(Settings().data_dir / "raw" / "comicvine")
-
-    return loading.load_comicvine(comicvine, _comicvine())
+    return loading.load_comicvine(_comicvine_dump(), _comicvine())
 
 
 def match_comicvine() -> matching.MatchReport:
     """Match Comic Vine's characters in DATA_DIR/raw/comicvine/ to the stored ones."""
-    comicvine = ComicVineDump(Settings().data_dir / "raw" / "comicvine")
-
-    return matching.match_comicvine(_records(), comicvine, _comicvine())
+    return matching.match_comicvine(_records(), _comicvine_dump(), _comicvine())
 
 
 def chunk_records() -> chunking.ChunkReport:
@@ -93,6 +85,14 @@ def ask(question: str) -> Answer:
     model = ministral(settings.mistral_api_key)
 
     return LangGraphAgent(model, _records()).answer(question)
+
+
+def _pages() -> JsonlPageStore:
+    return JsonlPageStore(Settings().data_dir / "raw" / "fandom")
+
+
+def _comicvine_dump() -> ComicVineDump:
+    return ComicVineDump(Settings().data_dir / "raw" / "comicvine")
 
 
 def _records() -> SqliteRecordStore:
