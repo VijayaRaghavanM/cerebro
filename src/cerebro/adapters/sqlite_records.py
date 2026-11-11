@@ -4,7 +4,7 @@ import json
 import re
 import sqlite3
 from collections.abc import Callable, Iterable, Iterator
-from contextlib import closing
+from contextlib import closing, contextmanager
 from dataclasses import Field, asdict, astuple, fields, is_dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, get_args, get_origin
@@ -127,27 +127,18 @@ class SqliteRecordStore(
     # Writing: a whole category at a time.
 
     def replace(self, category: Category, records: Iterable[Record]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self._transaction() as db:
+            for statement in SHARED_TABLES:
+                db.execute(statement)
+            self._clear(db, category)
+            created: set[str] = set()
+            for record in records:
+                self._insert(db, category, record, created)
 
-        # autocommit=False keeps every statement in the transaction, the DROP TABLE
-        # included; by default sqlite3 runs that outside one.
-        with closing(sqlite3.connect(self.path, autocommit=False)) as db:
-            # One transaction: it commits when every record is in, and rolls back if
-            # anything fails, which leaves the previous records in place.
-            with db:
-                for statement in SHARED_TABLES:
-                    db.execute(statement)
-                self._clear(db, category)
-                created: set[str] = set()
-                for record in records:
-                    self._insert(db, category, record, created)
-
-                # The table only exists once a record has been written to it.
-                if str(category) in created:
-                    names = ", ".join(NAME_COLUMNS[category])
-                    db.execute(
-                        f'CREATE INDEX "{category}_names" ON "{category}" ({names})'
-                    )
+            # The table only exists once a record has been written to it.
+            if str(category) in created:
+                names = ", ".join(NAME_COLUMNS[category])
+                db.execute(f'CREATE INDEX "{category}_names" ON "{category}" ({names})')
 
     # Reading: one record at a time, so a category is never held in memory whole.
 
@@ -266,75 +257,60 @@ class SqliteRecordStore(
     # Matches to Comic Vine, replaced all at once like a category.
 
     def replace_matches(self, matches: Iterable[CharacterMatch]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         rows = [(m.comicvine_id, m.pageid, m.overlap) for m in matches]
 
-        with closing(sqlite3.connect(self.path, autocommit=False)) as db:
-            with db:
-                db.execute("DROP TABLE IF EXISTS comicvine_matches")
-                # Keyed by Comic Vine id: two Comic Vine entries can be one Fandom page.
-                db.execute(
-                    "CREATE TABLE comicvine_matches"
-                    " (comicvine_id INTEGER PRIMARY KEY, pageid INTEGER, overlap REAL)"
-                )
-                db.executemany("INSERT INTO comicvine_matches VALUES (?, ?, ?)", rows)
+        with self._transaction() as db:
+            db.execute("DROP TABLE IF EXISTS comicvine_matches")
+            # Keyed by Comic Vine id: two Comic Vine entries can be one Fandom page.
+            db.execute(
+                "CREATE TABLE comicvine_matches"
+                " (comicvine_id INTEGER PRIMARY KEY, pageid INTEGER, overlap REAL)"
+            )
+            db.executemany("INSERT INTO comicvine_matches VALUES (?, ?, ?)", rows)
 
     # Comic Vine's characters, replaced all at once like the matches.
 
     def replace_comicvine(self, characters: Iterable[ComicVineCharacter]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         columns = _comicvine_columns()
         marks = ", ".join("?" for _ in columns)
 
-        with closing(sqlite3.connect(self.path, autocommit=False)) as db:
-            with db:
-                db.execute("DROP TABLE IF EXISTS comicvine_characters")
-                db.execute(f"CREATE TABLE comicvine_characters ({', '.join(columns)})")
-                # Recreated, not kept, so a changed definition takes effect on rerun.
-                db.execute("DROP VIEW IF EXISTS character_ranking")
-                db.execute(CHARACTER_RANKING)
-                for character in characters:
-                    values = _comicvine_values(character)
-                    db.execute(
-                        f"INSERT INTO comicvine_characters VALUES ({marks})", values
-                    )
+        with self._transaction() as db:
+            db.execute("DROP TABLE IF EXISTS comicvine_characters")
+            db.execute(f"CREATE TABLE comicvine_characters ({', '.join(columns)})")
+            # Recreated, not kept, so a changed definition takes effect on rerun.
+            db.execute("DROP VIEW IF EXISTS character_ranking")
+            db.execute(CHARACTER_RANKING)
+            for character in characters:
+                values = _comicvine_values(character)
+                db.execute(f"INSERT INTO comicvine_characters VALUES ({marks})", values)
 
     # Chunks, replaced all at once like Comic Vine's characters.
 
     def replace_chunks(self, chunks: Iterable[Chunk]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self._transaction() as db:
+            db.execute("DROP TABLE IF EXISTS chunks")
+            db.execute(
+                "CREATE TABLE chunks (id TEXT PRIMARY KEY, pageid INTEGER,"
+                " revid INTEGER, number INTEGER, title TEXT, section TEXT,"
+                " text TEXT)"
+            )
+            db.execute("CREATE INDEX chunks_by_page ON chunks (pageid)")
+            # The columns follow `Chunk`'s field order.
+            db.executemany(
+                "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (astuple(chunk) for chunk in chunks),
+            )
 
-        # The chunks stream from a reader open on this same file; without WAL the
-        # write would wait on that reader forever. The mode is kept in the file and
-        # can only change outside a transaction, hence the autocommit connection.
-        with closing(sqlite3.connect(self.path, autocommit=True)) as db:
-            db.execute("PRAGMA journal_mode = WAL")
-
-        with closing(sqlite3.connect(self.path, autocommit=False)) as db:
-            with db:
-                db.execute("DROP TABLE IF EXISTS chunks")
-                db.execute(
-                    "CREATE TABLE chunks (id TEXT PRIMARY KEY, pageid INTEGER,"
-                    " revid INTEGER, number INTEGER, title TEXT, section TEXT,"
-                    " text TEXT)"
-                )
-                db.execute("CREATE INDEX chunks_by_page ON chunks (pageid)")
-                # The columns follow `Chunk`'s field order.
-                db.executemany(
-                    "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (astuple(chunk) for chunk in chunks),
-                )
-
-                # Porter stems inflections ("powers" finds "power"); unicode61 folds
-                # diacritics, so "Xuan" finds "Xuân". The text is read from `chunks`,
-                # not stored a second time.
-                db.execute("DROP TABLE IF EXISTS chunks_fts")
-                db.execute(
-                    "CREATE VIRTUAL TABLE chunks_fts USING fts5(text,"
-                    " content='chunks', content_rowid='rowid',"
-                    " tokenize='porter unicode61 remove_diacritics 2')"
-                )
-                db.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')")
+            # Porter stems inflections ("powers" finds "power"); unicode61 folds
+            # diacritics, so "Xuan" finds "Xuân". The text is read from `chunks`,
+            # not stored a second time.
+            db.execute("DROP TABLE IF EXISTS chunks_fts")
+            db.execute(
+                "CREATE VIRTUAL TABLE chunks_fts USING fts5(text,"
+                " content='chunks', content_rowid='rowid',"
+                " tokenize='porter unicode61 remove_diacritics 2')"
+            )
+            db.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')")
 
     # Searching chunks.
 
@@ -366,6 +342,24 @@ class SqliteRecordStore(
         return [ChunkHit(Chunk(*row[:-1]), row[-1]) for row in found]
 
     # Writing, step by step.
+
+    @contextmanager
+    def _transaction(self) -> Iterator[sqlite3.Connection]:
+        """One write: it commits when the block ends, and rolls back if it raises."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+        # A write can stream from a reader open on this same file, as the chunk step
+        # does; without WAL it would wait on that reader forever. The mode is kept in
+        # the file and can only change outside a transaction, hence the autocommit
+        # connection.
+        with closing(sqlite3.connect(self.path, autocommit=True)) as db:
+            db.execute("PRAGMA journal_mode = WAL")
+
+        # autocommit=False keeps every statement in the transaction, the DROP TABLE
+        # included; by default sqlite3 runs that outside one.
+        with closing(sqlite3.connect(self.path, autocommit=False)) as db:
+            with db:
+                yield db
 
     def _clear(self, db: sqlite3.Connection, category: Category) -> None:
         # Dropped, not emptied, so a table follows the record type when fields change.
