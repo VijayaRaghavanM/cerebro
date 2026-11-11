@@ -2,6 +2,7 @@
 
 import json
 import math
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -11,9 +12,12 @@ from cerebro.adapters.ollama import OllamaEmbedder
 from cerebro.ports.embeddings import EmbedderUnavailable
 from cerebro.settings import Settings
 
+# Stands in for the server: one reply per request.
+type Server = Callable[[httpx.Request], httpx.Response]
+
 
 def embedder_over(
-    handler: Any, sent: list[dict[str, Any]] | None = None
+    handler: Server, sent: list[dict[str, Any]] | None = None
 ) -> OllamaEmbedder:
     """An embedder whose server is `handler`; request bodies are kept in `sent`."""
 
@@ -28,7 +32,7 @@ def embedder_over(
     return OllamaEmbedder("http://ollama.test", client=client)
 
 
-def reply(vectors: list[list[float]]) -> Any:
+def reply(vectors: list[list[float]]) -> Server:
     return lambda request: httpx.Response(200, json={"embeddings": vectors})
 
 
