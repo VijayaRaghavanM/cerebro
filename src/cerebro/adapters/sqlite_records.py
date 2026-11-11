@@ -88,12 +88,7 @@ class SqliteRecordStore(RecordStore, RecordReader, MatchStore, ComicVineStore):
         with closing(sqlite3.connect(self.path)) as db:
             db.row_factory = sqlite3.Row
             for row in db.execute("SELECT * FROM characters ORDER BY pageid"):
-                yield _from_columns(
-                    Character,
-                    row,
-                    categories=_categories_of(db, "characters", row["pageid"]),
-                    links=_links_of(db, "characters", row["pageid"], story=None),
-                )
+                yield _character(db, row)
 
     def comics(self) -> Iterator[Comic]:
         if not self._stored("comics"):
@@ -102,26 +97,7 @@ class SqliteRecordStore(RecordStore, RecordReader, MatchStore, ComicVineStore):
         with closing(sqlite3.connect(self.path)) as db:
             db.row_factory = sqlite3.Row
             for row in db.execute("SELECT * FROM comics ORDER BY pageid"):
-                pageid = row["pageid"]
-                story_rows = db.execute(
-                    "SELECT * FROM stories WHERE pageid = ? ORDER BY number", (pageid,)
-                )
-                stories = tuple(
-                    _from_columns(
-                        Story,
-                        story,
-                        links=_links_of(db, "comics", pageid, story=story["number"]),
-                    )
-                    for story in story_rows
-                )
-
-                yield _from_columns(
-                    Comic,
-                    row,
-                    stories=stories,
-                    categories=_categories_of(db, "comics", pageid),
-                    links=_links_of(db, "comics", pageid, story=None),
-                )
+                yield _comic(db, row)
 
     def _stored(self, table: str) -> bool:
         # Checked before connecting, which would create an empty file.
@@ -303,6 +279,39 @@ def _insert_links(
     db.executemany(
         "INSERT INTO links VALUES (?, ?, ?, ?, ?, ?)",
         [(kind, pageid, story, link.field, link.title, link.text) for link in links],
+    )
+
+
+def _character(db: sqlite3.Connection, row: sqlite3.Row) -> Character:
+    pageid = row["pageid"]
+    return _from_columns(
+        Character,
+        row,
+        categories=_categories_of(db, "characters", pageid),
+        links=_links_of(db, "characters", pageid, story=None),
+    )
+
+
+def _comic(db: sqlite3.Connection, row: sqlite3.Row) -> Comic:
+    pageid = row["pageid"]
+    story_rows = db.execute(
+        "SELECT * FROM stories WHERE pageid = ? ORDER BY number", (pageid,)
+    )
+    stories = tuple(
+        _from_columns(
+            Story,
+            story,
+            links=_links_of(db, "comics", pageid, story=story["number"]),
+        )
+        for story in story_rows
+    )
+
+    return _from_columns(
+        Comic,
+        row,
+        stories=stories,
+        categories=_categories_of(db, "comics", pageid),
+        links=_links_of(db, "comics", pageid, story=None),
     )
 
 
