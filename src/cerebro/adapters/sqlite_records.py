@@ -6,11 +6,14 @@ from collections.abc import Iterable, Iterator
 from contextlib import closing
 from dataclasses import fields, is_dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, get_origin
 
 from cerebro.domain.pages import Category
 from cerebro.domain.records import Character, Comic, Link, Record
 from cerebro.ports.records import RecordReader, RecordStore
+
+if TYPE_CHECKING:
+    from _typeshed import DataclassInstance
 
 SHARED_TABLES = [
     "CREATE TABLE IF NOT EXISTS links "
@@ -63,8 +66,9 @@ class SqliteRecordStore(RecordStore, RecordReader):
         with closing(sqlite3.connect(self.path)) as db:
             db.row_factory = sqlite3.Row
             for row in db.execute("SELECT * FROM characters ORDER BY pageid"):
-                yield Character(
-                    **dict(row),
+                yield _from_columns(
+                    Character,
+                    row,
                     categories=_categories_of(db, "characters", row["pageid"]),
                     links=_links_of(db, "characters", row["pageid"]),
                 )
@@ -115,6 +119,26 @@ def _columns(item: Any) -> dict[str, Any]:
         else:
             row[field.name] = value
     return row
+
+
+def _from_columns[T: DataclassInstance](
+    cls: type[T], row: sqlite3.Row, **left_out: Any
+) -> T:
+    """The reverse of `_columns`: an item rebuilt from its row.
+
+    `left_out` gives the fields kept in tables of their own, such as `links`.
+    """
+    values: dict[str, Any] = {}
+    for field in fields(cls):
+        if field.name in ROW_FIELDS_LEFT_OUT:
+            continue
+        if isinstance(field.type, type) and is_dataclass(field.type):
+            values[field.name] = _from_columns(field.type, row)
+        elif get_origin(field.type) is tuple:
+            values[field.name] = tuple(json.loads(row[field.name]))
+        else:
+            values[field.name] = row[field.name]
+    return cls(**values, **left_out)
 
 
 def _insert_row(
