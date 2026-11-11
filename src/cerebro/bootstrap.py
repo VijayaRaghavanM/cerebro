@@ -1,7 +1,5 @@
 """The only place that picks concrete classes and wires them together."""
 
-from collections.abc import Callable
-
 from cerebro.adapters.comicvine_dump import ComicVineDump
 from cerebro.adapters.fandom import FandomClient
 from cerebro.adapters.fandom_records import FandomRecordParser
@@ -13,11 +11,7 @@ from cerebro.adapters.ollama import OllamaEmbedder
 from cerebro.adapters.sqlite_chunks import SqliteChunkIndex
 from cerebro.adapters.sqlite_comicvine import SqliteComicVineStore
 from cerebro.adapters.sqlite_records import SqliteRecordStore
-from cerebro.application import chunking, embedding, loading, matching
-from cerebro.application.crawl import CrawlReport, Progress, crawl
-from cerebro.application.embedding import EmbedReport
-from cerebro.application.parse import ParseReport, parse
-from cerebro.application.parse import Progress as ParseProgress
+from cerebro.application import chunking, crawl, embedding, loading, matching, parse
 from cerebro.domain.answers import Answer
 from cerebro.domain.pages import Category
 from cerebro.settings import Settings
@@ -34,17 +28,19 @@ def crawl_fandom(
     category: Category,
     *,
     limit: int | None = None,
-    progress: Progress | None = None,
-) -> CrawlReport:
+    progress: crawl.Progress | None = None,
+) -> crawl.CrawlReport:
     """Crawl one Marvel Database category into DATA_DIR/raw/fandom/."""
-    return crawl(FandomClient(), _pages(), category, limit=limit, progress=progress)
+    return crawl.crawl(
+        FandomClient(), _pages(), category, limit=limit, progress=progress
+    )
 
 
 def parse_fandom(
-    category: Category, *, progress: ParseProgress | None = None
-) -> ParseReport:
+    category: Category, *, progress: parse.Progress | None = None
+) -> parse.ParseReport:
     """Parse one category's saved Marvel Database pages into DATA_DIR/records.sqlite."""
-    return parse(
+    return parse.parse(
         _pages(), FandomRecordParser(category), _records(), category, progress=progress
     )
 
@@ -64,7 +60,7 @@ def chunk_records() -> chunking.ChunkReport:
     return chunking.chunk_records(_records(), _chunks())
 
 
-def embed_chunks(progress: Callable[[int, int], None] | None = None) -> EmbedReport:
+def embed_chunks(progress: embedding.Progress | None = None) -> embedding.EmbedReport:
     """Embed the stored chunks on the Ollama server into DATA_DIR/embeddings/text/."""
     settings = Settings()
     if settings.ollama_base_url is None:

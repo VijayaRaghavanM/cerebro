@@ -13,6 +13,8 @@ PART_SIZE = 10_000
 # Measured fastest on the home server: 140 chunks a second against 48 at 32.
 BATCH_SIZE = 128
 
+Progress = Callable[[int, int], None]  # called with (chunks done, chunks to do)
+
 
 @dataclass(frozen=True)
 class EmbedReport:
@@ -26,7 +28,7 @@ def embed_chunks(
     embedder: Embedder,
     store: VectorStore,
     *,
-    progress: Callable[[int, int], None] | None = None,
+    progress: Progress | None = None,
 ) -> EmbedReport:
     """Embed each chunk's text and save the vectors, part by part.
 
