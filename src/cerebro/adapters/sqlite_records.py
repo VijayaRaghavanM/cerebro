@@ -351,11 +351,15 @@ class SqliteRecordStore(
         # "NEAR" is read as text; a word never holds a quote, so none needs escaping.
         terms = [f'"{word}"' for word in words]
         with closing(sqlite3.connect(self.path)) as db:
-            # bm25 is lower for a better match, so the score is its negation.
+            # bm25 is lower for a better match, so the score is its negation. The top
+            # rows are picked before the join, so it no longer reads every matching
+            # chunk; the outer ORDER BY keeps them best first.
             found = db.execute(
-                "SELECT c.*, -bm25(chunks_fts) AS score FROM chunks_fts"
-                " JOIN chunks c ON c.rowid = chunks_fts.rowid"
-                " WHERE chunks_fts MATCH ? ORDER BY score DESC, c.rowid LIMIT ?",
+                "SELECT c.*, top.score FROM ("
+                "SELECT rowid, -bm25(chunks_fts) AS score FROM chunks_fts"
+                " WHERE chunks_fts MATCH ? ORDER BY score DESC, rowid LIMIT ?"
+                ") AS top JOIN chunks c ON c.rowid = top.rowid"
+                " ORDER BY top.score DESC, top.rowid",
                 (" OR ".join(terms), limit),
             ).fetchall()
 

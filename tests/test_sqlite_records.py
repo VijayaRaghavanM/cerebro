@@ -294,6 +294,24 @@ def test_a_search_finds_other_forms_of_a_word(tmp_path: Path) -> None:
     assert [hit.chunk.number for hit in hits] == [0]
 
 
+def test_hits_come_best_first(tmp_path: Path) -> None:
+    store = SqliteRecordStore(tmp_path / "records.sqlite")
+    # The best match is stored in the middle, so neither id order is the score order.
+    texts = (
+        "Claws and a long walk by the river with friends.",
+        "Wolverine has claws, Wolverine heals.",
+        "A long walk by the river.",
+    )
+    store.replace_chunks(made_up_chunks(*texts))
+
+    hits = store.search("Wolverine claws walk", limit=5)
+
+    assert [hit.chunk.number for hit in hits] == [1, 0, 2]
+    assert [hit.score for hit in hits] == sorted(
+        (hit.score for hit in hits), reverse=True
+    )
+
+
 def test_a_possessive_finds_the_name(tmp_path: Path) -> None:
     store = SqliteRecordStore(tmp_path / "records.sqlite")
     store.replace_chunks(made_up_chunks("Wolverine has claws.", "She likes tea."))
