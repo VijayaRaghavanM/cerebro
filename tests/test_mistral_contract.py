@@ -16,7 +16,7 @@ from langchain_mistralai import ChatMistralAI
 from pydantic import SecretStr
 
 from cerebro.adapters.langgraph_agent import LangGraphAgent
-from cerebro.adapters.mistral import MODEL, REQUESTS_PER_MINUTE
+from cerebro.adapters.mistral import MODEL, REQUESTS_PER_MINUTE, ministral
 from cerebro.domain.pages import Category
 from cerebro.domain.records import PageHit
 from cerebro.ports.agent import RateLimited
@@ -74,6 +74,14 @@ def test_a_recorded_429_is_rate_limited() -> None:
 
     with pytest.raises(RateLimited):
         agent.answer("Hi")
+
+
+def test_models_share_one_rate_limiter() -> None:
+    first = ministral(FAKE_KEY)
+    second = ministral(FAKE_KEY)
+
+    assert first.rate_limiter is not None
+    assert first.rate_limiter is second.rate_limiter
 
 
 @pytest.mark.live
