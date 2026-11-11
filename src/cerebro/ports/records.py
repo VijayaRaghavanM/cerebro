@@ -7,6 +7,10 @@ from cerebro.domain.pages import Category, RawPage
 from cerebro.domain.records import Character, Comic, Record
 
 
+class RecordsMissing(Exception):
+    """No records of the kind asked for are stored yet."""
+
+
 class RecordParser(ABC):
     """Reads one category's records out of raw pages."""
 
@@ -31,8 +35,14 @@ class RecordReader(ABC):
 
     @abstractmethod
     def characters(self) -> Iterator[Character]:
-        """Every stored character, with its categories and links, one at a time."""
+        """Every stored character, with its categories and links, one at a time.
+
+        Raises RecordsMissing if no characters are stored.
+        """
 
     @abstractmethod
     def comics(self) -> Iterator[Comic]:
-        """Every stored comic, with its stories, categories and links, one at a time."""
+        """Every stored comic, with its stories, categories and links, one at a time.
+
+        Raises RecordsMissing if no comics are stored.
+        """

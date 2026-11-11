@@ -12,7 +12,7 @@ from cerebro.domain.comicvine import CharacterMatch
 from cerebro.domain.pages import Category
 from cerebro.domain.records import Character, Comic, Link, Record, Story
 from cerebro.ports.comicvine import MatchStore
-from cerebro.ports.records import RecordReader, RecordStore
+from cerebro.ports.records import RecordReader, RecordsMissing, RecordStore
 
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
@@ -66,6 +66,9 @@ class SqliteRecordStore(RecordStore, RecordReader, MatchStore):
     # Reading: one record at a time, so a category is never held in memory whole.
 
     def characters(self) -> Iterator[Character]:
+        if not self._stored("characters"):
+            raise RecordsMissing("No characters are stored yet")
+
         with closing(sqlite3.connect(self.path)) as db:
             db.row_factory = sqlite3.Row
             for row in db.execute("SELECT * FROM characters ORDER BY pageid"):
@@ -77,6 +80,9 @@ class SqliteRecordStore(RecordStore, RecordReader, MatchStore):
                 )
 
     def comics(self) -> Iterator[Comic]:
+        if not self._stored("comics"):
+            raise RecordsMissing("No comics are stored yet")
+
         with closing(sqlite3.connect(self.path)) as db:
             db.row_factory = sqlite3.Row
             for row in db.execute("SELECT * FROM comics ORDER BY pageid"):
@@ -100,6 +106,17 @@ class SqliteRecordStore(RecordStore, RecordReader, MatchStore):
                     categories=_categories_of(db, "comics", pageid),
                     links=_links_of(db, "comics", pageid, story=None),
                 )
+
+    def _stored(self, table: str) -> bool:
+        # Checked before connecting, which would create an empty file.
+        if not self.path.exists():
+            return False
+        with closing(sqlite3.connect(self.path)) as db:
+            found = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (table,),
+            )
+            return found.fetchone() is not None
 
     # Matches to Comic Vine, replaced all at once like a category.
 

@@ -18,13 +18,14 @@ Status: early. The wiki crawler and parser run; the agent does not exist yet.
 Requires [uv](https://docs.astral.sh/uv/).
 
 ```sh
-uv sync                      # create .venv and install the pinned dependencies
-uv run pytest                # run the tests
-uv run pytest -m live        # check API keys against the real services
-uv run ruff check            # lint
-uv run ruff format           # format
-uv run cerebro crawl fandom  # download raw wiki pages; safe to rerun
-uv run cerebro parse fandom  # turn them into records in data/records.sqlite
+uv sync                         # create .venv and install the pinned dependencies
+uv run pytest                   # run the tests
+uv run pytest -m live           # check API keys against the real services
+uv run ruff check               # lint
+uv run ruff format              # format
+uv run cerebro crawl fandom     # download raw wiki pages; safe to rerun
+uv run cerebro parse fandom     # turn them into records in data/records.sqlite
+uv run cerebro match comicvine  # match Comic Vine's characters to the parsed ones
 ```
 
 ## Data and credits

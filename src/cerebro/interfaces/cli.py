@@ -7,6 +7,7 @@ import typer
 
 from cerebro import bootstrap
 from cerebro.domain.pages import Category
+from cerebro.ports.records import RecordsMissing
 from cerebro.ports.wiki import WikiUnavailable
 
 app = typer.Typer(no_args_is_help=True)
@@ -16,6 +17,9 @@ app.add_typer(crawl_app, name="crawl")
 
 parse_app = typer.Typer(no_args_is_help=True, help="Turn raw pages into records.")
 app.add_typer(parse_app, name="parse")
+
+match_app = typer.Typer(no_args_is_help=True, help="Match records across sources.")
+app.add_typer(match_app, name="match")
 
 
 @crawl_app.command("fandom")
@@ -67,6 +71,28 @@ def parse_fandom(
 
         # The leading \r writes the final counts over the progress line.
         typer.echo(f"\r  {report.pages} pages, {report.records} records")
+
+
+@match_app.command("comicvine")
+def match_comicvine() -> None:
+    """Match Comic Vine's characters to the parsed ones. Safe to rerun.
+
+    A rerun replaces the stored matches.
+    """
+    try:
+        report = bootstrap.match_comicvine()
+    except RecordsMissing as error:
+        typer.echo(f"{error}. Run `cerebro parse fandom` first.", err=True)
+        raise typer.Exit(1) from None
+    except FileNotFoundError as error:
+        typer.echo(f"No Comic Vine data: {error.filename} is missing.", err=True)
+        raise typer.Exit(1) from None
+
+    typer.echo(
+        f"{report.matched:,} of the {report.with_issues:,} Comic Vine characters "
+        f"with an issue list matched ({report.comicvine:,} listed in all; "
+        f"{report.pages_claimed_twice:,} pages claimed twice)"
+    )
 
 
 def show_pages_read(done: int) -> None:
