@@ -34,7 +34,7 @@ SHARED_TABLES = [
 # A view, so the ranking always reflects the latest load and match without copying
 # data. The id breaks ties between characters with the same appearances.
 CHARACTER_RANKING = (
-    "CREATE VIEW IF NOT EXISTS character_ranking AS"
+    "CREATE VIEW character_ranking AS"
     " SELECT ROW_NUMBER() OVER (ORDER BY cv.appearances DESC, cv.id) AS rank,"
     " page.pageid, page.title, cv.id AS comicvine_id, cv.appearances"
     " FROM comicvine_matches m"
@@ -161,6 +161,8 @@ class SqliteRecordStore(RecordStore, RecordReader, MatchStore, ComicVineStore):
             with db:
                 db.execute("DROP TABLE IF EXISTS comicvine_characters")
                 db.execute(f"CREATE TABLE comicvine_characters ({', '.join(columns)})")
+                # Recreated, not kept, so a changed definition takes effect on rerun.
+                db.execute("DROP VIEW IF EXISTS character_ranking")
                 db.execute(CHARACTER_RANKING)
                 for character in characters:
                     values = _comicvine_values(character)
