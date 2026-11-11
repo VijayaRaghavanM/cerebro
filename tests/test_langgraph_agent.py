@@ -3,7 +3,7 @@ from typing import Any
 
 import httpx
 import pytest
-from helpers import FakeLookup, character, detail, vine
+from helpers import FakeLookup, character, detail, final_answer, vine
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel, GenericFakeChatModel
 from langchain_core.messages import AIMessage, BaseMessage
@@ -103,7 +103,7 @@ def lookup(matched: bool = False) -> FakeLookup:
 
 
 def ask(model: BaseChatModel, matched: bool = False) -> Any:
-    return LangGraphAgent(model, lookup(matched)).answer("Who is Ann Doe?")
+    return final_answer(LangGraphAgent(model, lookup(matched)), "Who is Ann Doe?")
 
 
 def test_a_search_a_read_and_a_cited_reply_make_an_answer() -> None:
@@ -229,7 +229,7 @@ def test_a_second_page_is_numbered_after_the_first() -> None:
         reply("Both [1] [2]."),
     )
 
-    answer = LangGraphAgent(model, both).answer("Who?")
+    answer = final_answer(LangGraphAgent(model, both), "Who?")
 
     assert [s.title for s in answer.sources] == [TITLE, "Bob Roe (Earth-1)"]
 

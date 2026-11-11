@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from helpers import FakeLookup, RecordingTransport, character, replay
+from helpers import FakeLookup, RecordingTransport, character, final_answer, replay
 from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_mistralai import ChatMistralAI
 from pydantic import SecretStr
@@ -57,7 +57,7 @@ def test_a_recorded_answer_is_read_back() -> None:
     path = RECORDINGS / "answer.json"
     agent = ann_agent(model_over(replay(path)))
 
-    answer = agent.answer(QUESTION)
+    answer = final_answer(agent, QUESTION)
 
     bodies = [e["response"]["body"] for e in json.loads(path.read_text("utf-8"))]
     usage = [body["usage"] for body in bodies]
@@ -73,7 +73,7 @@ def test_a_recorded_429_is_rate_limited() -> None:
     agent = ann_agent(model_over(replay(RECORDINGS / "rate_limited.json")))
 
     with pytest.raises(RateLimited):
-        agent.answer("Hi")
+        final_answer(agent, "Hi")
 
 
 def test_models_share_one_rate_limiter() -> None:
@@ -99,7 +99,7 @@ def test_record_mistral_exchanges() -> None:
         requests_per_second=REQUESTS_PER_MINUTE / 60, max_bucket_size=1
     )
     answering = RecordingTransport()
-    ann_agent(model_over(answering, key, pace)).answer(QUESTION)
+    final_answer(ann_agent(model_over(answering, key, pace)), QUESTION)
     answering.save(RECORDINGS / "answer.json")
 
     # No pacing here: back-to-back requests are how a 429 happens.
@@ -107,7 +107,7 @@ def test_record_mistral_exchanges() -> None:
     agent = ann_agent(model_over(flooding, key))
     for _ in range(4):
         try:
-            agent.answer("Hi")
+            final_answer(agent, "Hi")
         except RateLimited:
             break
     assert flooding.exchanges[-1]["response"]["status"] == 429

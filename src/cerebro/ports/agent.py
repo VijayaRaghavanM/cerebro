@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 
-from cerebro.domain.answers import Answer, Step
+from cerebro.domain.answers import Step
 
 
 class RateLimited(Exception):
@@ -27,12 +27,3 @@ class Agent(ABC):
 
         Raises RateLimited, ModelTimeout or ProviderError if the model fails.
         """
-
-    def answer(self, question: str) -> Answer:
-        """The answer to `question`, with the pages it cites."""
-        last: Step | None = None
-        for step in self.steps(question):
-            last = step
-
-        assert isinstance(last, Answer), "steps must end with the answer"
-        return last

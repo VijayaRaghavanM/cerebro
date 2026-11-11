@@ -8,7 +8,7 @@ import urllib.error
 import urllib.request
 
 import pytest
-from helpers import FakeLookup, character
+from helpers import FakeLookup, character, final_answer
 
 from cerebro.adapters.langgraph_agent import LangGraphAgent
 from cerebro.adapters.mistral import MODEL, ministral
@@ -48,9 +48,8 @@ def test_the_agent_answers_from_the_records() -> None:
 
     ann = character(name="Anna Doe-Smith", current_alias="Ann Doe")
     hits = [PageHit(ann.title, Category.CHARACTERS, 5)]
-    answer = LangGraphAgent(ministral(key), FakeLookup(hits, [ann])).answer(
-        "What is Ann Doe's real name?"
-    )
+    agent = LangGraphAgent(ministral(key), FakeLookup(hits, [ann]))
+    answer = final_answer(agent, "What is Ann Doe's real name?")
 
     assert answer.tool_calls >= 1
     assert len(answer.sources) >= 1

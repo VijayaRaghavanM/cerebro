@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, get_origin
 import httpx
 
 from cerebro.adapters.fandom_wikitext import parse_character, parse_comic, parse_team
+from cerebro.domain.answers import Answer
 from cerebro.domain.comicvine import (
     ComicVineCharacter,
     ComicVineDetail,
@@ -16,6 +17,7 @@ from cerebro.domain.comicvine import (
 )
 from cerebro.domain.pages import RawPage
 from cerebro.domain.records import Character, Comic, PageHit, Record, Team
+from cerebro.ports.agent import Agent
 from cerebro.ports.records import RecordLookup
 
 if TYPE_CHECKING:
@@ -151,6 +153,18 @@ class FakeLookup(RecordLookup):
 
     def url(self, title: str) -> str:
         return f"https://wiki.example/{title.replace(' ', '_')}"
+
+
+# Running an agent
+
+
+def final_answer(agent: Agent, question: str) -> Answer:
+    """The answer the agent gives last, after all its steps."""
+    steps = list(agent.steps(question))
+
+    last = steps[-1]
+    assert isinstance(last, Answer), "steps must end with the answer"
+    return last
 
 
 # Recorded Mistral exchanges
