@@ -9,6 +9,7 @@ from helpers import (
     real_team,
 )
 
+from cerebro.adapters.sqlite_comicvine import SqliteComicVineStore
 from cerebro.adapters.sqlite_records import SqliteRecordStore
 from cerebro.domain.comicvine import (
     CharacterMatch,
@@ -222,10 +223,11 @@ def test_record_without_stored_records_says_so(tmp_path: Path) -> None:
 
 
 def matched(tmp_path: Path, *matches: CharacterMatch) -> SqliteRecordStore:
-    store = SqliteRecordStore(tmp_path / "records.sqlite")
-    store.replace_comicvine(comicvine_characters())
-    store.replace_matches(matches)
-    return store
+    path = tmp_path / "records.sqlite"
+    comicvine = SqliteComicVineStore(path)
+    comicvine.replace_comicvine(comicvine_characters())
+    comicvine.replace_matches(matches)
+    return SqliteRecordStore(path)
 
 
 def test_the_matched_comic_vine_character_is_read_back(tmp_path: Path) -> None:

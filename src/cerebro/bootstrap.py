@@ -11,6 +11,7 @@ from cerebro.adapters.mistral import ministral
 from cerebro.adapters.numpy_vectors import NumpyVectorStore
 from cerebro.adapters.ollama import OllamaEmbedder
 from cerebro.adapters.sqlite_chunks import SqliteChunkIndex
+from cerebro.adapters.sqlite_comicvine import SqliteComicVineStore
 from cerebro.adapters.sqlite_records import SqliteRecordStore
 from cerebro.application import chunking, embedding, loading, matching
 from cerebro.application.crawl import CrawlReport, Progress, crawl
@@ -56,15 +57,14 @@ def load_comicvine() -> loading.LoadReport:
     """Store Comic Vine's characters in DATA_DIR/raw/comicvine/ in the record store."""
     comicvine = ComicVineDump(Settings().data_dir / "raw" / "comicvine")
 
-    return loading.load_comicvine(comicvine, _records())
+    return loading.load_comicvine(comicvine, _comicvine())
 
 
 def match_comicvine() -> matching.MatchReport:
     """Match Comic Vine's characters in DATA_DIR/raw/comicvine/ to the stored ones."""
     comicvine = ComicVineDump(Settings().data_dir / "raw" / "comicvine")
-    store = _records()
 
-    return matching.match_comicvine(store, comicvine, store)
+    return matching.match_comicvine(_records(), comicvine, _comicvine())
 
 
 def chunk_records() -> chunking.ChunkReport:
@@ -97,6 +97,10 @@ def ask(question: str) -> Answer:
 
 def _records() -> SqliteRecordStore:
     return SqliteRecordStore(Settings().data_dir / RECORDS_FILE)
+
+
+def _comicvine() -> SqliteComicVineStore:
+    return SqliteComicVineStore(Settings().data_dir / RECORDS_FILE)
 
 
 def _chunks() -> SqliteChunkIndex:
