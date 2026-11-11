@@ -18,3 +18,11 @@ class Chunk:
     title: str
     section: str
     text: str
+
+
+@dataclass(frozen=True)
+class ChunkHit:
+    """A chunk a search found, with its BM25 score (higher is better)."""
+
+    chunk: Chunk
+    score: float

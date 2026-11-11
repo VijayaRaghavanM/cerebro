@@ -1,6 +1,7 @@
 """Records in a SQLite file, where the agent's tools can query them."""
 
 import json
+import re
 import sqlite3
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import closing
@@ -9,7 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, get_args, get_origin
 from urllib.parse import quote
 
-from cerebro.domain.chunks import Chunk
+from cerebro.domain.chunks import Chunk, ChunkHit
 from cerebro.domain.comicvine import (
     CharacterMatch,
     ComicVineCharacter,
@@ -26,7 +27,7 @@ from cerebro.domain.records import (
     Story,
     Team,
 )
-from cerebro.ports.chunks import ChunkStore
+from cerebro.ports.chunks import ChunkSearch, ChunkStore
 from cerebro.ports.comicvine import ComicVineStore, MatchStore
 from cerebro.ports.records import (
     RecordLookup,
@@ -86,6 +87,11 @@ SEARCH_GROUPS = [
 # while an apostrophe inside a name ("Xi'an") stays.
 EDGE_PUNCTUATION = "#.,;:!?\"'()"
 
+# What a chunk search reads from a query: runs of letters and digits, as the index's
+# tokenizer splits text. Keeping "Wolverine's" whole would make it the two-word
+# phrase "wolverine s", which almost never occurs.
+SEARCH_WORD = re.compile(r"\w+")
+
 # Builds a record from its row and the connection its links and categories are in.
 type RowReader = Callable[[sqlite3.Connection, sqlite3.Row], Record]
 
@@ -95,7 +101,13 @@ URL_SAFE = "()',-:!&/"
 
 
 class SqliteRecordStore(
-    RecordStore, RecordReader, RecordLookup, MatchStore, ComicVineStore, ChunkStore
+    RecordStore,
+    RecordReader,
+    RecordLookup,
+    MatchStore,
+    ComicVineStore,
+    ChunkStore,
+    ChunkSearch,
 ):
     """Records in one SQLite file.
 
@@ -312,6 +324,42 @@ class SqliteRecordStore(
                     "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (astuple(chunk) for chunk in chunks),
                 )
+
+                # Porter stems inflections ("powers" finds "power"); unicode61 folds
+                # diacritics, so "Xuan" finds "Xuân". The text is read from `chunks`,
+                # not stored a second time.
+                db.execute("DROP TABLE IF EXISTS chunks_fts")
+                db.execute(
+                    "CREATE VIRTUAL TABLE chunks_fts USING fts5(text,"
+                    " content='chunks', content_rowid='rowid',"
+                    " tokenize='porter unicode61 remove_diacritics 2')"
+                )
+                db.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')")
+
+    # Searching chunks.
+
+    def search(self, query: str, limit: int) -> list[ChunkHit]:
+        if not self._stored("chunks"):
+            raise RecordsMissing("No chunks are stored yet")
+
+        words = SEARCH_WORD.findall(query)
+        if not words:
+            return []
+
+        # OR, because a natural question rarely has every word in one chunk; bm25
+        # weighs the rare words most. Each term is quoted so that a word like "AND" or
+        # "NEAR" is read as text; a word never holds a quote, so none needs escaping.
+        terms = [f'"{word}"' for word in words]
+        with closing(sqlite3.connect(self.path)) as db:
+            # bm25 is lower for a better match, so the score is its negation.
+            found = db.execute(
+                "SELECT c.*, -bm25(chunks_fts) AS score FROM chunks_fts"
+                " JOIN chunks c ON c.rowid = chunks_fts.rowid"
+                " WHERE chunks_fts MATCH ? ORDER BY score DESC, c.rowid LIMIT ?",
+                (" OR ".join(terms), limit),
+            ).fetchall()
+
+        return [ChunkHit(Chunk(*row[:-1]), row[-1]) for row in found]
 
     # Writing, step by step.
 
