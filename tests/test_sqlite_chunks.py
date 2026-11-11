@@ -25,11 +25,30 @@ def test_chunks_are_stored_and_a_rerun_replaces_them(tmp_path: Path) -> None:
     assert stored == [(first.id, first.pageid, first.revid, 0, first.title)]
 
 
-def made_up_chunks(*texts: str) -> list[Chunk]:
+def made_up_chunks(
+    *texts: str, prefix: str = "Ann Doe (Earth-1) > History"
+) -> list[Chunk]:
     return [
-        Chunk(f"1:7:{n}", 1, 7, n, "Ann Doe (Earth-1)", "History", text)
+        Chunk(f"1:7:{n}", 1, 7, n, "Ann Doe (Earth-1)", "History", prefix, text)
         for n, text in enumerate(texts)
     ]
+
+
+def test_a_search_finds_a_chunk_through_a_word_only_its_prefix_has(
+    tmp_path: Path,
+) -> None:
+    store = SqliteChunkIndex(tmp_path / "records.sqlite")
+    store.replace_chunks(
+        made_up_chunks(
+            "She has claws.",
+            "She likes tea.",
+            prefix="Weather Witch (Ann Doe) > Powers",
+        )
+    )
+
+    hits = store.search("Witch", limit=5)
+
+    assert [hit.chunk.number for hit in hits] == [0, 1]
 
 
 def test_a_chunk_with_a_rare_word_ranks_above_ones_with_common_words(

@@ -1,4 +1,5 @@
 import re
+from dataclasses import replace
 
 from helpers import character, real_character
 
@@ -30,6 +31,54 @@ def test_chunks_are_numbered_from_zero_in_page_order() -> None:
     assert [chunk.id for chunk in chunks] == ["1:7:0", "1:7:1", "1:7:2"]
     assert {(chunk.pageid, chunk.revid) for chunk in chunks} == {(1, 7)}
     assert {chunk.title for chunk in chunks} == {"Ann Doe (Earth-1)"}
+
+
+def prefixes(**values: str) -> list[str]:
+    """The prefix of each chunk after the profile, which every named page has."""
+    chunks = chunk_character(character(**values))
+    return [chunk.prefix for chunk in chunks if chunk.section != "Profile"]
+
+
+def test_a_prefix_names_the_alias_the_name_and_the_reality() -> None:
+    result = prefixes(
+        name="Ann Doe", current_alias="Weather Witch", reality="Earth-616", trivia="T."
+    )
+
+    assert result == ["Weather Witch (Ann Doe, Earth-616) > Trivia"]
+
+
+def test_a_prefix_without_an_alias_starts_with_the_name() -> None:
+    result = prefixes(name="Ann Doe", reality="Earth-616", trivia="T.")
+
+    assert result == ["Ann Doe (Earth-616) > Trivia"]
+
+
+def test_an_alias_equal_to_the_name_is_left_out() -> None:
+    result = prefixes(
+        name="Ann Doe", current_alias="Ann Doe", reality="Earth-616", trivia="T."
+    )
+
+    assert result == ["Ann Doe (Earth-616) > Trivia"]
+
+
+def test_an_empty_reality_falls_back_to_the_title() -> None:
+    result = prefixes(name="Ann Doe", reality="", trivia="T.")
+
+    assert result == ["Ann Doe (Earth-1) > Trivia"]
+
+
+def test_a_prefix_with_no_reality_anywhere_has_only_the_name() -> None:
+    page = replace(character(name="Ann Doe", trivia="T."), title="Ann Doe")
+
+    chunks = chunk_character(page)
+
+    assert [chunk.prefix for chunk in chunks][-1] == "Ann Doe > Trivia"
+
+
+def test_a_pages_chunks_share_the_page_part_and_differ_in_the_section() -> None:
+    result = prefixes(name="Ann Doe", reality="Earth-616", overview="O.", trivia="T.")
+
+    assert result == ["Ann Doe (Earth-616) > Overview", "Ann Doe (Earth-616) > Trivia"]
 
 
 def test_profile_lists_the_non_empty_facts_only() -> None:

@@ -8,7 +8,9 @@ class Chunk:
     """One piece of a page that a search can rank and an answer can cite.
 
     `id` is "<pageid>:<revid>:<number>", stable for a revision. `section` names
-    where on the page the text sits, such as "History > Early Life".
+    where on the page the text sits, such as "History > Early Life". `prefix` is
+    situating text for search, kept apart from `text` so every prefix arm uses
+    the same chunks and ids.
     """
 
     id: str
@@ -17,6 +19,7 @@ class Chunk:
     number: int  # from 0, in page order
     title: str
     section: str
+    prefix: str
     text: str
 
 

@@ -34,6 +34,7 @@ TARGET_TOKENS = 450
 # A common rule of thumb for English, so no tokenizer is needed.
 CHARS_PER_TOKEN = 4
 
+TITLE_REALITY = re.compile(r"\((?P<reality>[^()]+)\)\s*$")
 HEADING = re.compile(r"^#+\s+(?P<text>.+?)\s*$")
 PARAGRAPH_BREAK = re.compile(r"\n\s*\n")
 SENTENCE_END = re.compile(r"(?<=[.!?]) +(?=[A-Z\"'])")
@@ -76,6 +77,7 @@ def chunk_character(character: Character) -> list[Chunk]:
         if text:
             sections.extend(_field_sections(field, text))
 
+    page_part = _page_prefix(character)
     chunks: list[Chunk] = []
     for name, texts in sections:
         for text in texts:
@@ -88,10 +90,33 @@ def chunk_character(character: Character) -> list[Chunk]:
                     number=number,
                     title=character.title,
                     section=name,
+                    prefix=f"{page_part} > {name}",
                     text=text,
                 )
             )
     return chunks
+
+
+# Prefix
+
+
+def _page_prefix(character: Character) -> str:
+    """Who the page is about, as the plan's `Storm (Ororo Munroe, Earth-616)`."""
+    name = character.name
+    alias = character.current_alias
+    reality = character.reality or _title_reality(character.title)
+
+    if alias and alias != name:
+        who = ", ".join(part for part in (name, reality) if part)
+        return f"{alias} ({who})"
+
+    return f"{name} ({reality})" if reality else name
+
+
+def _title_reality(title: str) -> str | None:
+    """The title's last parenthetical, such as "Earth-616"."""
+    match = TITLE_REALITY.search(title)
+    return match["reality"] if match else None
 
 
 # Sections

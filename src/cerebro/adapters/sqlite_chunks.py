@@ -19,7 +19,11 @@ SEARCH_WORD = re.compile(r"\w+")
 
 
 class SqliteChunkIndex(ChunkStore, ChunkSearch):
-    """Character page chunks and their BM25 index, in the records file."""
+    """Character page chunks and their BM25 index, in the records file.
+
+    The index covers each chunk's prefix and its text, so a name in the prefix
+    finds chunks that never repeat it.
+    """
 
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -32,21 +36,21 @@ class SqliteChunkIndex(ChunkStore, ChunkSearch):
             db.execute(
                 "CREATE TABLE chunks (id TEXT PRIMARY KEY, pageid INTEGER,"
                 " revid INTEGER, number INTEGER, title TEXT, section TEXT,"
-                " text TEXT)"
+                " prefix TEXT, text TEXT)"
             )
             db.execute("CREATE INDEX chunks_by_page ON chunks (pageid)")
             # The columns follow `Chunk`'s field order.
             db.executemany(
-                "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO chunks VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (astuple(chunk) for chunk in chunks),
             )
 
             # Porter stems inflections ("powers" finds "power"); unicode61 folds
-            # diacritics, so "Xuan" finds "Xuân". The text is read from `chunks`,
-            # not stored a second time.
+            # diacritics, so "Xuan" finds "Xuân". The prefix and text are read from
+            # `chunks`, not stored a second time.
             db.execute("DROP TABLE IF EXISTS chunks_fts")
             db.execute(
-                "CREATE VIRTUAL TABLE chunks_fts USING fts5(text,"
+                "CREATE VIRTUAL TABLE chunks_fts USING fts5(prefix, text,"
                 " content='chunks', content_rowid='rowid',"
                 " tokenize='porter unicode61 remove_diacritics 2')"
             )
