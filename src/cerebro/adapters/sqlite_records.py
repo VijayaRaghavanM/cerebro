@@ -140,22 +140,28 @@ class SqliteRecordStore(
     # Reading: one record at a time, so a category is never held in memory whole.
 
     def characters(self) -> Iterator[Character]:
-        if not self._stored("characters"):
-            raise RecordsMissing("No characters are stored yet")
-
-        with closing(sqlite3.connect(self.path)) as db:
-            db.row_factory = sqlite3.Row
-            for row in db.execute("SELECT * FROM characters ORDER BY pageid"):
-                yield _character(db, row)
+        return self._read(Category.CHARACTERS, _character)
 
     def comics(self) -> Iterator[Comic]:
-        if not self._stored("comics"):
-            raise RecordsMissing("No comics are stored yet")
+        return self._read(Category.COMICS, _comic)
 
+    def _read[R](
+        self, category: Category, read: Callable[[sqlite3.Connection, sqlite3.Row], R]
+    ) -> Iterator[R]:
+        # Checked before the generator starts, so a missing table fails at the call,
+        # before a caller has opened anything to write the results to.
+        if not self._stored(category):
+            raise RecordsMissing(f"No {category} are stored yet")
+
+        return self._rows(category, read)
+
+    def _rows[R](
+        self, category: Category, read: Callable[[sqlite3.Connection, sqlite3.Row], R]
+    ) -> Iterator[R]:
         with closing(sqlite3.connect(self.path)) as db:
             db.row_factory = sqlite3.Row
-            for row in db.execute("SELECT * FROM comics ORDER BY pageid"):
-                yield _comic(db, row)
+            for row in db.execute(f'SELECT * FROM "{category}" ORDER BY pageid'):
+                yield read(db, row)
 
     # Lookup: by name, then by title.
 

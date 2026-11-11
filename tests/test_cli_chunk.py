@@ -31,3 +31,5 @@ def test_chunking_before_parsing_says_what_to_run(data_dir: Path) -> None:
 
     assert result.exit_code == 1
     assert "No characters are stored yet. Run `cerebro parse fandom`" in result.output
+    # The check comes before anything opens the file for writing.
+    assert not (data_dir / "records.sqlite").exists()

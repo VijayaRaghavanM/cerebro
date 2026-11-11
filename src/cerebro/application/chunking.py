@@ -50,11 +50,14 @@ def chunk_records(records: RecordReader, store: ChunkStore) -> ChunkReport:
 
     Chunks stream through one at a time, so they are never held in memory whole.
     """
+    # Asked for here, not inside the stream, so missing records fail before the
+    # store opens anything to write.
+    characters = records.characters()
     pages = chunks = 0
 
     def stream() -> Iterator[Chunk]:
         nonlocal pages, chunks
-        for character in records.characters():
+        for character in characters:
             pages += 1
             for chunk in chunk_character(character):
                 chunks += 1
