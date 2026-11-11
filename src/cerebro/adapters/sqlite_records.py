@@ -44,7 +44,7 @@ SHARED_TABLES = [
     "CREATE INDEX IF NOT EXISTS links_by_record ON links (kind, pageid)",
     # Cast lists only, so counting a page's appearances never reads the link rows.
     "CREATE INDEX IF NOT EXISTS links_in_casts ON links (title, pageid)"
-    " WHERE kind = 'comics' AND field = 'appearing'",
+    f" WHERE kind = '{Category.COMICS}' AND field = 'appearing'",
     "CREATE TABLE IF NOT EXISTS categories (kind TEXT, pageid INTEGER, name TEXT)",
     "CREATE INDEX IF NOT EXISTS categories_by_name ON categories (name)",
     "CREATE INDEX IF NOT EXISTS categories_by_record ON categories (kind, pageid)",
@@ -161,7 +161,7 @@ class SqliteRecordStore(
     # Lookup: by name, then by title.
 
     def find(self, name: str, limit: int) -> list[PageHit]:
-        if not has_table(self.path, "characters"):
+        if not has_table(self.path, Category.CHARACTERS):
             raise RecordsMissing("No characters are stored yet")
 
         words = [word.strip(EDGE_PUNCTUATION) for word in name.split()]
@@ -192,7 +192,7 @@ class SqliteRecordStore(
         return hits
 
     def record(self, title: str) -> Record | None:
-        if not has_table(self.path, "characters"):
+        if not has_table(self.path, Category.CHARACTERS):
             raise RecordsMissing("No characters are stored yet")
 
         readers: list[tuple[Category, RowReader]] = [
@@ -283,19 +283,18 @@ class SqliteRecordStore(
         record: Record,
         created: set[str],
     ) -> None:
-        kind = str(category)
-        _insert_row(db, kind, ("pageid",), _columns(record), created)
+        _insert_row(db, category, ("pageid",), _columns(record), created)
         db.executemany(
             "INSERT INTO categories VALUES (?, ?, ?)",
-            [(kind, record.pageid, name) for name in record.categories],
+            [(category, record.pageid, name) for name in record.categories],
         )
-        _insert_links(db, kind, record.pageid, None, record.links)
+        _insert_links(db, category, record.pageid, None, record.links)
 
         if isinstance(record, Comic):
             for story in record.stories:
                 row = {"pageid": record.pageid, **_columns(story)}
                 _insert_row(db, "stories", ("pageid", "number"), row, created)
-                _insert_links(db, kind, record.pageid, story.number, story.links)
+                _insert_links(db, category, record.pageid, story.number, story.links)
 
 
 def _columns(item: Any) -> dict[str, Any]:
@@ -415,7 +414,7 @@ def _insert_row(
 
 def _insert_links(
     db: sqlite3.Connection,
-    kind: str,
+    kind: Category,
     pageid: int,
     story: int | None,
     links: tuple[Link, ...],
@@ -431,8 +430,8 @@ def _character(db: sqlite3.Connection, row: sqlite3.Row) -> Character:
     return _from_columns(
         Character,
         row,
-        categories=_categories_of(db, "characters", pageid),
-        links=_links_of(db, "characters", pageid, story=None),
+        categories=_categories_of(db, Category.CHARACTERS, pageid),
+        links=_links_of(db, Category.CHARACTERS, pageid, story=None),
     )
 
 
@@ -441,8 +440,8 @@ def _team(db: sqlite3.Connection, row: sqlite3.Row) -> Team:
     return _from_columns(
         Team,
         row,
-        categories=_categories_of(db, "teams", pageid),
-        links=_links_of(db, "teams", pageid, story=None),
+        categories=_categories_of(db, Category.TEAMS, pageid),
+        links=_links_of(db, Category.TEAMS, pageid, story=None),
     )
 
 
@@ -455,7 +454,7 @@ def _comic(db: sqlite3.Connection, row: sqlite3.Row) -> Comic:
         _from_columns(
             Story,
             story,
-            links=_links_of(db, "comics", pageid, story=story["number"]),
+            links=_links_of(db, Category.COMICS, pageid, story=story["number"]),
         )
         for story in story_rows
     )
@@ -464,12 +463,14 @@ def _comic(db: sqlite3.Connection, row: sqlite3.Row) -> Comic:
         Comic,
         row,
         stories=stories,
-        categories=_categories_of(db, "comics", pageid),
-        links=_links_of(db, "comics", pageid, story=None),
+        categories=_categories_of(db, Category.COMICS, pageid),
+        links=_links_of(db, Category.COMICS, pageid, story=None),
     )
 
 
-def _categories_of(db: sqlite3.Connection, kind: str, pageid: int) -> tuple[str, ...]:
+def _categories_of(
+    db: sqlite3.Connection, kind: Category, pageid: int
+) -> tuple[str, ...]:
     rows = db.execute(
         "SELECT name FROM categories WHERE kind = ? AND pageid = ? ORDER BY rowid",
         (kind, pageid),
@@ -478,7 +479,7 @@ def _categories_of(db: sqlite3.Connection, kind: str, pageid: int) -> tuple[str,
 
 
 def _links_of(
-    db: sqlite3.Connection, kind: str, pageid: int, *, story: int | None
+    db: sqlite3.Connection, kind: Category, pageid: int, *, story: int | None
 ) -> tuple[Link, ...]:
     """A record's own links when `story` is None, else the links in that story."""
     # IS matches a None story to the NULL on a record's own links; = would match none.
@@ -512,7 +513,8 @@ def _hits_from(category: Category, condition: str) -> str:
         # many of its stories list the page. The `links_in_casts` index answers it.
         count = (
             "(SELECT COUNT(DISTINCT pageid) FROM links"
-            " WHERE kind = 'comics' AND field = 'appearing' AND title = page.title)"
+            f" WHERE kind = '{Category.COMICS}' AND field = 'appearing'"
+            " AND title = page.title)"
         )
     return (
         f"SELECT title, '{category}' AS category, {count} AS appearances"
