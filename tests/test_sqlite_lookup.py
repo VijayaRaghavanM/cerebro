@@ -131,6 +131,15 @@ def test_a_comic_is_found_by_words_of_its_title(tmp_path: Path) -> None:
     assert hits == [PageHit(comic().title, Category.COMICS, 0)]
 
 
+def test_punctuation_around_a_word_is_ignored(tmp_path: Path) -> None:
+    store = stored(tmp_path)
+
+    # How people write an issue number; the title says "Vol 1 170".
+    hits = store.find('"Marvel Comics Presents #170"?', 10)
+
+    assert hits == [PageHit(comic().title, Category.COMICS, 0)]
+
+
 def test_matching_ignores_case(tmp_path: Path) -> None:
     store = stored(tmp_path)
 

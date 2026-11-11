@@ -71,6 +71,10 @@ NAME_COLUMNS = {
     Category.COMICS: ["title"],
 }
 
+# Stripped from both ends of a search word: "#15" matches the "15" of "Vol 1 15",
+# while an apostrophe inside a name ("Xi'an") stays.
+EDGE_PUNCTUATION = "#.,;:!?\"'()"
+
 # Builds a record from its row and the connection its links and categories are in.
 type RowReader = Callable[[sqlite3.Connection, sqlite3.Row], Record]
 
@@ -147,7 +151,8 @@ class SqliteRecordStore(
         if not self._stored("characters"):
             raise RecordsMissing("No characters are stored yet")
 
-        words = name.split()
+        words = [word.strip(EDGE_PUNCTUATION) for word in name.split()]
+        words = [word for word in words if word]
         if not words:
             return []
 
