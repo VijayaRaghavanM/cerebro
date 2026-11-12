@@ -47,6 +47,8 @@ Open the address Vite prints. Vite sends `/ask` to the API.
 - Character, team and comic pages, including comic creators and appearances, come from the [Marvel Database](https://marvel.fandom.com) on Fandom, licensed under [CC BY-SA](https://creativecommons.org/licenses/by-sa/3.0/). Text derived from it keeps that license.
 - Issue dates and per-character issue lists come from the [Comic Vine API](https://comicvine.gamespot.com/api/) under its terms for non-commercial use. It is not redistributed here. `cerebro crawl comicvine` fetches it with your own API key.
 
+- The evaluation questions in `evals/golden.jsonl` include questions people asked on [Science Fiction & Fantasy Stack Exchange](https://scifi.stackexchange.com) (CC BY-SA 4.0), in [Natural Questions](https://ai.google.com/research/NaturalQuestions) (CC BY-SA 3.0) and in [WebQuestions](https://nlp.stanford.edu/software/sempre/) (CC BY 4.0). Each line names its source, link and license; questions marked `cerebro` were written for this project.
+
 This is a non-commercial fan project. It is not affiliated with or endorsed by Marvel, Fandom or Comic Vine.
 
 ## License
