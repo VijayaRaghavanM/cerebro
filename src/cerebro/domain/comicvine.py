@@ -1,10 +1,19 @@
 """Comic Vine's characters, and the Fandom pages they match."""
 
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any
 
 # A record as the API returned it, kept as is for the download.
 type RawRecord = dict[str, Any]
+
+
+class DownloadPart(StrEnum):
+    """The three parts of the download."""
+
+    CHARACTERS = "characters"  # a summary of every character
+    DETAILS = "details"  # the detail of those fetched in detail
+    ISSUES = "issues"  # the issues the details list
 
 
 @dataclass(frozen=True)

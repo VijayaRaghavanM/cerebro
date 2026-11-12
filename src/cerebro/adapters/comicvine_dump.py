@@ -1,7 +1,7 @@
-"""Comic Vine data downloaded earlier, read from its JSONL files."""
+"""The Comic Vine download: JSONL files in a folder, written by the crawl."""
 
 import json
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -9,29 +9,75 @@ from cerebro.domain.comicvine import (
     ComicVineCharacter,
     ComicVineDetail,
     ComicVineIssue,
+    DownloadPart,
+    RawRecord,
 )
-from cerebro.ports.comicvine import ComicVineSource
+from cerebro.ports.comicvine import ComicVineSource, DownloadStore
 
 # Comic Vine's gender codes; any other value reads as None.
 GENDERS: dict[Any, str] = {0: "other", 1: "male", 2: "female"}
 
+FILES = {
+    DownloadPart.CHARACTERS: "characters.jsonl",
+    DownloadPart.DETAILS: "character-issues.jsonl",
+    DownloadPart.ISSUES: "issues.jsonl",
+}
 
-class ComicVineDump(ComicVineSource):
+
+class ComicVineDump(DownloadStore, ComicVineSource):
     """The download's JSONL files in one folder, one object per line.
 
+    The crawl writes it and `cerebro load comicvine` reads it.
     `characters.jsonl` lists every character with its names, appearance count and page.
     `character-issues.jsonl` has the detail of those fetched in detail: issue ids,
     summary, powers, teams and the like. `issues.jsonl` describes those issues.
+    `marvel-character-ids.json` is Marvel's character list, saved once.
+    Records are only ever appended, so an interrupted crawl resumes where it stopped.
     The download wrote some missing values as the text "None"; they are read as None.
     """
 
     def __init__(self, root: Path) -> None:
         self.root = root
 
+    # Marvel's character list, saved once so reruns skip asking Comic Vine.
+
+    def load_marvel_characters(self) -> list[RawRecord] | None:
+        path = self._marvel_path()
+        if not path.exists():
+            return None
+
+        records: list[RawRecord] = json.loads(path.read_text(encoding="utf-8"))
+        return records
+
+    def save_marvel_characters(self, records: Iterable[RawRecord]) -> None:
+        self.root.mkdir(parents=True, exist_ok=True)
+        self._marvel_path().write_text(json.dumps(list(records)), encoding="utf-8")
+
+    # Parts: one JSON object per line, in the order they were fetched.
+
+    def read(self, part: DownloadPart) -> Iterator[RawRecord]:
+        if not (self.root / FILES[part]).exists():
+            return
+
+        yield from self._rows(part)
+
+    def saved_ids(self, part: DownloadPart) -> set[int]:
+        return {int(record["id"]) for record in self.read(part)}
+
+    def append(self, part: DownloadPart, records: Iterable[RawRecord]) -> None:
+        self.root.mkdir(parents=True, exist_ok=True)
+
+        # Append mode: records already in the file are never rewritten.
+        with (self.root / FILES[part]).open("a", encoding="utf-8") as fh:
+            for record in records:
+                fh.write(json.dumps(record) + "\n")
+
+    # Characters: the parts joined into the characters the rest of Cerebro reads.
+
     def characters(self) -> Iterator[ComicVineCharacter]:
         details = self._details()
 
-        for row in self._rows("characters.jsonl"):
+        for row in self._rows(DownloadPart.CHARACTERS):
             aliases = (_text(row.get("aliases")) or "").splitlines()
             yield ComicVineCharacter(
                 id=int(row["id"]),
@@ -54,10 +100,10 @@ class ComicVineDump(ComicVineSource):
                 number=str(row["issue_number"]),
                 cover_date=_text(row.get("cover_date")),
             )
-            for row in self._rows("issues.jsonl")
+            for row in self._rows(DownloadPart.ISSUES)
         }
         details = {}
-        for row in self._rows("character-issues.jsonl"):
+        for row in self._rows(DownloadPart.DETAILS):
             died_ids = [item["id"] for item in row.get("issues_died_in") or []]
             details[int(row["id"])] = ComicVineDetail(
                 issues=_described(row["issue_ids"], issues),
@@ -80,10 +126,14 @@ class ComicVineDump(ComicVineSource):
             )
         return details
 
-    def _rows(self, name: str) -> Iterator[dict[str, Any]]:
-        with (self.root / name).open(encoding="utf-8") as fh:
+    def _rows(self, part: DownloadPart) -> Iterator[RawRecord]:
+        """The part's records; a part missing from the folder is an error."""
+        with (self.root / FILES[part]).open(encoding="utf-8") as fh:
             for line in fh:
                 yield json.loads(line)
+
+    def _marvel_path(self) -> Path:
+        return self.root / "marvel-character-ids.json"
 
 
 def _described(

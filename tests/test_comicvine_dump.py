@@ -8,6 +8,7 @@ from cerebro.domain.comicvine import (
     ComicVineCharacter,
     ComicVineDetail,
     ComicVineIssue,
+    DownloadPart,
 )
 
 
@@ -214,3 +215,104 @@ def test_gender_codes_are_read_as_words(
 
     assert character.detail is not None
     assert character.detail.gender == gender
+
+
+def test_appending_keeps_earlier_records(tmp_path: Path) -> None:
+    dump = ComicVineDump(tmp_path / "download")
+
+    dump.append(DownloadPart.ISSUES, [{"id": 10, "issue_number": "1"}])
+    dump.append(DownloadPart.ISSUES, [{"id": 11, "issue_number": "2"}, {"id": 12}])
+
+    assert [record["id"] for record in dump.read(DownloadPart.ISSUES)] == [10, 11, 12]
+    assert dump.saved_ids(DownloadPart.ISSUES) == {10, 11, 12}
+    # Other parts are separate files.
+    assert dump.saved_ids(DownloadPart.DETAILS) == set()
+
+
+def test_a_part_never_written_is_empty(tmp_path: Path) -> None:
+    dump = ComicVineDump(tmp_path)
+
+    assert list(dump.read(DownloadPart.CHARACTERS)) == []
+    assert dump.saved_ids(DownloadPart.CHARACTERS) == set()
+
+
+def test_records_are_written_one_per_line(tmp_path: Path) -> None:
+    record = {"id": 1, "name": "Weather Witch"}
+
+    ComicVineDump(tmp_path).append(DownloadPart.CHARACTERS, [record])
+
+    lines = (tmp_path / "characters.jsonl").read_text(encoding="utf-8").splitlines()
+    assert lines == [json.dumps(record)]
+
+
+def test_the_marvel_list_is_none_until_saved(tmp_path: Path) -> None:
+    dump = ComicVineDump(tmp_path / "download")
+    marvel = [{"id": 1, "name": "Weather Witch"}, {"id": 2, "name": "Nobody"}]
+
+    assert dump.load_marvel_characters() is None
+
+    dump.save_marvel_characters(marvel)
+
+    assert dump.load_marvel_characters() == marvel
+
+
+def test_a_crawled_download_reads_back_as_characters(tmp_path: Path) -> None:
+    dump = ComicVineDump(tmp_path)
+
+    dump.append(
+        DownloadPart.CHARACTERS,
+        [
+            {
+                "id": 1,
+                "name": "Weather Witch",
+                "real_name": "Ann Doe",
+                "aliases": "Stormcaller",
+                "count_of_issue_appearances": 2,
+                "site_detail_url": "https://comicvine.example/witch/4005-1/",
+            }
+        ],
+    )
+    dump.append(
+        DownloadPart.DETAILS,
+        [
+            {
+                "id": 1,
+                "issue_ids": [10, 11],
+                "gender": 2,
+                "powers": named("Flight"),
+                "issues_died_in": [{"id": 11, "name": "Last Rites"}],
+            }
+        ],
+    )
+    dump.append(
+        DownloadPart.ISSUES,
+        [
+            {
+                "id": 10,
+                "issue_number": "3",
+                "cover_date": "1951-05-01",
+                "volume": {"id": 5, "name": "Strange Tales"},
+            },
+            {
+                "id": 11,
+                "issue_number": "4",
+                "cover_date": None,
+                "volume": {"id": 5, "name": "Strange Tales"},
+            },
+        ],
+    )
+
+    [character] = dump.characters()
+
+    assert character.name == "Weather Witch"
+    assert character.aliases == ("Stormcaller",)
+    assert character.detail is not None
+    assert character.detail.powers == ("Flight",)
+    assert character.detail.gender == "female"
+    assert character.detail.issues == (
+        ComicVineIssue("Strange Tales", "3", cover_date="1951-05-01"),
+        ComicVineIssue("Strange Tales", "4", cover_date=None),
+    )
+    assert character.detail.died_in == (
+        ComicVineIssue("Strange Tales", "4", cover_date=None),
+    )
