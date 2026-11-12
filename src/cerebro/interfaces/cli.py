@@ -213,13 +213,18 @@ def embed() -> None:
 
 
 @app.command()
-def ask(question: str) -> None:
+def ask(
+    question: str,
+    model: Annotated[
+        bootstrap.Contestant, typer.Option(help="The model that answers.")
+    ] = bootstrap.Contestant.MINISTRAL_14B,
+) -> None:
     """Answer a question from the stored records, with citations.
 
     Prints each tool call and what it returned as the agent works, then the answer.
     """
     try:
-        for step in bootstrap.ask(question):
+        for step in bootstrap.ask(question, model):
             show_step(step)
     except bootstrap.MissingKey as error:
         typer.echo(f"Set {error} to ask questions.", err=True)

@@ -26,7 +26,9 @@ def answer(*sources: Source) -> Answer:
 # The real bootstrap.ask calls Mistral, so the tests replace it at this seam. The
 # steps are yielded one by one, and an exception is raised where it would arrive.
 def fake_ask(monkeypatch: pytest.MonkeyPatch, *steps: Step | Exception) -> None:
-    def ask(question: str) -> Iterator[Step]:
+    def ask(
+        question: str, model: bootstrap.Contestant = bootstrap.Contestant.MINISTRAL_14B
+    ) -> Iterator[Step]:
         for step in steps:
             if isinstance(step, Exception):
                 raise step
