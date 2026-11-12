@@ -15,6 +15,7 @@ from cerebro.domain.evaluation import (
     RunResult,
     Split,
 )
+from cerebro.domain.scoring import Score
 from cerebro.ports.evaluation import ExchangesMissing, GoldenSet, RunStore
 
 
@@ -33,7 +34,8 @@ class JsonlGoldenSet(GoldenSet):
 
 class JsonlRunStore(RunStore):
     """A run's results in `results.jsonl` in its folder, one line per question,
-    and each question's model exchanges in `exchanges/<question id>.json`.
+    and each question's model exchanges in `exchanges/<question id>.json`. Its
+    scores are `scores.json` and `report.md`.
 
     Results are only ever appended, so a stopped run resumes where it stopped. A
     question tried again has two lines; reading keeps the later one, and its
@@ -83,6 +85,14 @@ class JsonlRunStore(RunStore):
 
         exchanges: list[Exchange] = json.loads(path.read_text(encoding="utf-8"))
         return exchanges
+
+    def save_scores(self, scores: list[Score], report: str) -> None:
+        folder = self.path.parent
+        folder.mkdir(parents=True, exist_ok=True)
+
+        as_json = json.dumps([asdict(score) for score in scores], indent=2)
+        (folder / "scores.json").write_text(as_json + "\n", encoding="utf-8")
+        (folder / "report.md").write_text(report, encoding="utf-8")
 
     def _exchanges_path(self, question_id: str) -> Path:
         return self.path.parent / "exchanges" / f"{question_id}.json"

@@ -31,11 +31,13 @@ from cerebro.application import (
     loading,
     matching,
     parse,
+    scoring,
 )
 from cerebro.application import crawl_comicvine as comicvine_crawl
 from cerebro.domain.answers import Step
 from cerebro.domain.evaluation import Exchange, Split
 from cerebro.domain.pages import Category
+from cerebro.domain.scoring import Price
 from cerebro.settings import Settings
 
 # The chunks share the records' file, so a search and the agent's tools read one file.
@@ -186,6 +188,17 @@ def replay_run(run_name: str) -> evaluation.ReplayReport:
     return evaluation.replay_run(reask, questions, JsonlRunStore(RUNS_DIR / run_name))
 
 
+def score_run(run_name: str) -> str | None:
+    """Score runs/<run_name>/ against the golden questions into scores.json and
+    report.md in its folder. Returns the overall totals in one line, or None when
+    the run has no results.
+    """
+    questions = JsonlGoldenSet(GOLDEN_FILE).questions(None)
+    prices = {contestant.value: price for contestant, price in _PRICES.items()}
+
+    return scoring.score_run(questions, JsonlRunStore(RUNS_DIR / run_name), prices)
+
+
 def chat_model(
     contestant: Contestant,
     transport: httpx.BaseTransport | None = None,
@@ -274,6 +287,17 @@ _CONTESTANTS: dict[Contestant, Builder] = {
     ),
     Contestant.QWEN3_14B_OLLAMA: _ollama("qwen3:14b"),
     Contestant.GEMINI_FLASH_OPENROUTER: _openrouter("google/gemini-3.8-flash"),
+}
+
+
+# Dollars per million tokens, from OpenRouter's public model list on 2026-11-12.
+# Mistral's free tier and a model on our own server cost nothing.
+_PRICES: dict[Contestant, Price] = {
+    Contestant.MINISTRAL_14B: Price(0, 0),
+    Contestant.MINISTRAL_14B_OPENROUTER: Price(0.20, 0.20),
+    Contestant.MINISTRAL_3B_OPENROUTER: Price(0.10, 0.10),
+    Contestant.QWEN3_14B_OLLAMA: Price(0, 0),
+    Contestant.GEMINI_FLASH_OPENROUTER: Price(0.825, 4.125),
 }
 
 

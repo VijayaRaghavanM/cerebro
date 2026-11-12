@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 
 from cerebro.domain.evaluation import Exchange, GoldenQuestion, RunResult, Split
+from cerebro.domain.scoring import Score
 
 
 class ExchangesMissing(Exception):
@@ -44,3 +45,9 @@ class RunStore(ABC):
     @abstractmethod
     def exchanges(self, question_id: str) -> list[Exchange]:
         """The exchanges kept for a question. Raises ExchangesMissing if none are."""
+
+    @abstractmethod
+    def save_scores(self, scores: list[Score], report: str) -> None:
+        """Keep the scores of the results and the report that sums them up,
+        replacing any kept before.
+        """

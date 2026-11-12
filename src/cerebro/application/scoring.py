@@ -1,0 +1,210 @@
+"""Score a run against the golden questions with rules that need no model.
+
+Whether an answer is correct, beyond holding the expected facts, is for a judge.
+"""
+
+import re
+from collections.abc import Mapping
+
+from cerebro.application.report import overall_line, render_report
+from cerebro.domain.answers import Answer, ToolCall
+from cerebro.domain.evaluation import Failure, GoldenQuestion, Outcome, RunResult
+from cerebro.domain.scoring import Price, Score, Summary
+from cerebro.ports.evaluation import RunStore
+
+# What the agent says when the records lack the answer.
+REFUSALS = ("couldn't find that in the records", "could not find that in the records")
+
+# A source titled this way is the Comic Vine record of a page the answer also reads.
+COMIC_VINE = "Comic Vine: "
+
+NOTHING = Answer("", (), 0, 0, 0, 0, 0.0)
+
+
+def score_run(
+    questions: list[GoldenQuestion], store: RunStore, prices: Mapping[str, Price]
+) -> str | None:
+    """Score every saved result, keep the scores and a report, and return the
+    overall totals in one line, or None when the run has no results.
+
+    `prices` is keyed by the model name a result carries. A result whose question
+    is no longer in the golden set is left out.
+    """
+    by_id = {question.id: question for question in questions}
+    scores = [
+        score(by_id[result.question_id], result, prices[result.model])
+        for result in store.results()
+        if result.question_id in by_id
+    ]
+    if not scores:
+        return None
+
+    summaries = summarise(scores)
+    store.save_scores(scores, render_report(summaries))
+
+    return overall_line(summaries[-1])
+
+
+def score(question: GoldenQuestion, result: RunResult, price: Price) -> Score:
+    """How one result measures against its question."""
+    observed = observed_outcome(question, result.final)
+    called = [step.tool for step in result.trace if isinstance(step, ToolCall)]
+
+    # A failure scores as an empty answer that cost nothing.
+    answer = result.final if isinstance(result.final, Answer) else NOTHING
+    cited = cited_pages(answer)
+    expected_cited = [title for title in cited if title in question.expected_pages]
+    found = facts_found(question.expected_facts, answer.text)
+    solved = is_solved(question, observed, found, len(expected_cited))
+
+    return Score(
+        question_id=question.id,
+        category=question.category,
+        expected=question.expected_outcome,
+        observed=observed,
+        facts_found=found,
+        facts_expected=len(question.expected_facts),
+        pages_cited=len(expected_cited),
+        pages_expected=len(question.expected_pages),
+        cited_total=len(cited),
+        tools_used=len(set(called) & set(question.expected_tools)),
+        tools_expected=len(question.expected_tools),
+        in_order=tools_in_order(question.expected_tools, called),
+        seconds=answer.seconds,
+        input_tokens=answer.input_tokens,
+        output_tokens=answer.output_tokens,
+        cost=cost(answer.input_tokens, answer.output_tokens, price),
+        solved=solved,
+    )
+
+
+def observed_outcome(question: GoldenQuestion, final: Answer | Failure) -> Outcome:
+    """What the response was: a failure, a refusal, a clarification or an answer.
+
+    A refusal says it could not find the answer and cites nothing; one that cites
+    a source is an answer. A clarification ends with a question mark, or names two
+    or more of the question's expected pages, as when it lists the characters a
+    name could mean. The rule reads the expected pages, so it only fits questions
+    that have them.
+    """
+    if isinstance(final, Failure):
+        return Outcome.FAILED
+
+    text = _normal(final.text)
+    if not final.sources and any(_normal(phrase) in text for phrase in REFUSALS):
+        return Outcome.REFUSE
+
+    names = [_without_reality(title) for title in question.expected_pages]
+    named = [name for name in names if _normal(name) in text]
+    if final.text.rstrip().endswith("?") or len(named) >= 2:
+        return Outcome.CLARIFY
+
+    return Outcome.ANSWER
+
+
+def facts_found(facts: tuple[str, ...], text: str) -> int:
+    """How many expected facts the text holds, as whole words and numbers, with
+    case, punctuation and thousands separators ignored.
+    """
+    words = _normal(text)
+
+    return sum(1 for fact in facts if _normal(fact) in words)
+
+
+def cited_pages(answer: Answer) -> list[str]:
+    """The titles an answer cites, once each, without the Comic Vine records."""
+    titles = [
+        source.title
+        for source in answer.sources
+        if not source.title.startswith(COMIC_VINE)
+    ]
+
+    return list(dict.fromkeys(titles))
+
+
+def tools_in_order(expected: tuple[str, ...], called: list[str]) -> bool:
+    """Whether the expected tools the agent called were first called in the
+    order the question lists them.
+    """
+    first_calls = dict.fromkeys(tool for tool in called if tool in expected)
+    positions = [expected.index(tool) for tool in first_calls]
+
+    return positions == sorted(positions)
+
+
+def cost(input_tokens: int, output_tokens: int, price: Price) -> float:
+    """What the tokens cost, in dollars."""
+    dollars = input_tokens * price.input + output_tokens * price.output
+
+    return dollars / 1_000_000
+
+
+def is_solved(
+    question: GoldenQuestion, observed: Outcome, found: int, pages_cited: int
+) -> bool:
+    """A refusal or a clarification is solved when it is what was expected. An
+    answer is solved when it holds every expected fact and cites an expected page,
+    if the question has any.
+    """
+    if question.expected_outcome != Outcome.ANSWER:
+        return observed == question.expected_outcome
+
+    if observed in (Outcome.REFUSE, Outcome.FAILED):
+        return False
+
+    has_every_fact = found == len(question.expected_facts)
+    cites_a_page = pages_cited > 0 or not question.expected_pages
+
+    return has_every_fact and cites_a_page
+
+
+def summarise(scores: list[Score]) -> list[Summary]:
+    """One summary per category, in the order the categories first appear, then
+    one for all of them named "overall".
+    """
+    categories = dict.fromkeys(score.category for score in scores)
+    summaries = [
+        _add_up(name, [s for s in scores if s.category == name]) for name in categories
+    ]
+
+    return [*summaries, _add_up("overall", scores)]
+
+
+def _add_up(name: str, scores: list[Score]) -> Summary:
+    return Summary(
+        name=name,
+        questions=len(scores),
+        solved=sum(s.solved for s in scores),
+        facts_found=sum(s.facts_found for s in scores),
+        facts_expected=sum(s.facts_expected for s in scores),
+        pages_cited=sum(s.pages_cited for s in scores),
+        pages_expected=sum(s.pages_expected for s in scores),
+        cited_total=sum(s.cited_total for s in scores),
+        tools_used=sum(s.tools_used for s in scores),
+        tools_expected=sum(s.tools_expected for s in scores),
+        refusals_right=sum(_refusal_is_right(s) for s in scores),
+        seconds=sum(s.seconds for s in scores),
+        tokens=sum(s.input_tokens + s.output_tokens for s in scores),
+        cost=sum(s.cost for s in scores),
+    )
+
+
+def _refusal_is_right(score: Score) -> bool:
+    refused = score.observed == Outcome.REFUSE
+    should_refuse = score.expected == Outcome.REFUSE
+
+    return refused == should_refuse
+
+
+def _normal(text: str) -> str:
+    """Lowercase words and numbers between single spaces, with the commas inside
+    numbers dropped, so that a fact can be looked for as whole words.
+    """
+    without_separators = re.sub(r"(?<=\d),(?=\d{3})", "", text.lower())
+    words = re.sub(r"\W+", " ", without_separators).strip()
+
+    return f" {words} "
+
+
+def _without_reality(title: str) -> str:
+    return re.sub(r" \([^)]*\)$", "", title)

@@ -328,6 +328,27 @@ def eval_replay(
         raise typer.Exit(1)
 
 
+@eval_app.command("score")
+def eval_score(
+    run: Annotated[str, typer.Argument(help="The run's folder name under runs/.")],
+) -> None:
+    """Score a saved run against the golden questions, with no model involved.
+
+    Writes scores.json and report.md into the run's folder and prints the totals.
+    """
+    try:
+        overall = bootstrap.score_run(run)
+    except FileNotFoundError as error:
+        typer.echo(f"No golden questions: {error.filename} is missing.", err=True)
+        raise typer.Exit(1) from None
+
+    if overall is None:
+        typer.echo(f"No results in runs/{run}.", err=True)
+        raise typer.Exit(1)
+
+    typer.echo(overall)
+
+
 @app.command()
 def serve(
     host: Annotated[

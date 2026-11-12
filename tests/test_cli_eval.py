@@ -166,6 +166,37 @@ def test_eval_replay_of_a_run_without_exchanges_says_which_question(
     assert result.output == "a: its model exchanges were not saved.\n"
 
 
+def test_eval_score_writes_the_scores_and_report_and_prints_the_totals(
+    data_dir: Path,
+) -> None:
+    (data_dir / "evals").mkdir()
+    (data_dir / "evals" / "golden.jsonl").write_text(
+        json.dumps(golden_line("a")) + "\n"
+    )
+    JsonlRunStore(data_dir / "runs" / "trial").append(
+        RunResult("a", "ministral-14b", (), answer())
+    )
+
+    result = CliRunner().invoke(app, ["eval", "score", "trial"])
+
+    assert result.exit_code == 0
+    assert result.output == "1 of 1 solved, fact recall 100%, cost $0.0000\n"
+    assert (data_dir / "runs" / "trial" / "scores.json").exists()
+    assert (data_dir / "runs" / "trial" / "report.md").exists()
+
+
+def test_eval_score_of_a_run_with_no_results_says_so(data_dir: Path) -> None:
+    (data_dir / "evals").mkdir()
+    (data_dir / "evals" / "golden.jsonl").write_text(
+        json.dumps(golden_line("a")) + "\n"
+    )
+
+    result = CliRunner().invoke(app, ["eval", "score", "trial"])
+
+    assert result.exit_code == 1
+    assert result.output == "No results in runs/trial.\n"
+
+
 def test_eval_run_without_golden_questions_says_where_they_belong(
     data_dir: Path,
 ) -> None:

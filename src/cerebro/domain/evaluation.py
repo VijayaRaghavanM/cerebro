@@ -21,11 +21,14 @@ class Split(StrEnum):
 
 
 class Outcome(StrEnum):
-    """What a good response to a question is."""
+    """What a response to a question is. A golden question expects one of the
+    first three; FAILED is only ever observed.
+    """
 
     ANSWER = "answer"
     REFUSE = "refuse"
     CLARIFY = "clarify"
+    FAILED = "failed"
 
 
 @dataclass(frozen=True)
