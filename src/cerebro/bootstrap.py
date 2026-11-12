@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Iterator
 from enum import StrEnum
+from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
 
@@ -9,6 +10,7 @@ from cerebro.adapters.comicvine_api import ComicVineClient
 from cerebro.adapters.comicvine_dump import ComicVineDump
 from cerebro.adapters.fandom import FandomClient
 from cerebro.adapters.fandom_records import FandomRecordParser
+from cerebro.adapters.jsonl_evaluation import JsonlGoldenSet, JsonlRunStore
 from cerebro.adapters.jsonl_pages import JsonlPageStore
 from cerebro.adapters.langgraph_agent import LangGraphAgent
 from cerebro.adapters.mistral import ministral
@@ -18,14 +20,27 @@ from cerebro.adapters.openai_chat import openai_chat
 from cerebro.adapters.sqlite_chunks import SqliteChunkIndex
 from cerebro.adapters.sqlite_comicvine import SqliteComicVineStore
 from cerebro.adapters.sqlite_records import SqliteRecordStore
-from cerebro.application import chunking, crawl, embedding, loading, matching, parse
+from cerebro.application import (
+    chunking,
+    crawl,
+    embedding,
+    evaluation,
+    loading,
+    matching,
+    parse,
+)
 from cerebro.application import crawl_comicvine as comicvine_crawl
 from cerebro.domain.answers import Step
+from cerebro.domain.evaluation import Split
 from cerebro.domain.pages import Category
 from cerebro.settings import Settings
 
 # The chunks share the records' file, so a search and the agent's tools read one file.
 RECORDS_FILE = "records.sqlite"
+
+# Both are relative to where the command runs, which is the repository.
+GOLDEN_FILE = Path("evals/golden.jsonl")
+RUNS_DIR = Path("runs")
 
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
@@ -120,6 +135,35 @@ def ask(question: str, model: Contestant = Contestant.MINISTRAL_14B) -> Iterator
     on the first step, so a missing key fails before any step is read.
     """
     return LangGraphAgent(chat_model(model), _records(), _chunks()).steps(question)
+
+
+def run_eval(
+    model: Contestant,
+    split: Split | None = None,
+    *,
+    limit: int | None = None,
+    run_name: str | None = None,
+    progress: evaluation.Progress | None = None,
+) -> evaluation.RunReport:
+    """Answer the golden questions with one model into runs/<run_name>/.
+
+    The run is named after the model and split unless `run_name` says otherwise,
+    so running the same command again resumes the same run.
+    """
+    name = run_name or f"{model}-{split or 'all'}"
+    questions = JsonlGoldenSet(GOLDEN_FILE).questions(split)
+
+    def ask_model(question: str) -> Iterator[Step]:
+        return ask(question, model)
+
+    return evaluation.run_eval(
+        ask_model,
+        questions,
+        JsonlRunStore(RUNS_DIR / name),
+        model=model.value,
+        limit=limit,
+        progress=progress,
+    )
 
 
 def chat_model(contestant: Contestant) -> BaseChatModel:

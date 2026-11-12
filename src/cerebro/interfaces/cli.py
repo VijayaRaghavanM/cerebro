@@ -7,6 +7,7 @@ import typer
 
 from cerebro import bootstrap
 from cerebro.domain.answers import Answer, Step, ToolCall, ToolReply
+from cerebro.domain.evaluation import Failure, RunResult, Split
 from cerebro.domain.pages import Category
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
 from cerebro.ports.comicvine import ComicVineUnavailable
@@ -29,6 +30,9 @@ app.add_typer(load_app, name="load")
 
 match_app = typer.Typer(no_args_is_help=True, help="Match records across sources.")
 app.add_typer(match_app, name="match")
+
+eval_app = typer.Typer(no_args_is_help=True, help="Measure a model on the golden set.")
+app.add_typer(eval_app, name="eval")
 
 
 @crawl_app.command("fandom")
@@ -245,6 +249,51 @@ def ask(
         raise typer.Exit(1) from None
 
 
+@eval_app.command("run")
+def eval_run(
+    model: Annotated[
+        bootstrap.Contestant, typer.Option(help="The model that answers.")
+    ],
+    split: Annotated[
+        Split | None, typer.Option(help="Only this split. Default: both.")
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option(help="Answer at most this many new questions."),
+    ] = None,
+    run: Annotated[
+        str | None,
+        typer.Option(help="The run's folder name under runs/. Default: model-split."),
+    ] = None,
+) -> None:
+    """Answer the golden questions and save each result. Safe to rerun.
+
+    A rerun skips the answered questions; a failed question is tried again.
+    """
+    try:
+        report = bootstrap.run_eval(
+            model,
+            split,
+            limit=limit,
+            run_name=run,
+            progress=show_result,
+        )
+    except bootstrap.MissingKey as error:
+        typer.echo(f"Set {error} to run the evaluation.", err=True)
+        raise typer.Exit(1) from None
+    except FileNotFoundError as error:
+        typer.echo(f"No golden questions: {error.filename} is missing.", err=True)
+        raise typer.Exit(1) from None
+    except RecordsMissing as error:
+        typer.echo(f"{error}. Run `cerebro parse fandom` first.", err=True)
+        raise typer.Exit(1) from None
+
+    typer.echo(
+        f"{report.answered} answered, {report.failed} failed, "
+        f"{report.skipped} already answered"
+    )
+
+
 @app.command()
 def serve(
     host: Annotated[
@@ -292,6 +341,13 @@ def show_answer(answer: Answer) -> None:
         f"{answer.input_tokens:,} tokens in, {answer.output_tokens:,} out, "
         f"{answer.seconds:.0f} s"
     )
+
+
+def show_result(result: RunResult) -> None:
+    if isinstance(result.final, Failure):
+        typer.echo(f"{result.question_id}: failed ({result.final.type})")
+    else:
+        typer.echo(f"{result.question_id}: answered")
 
 
 def show_pages_read(done: int) -> None:
