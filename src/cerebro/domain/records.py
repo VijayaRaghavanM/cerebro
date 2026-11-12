@@ -281,6 +281,26 @@ type Record = Character | Team | Comic
 
 
 @dataclass(frozen=True)
+class Appearance:
+    """A comic that lists a page in its cast, with its cover date as the record
+    holds it, such as "March 1963", or None if the comic has no year.
+    """
+
+    title: str
+    date: str | None
+
+
+@dataclass(frozen=True)
+class Appearances:
+    """The number of comics whose cast lists a page, and the first of them in
+    publication order.
+    """
+
+    total: int
+    first: tuple[Appearance, ...]
+
+
+@dataclass(frozen=True)
 class PageHit:
     """A page whose names match a search, with the number of comics whose cast lists
     it appears in.

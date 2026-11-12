@@ -17,7 +17,15 @@ from cerebro.domain.comicvine import (
     ComicVineIssue,
 )
 from cerebro.domain.pages import RawPage
-from cerebro.domain.records import Character, Comic, PageHit, Record, Team
+from cerebro.domain.records import (
+    Appearance,
+    Appearances,
+    Character,
+    Comic,
+    PageHit,
+    Record,
+    Team,
+)
 from cerebro.ports.agent import Agent
 from cerebro.ports.chunks import ChunkSearch
 from cerebro.ports.records import RecordLookup
@@ -130,14 +138,16 @@ def comicvine_characters() -> list[ComicVineCharacter]:
 
 
 class FakeLookup(RecordLookup):
-    """A record lookup that answers from the hits, records and match it was given."""
+    """A record lookup that answers from the hits, records, match and casts given."""
 
     def __init__(
         self,
         hits: list[PageHit] | None = None,
         records: list[Record] | None = None,
         comicvine: ComicVineCharacter | None = None,
+        casts: dict[str, list[Appearance]] | None = None,
     ) -> None:
+        self.casts = casts or {}
         self.hits = hits or []
         self.records = {record.title: record for record in records or []}
         self.matched = comicvine
@@ -149,6 +159,11 @@ class FakeLookup(RecordLookup):
 
     def record(self, title: str) -> Record | None:
         return self.records.get(title)
+
+    def appearances(self, title: str, limit: int) -> Appearances:
+        self.limits.append(limit)
+        found = self.casts.get(title, [])
+        return Appearances(len(found), tuple(found[:limit]))
 
     def comicvine(self, pageid: int) -> ComicVineCharacter | None:
         return self.matched

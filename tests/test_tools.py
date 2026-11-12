@@ -1,10 +1,12 @@
 from helpers import FakeChunkSearch, FakeLookup, blank, character, detail, passage, vine
 
 from cerebro.application.tools import (
+    APPEARANCE_LIMIT,
     FIELD_LIMIT,
     PAGE_LIMIT,
     SEARCH_LIMIT,
     TEXT_LIMIT,
+    find_appearances,
     read_page,
     search_pages,
     search_text,
@@ -15,6 +17,7 @@ from cerebro.domain.comicvine import (
 )
 from cerebro.domain.pages import Category
 from cerebro.domain.records import (
+    Appearance,
     Comic,
     Credits,
     PageHit,
@@ -276,4 +279,39 @@ def test_an_unknown_title_says_to_search() -> None:
     result = read_page(FakeLookup(), "Nobody")
 
     assert result.text == 'No page is titled "Nobody". Search for it first.'
+    assert result.sources == ()
+
+
+def test_appearances_list_the_total_and_each_comic_with_its_date() -> None:
+    title = "Ann Doe (Earth-1)"
+    comics = [Appearance("Storm Tales Vol 1 1", "May 1951"), Appearance("Lost", None)]
+    lookup = FakeLookup(casts={title: comics})
+
+    result = find_appearances(lookup, title)
+
+    assert result.text == (
+        "Ann Doe (Earth-1) appears in 2 comics' cast lists;"
+        " the first 2 by cover date:\n"
+        "Storm Tales Vol 1 1 (May 1951)\n"
+        "Lost (no date)"
+    )
+    assert result.sources == (Source(title, lookup.url(title)),)
+
+
+def test_appearances_ask_for_a_limited_number_of_comics() -> None:
+    title = "Ann Doe (Earth-1)"
+    comics = [Appearance(f"Issue {n}", "May 2000") for n in range(APPEARANCE_LIMIT + 5)]
+    lookup = FakeLookup(casts={title: comics})
+
+    result = find_appearances(lookup, title)
+
+    assert lookup.limits == [APPEARANCE_LIMIT]
+    assert f"appears in {APPEARANCE_LIMIT + 5} comics'" in result.text
+    assert len(result.text.splitlines()) == APPEARANCE_LIMIT + 1
+
+
+def test_a_page_in_no_cast_list_says_so_and_cites_nothing() -> None:
+    result = find_appearances(FakeLookup(), "Nobody")
+
+    assert result.text == 'No comic\'s cast list names "Nobody".'
     assert result.sources == ()

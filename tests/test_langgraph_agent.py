@@ -311,7 +311,12 @@ def test_tools_are_named_for_the_model() -> None:
 
     tools: list[BaseTool] = agent._tools({})
 
-    assert [t.name for t in tools] == ["search_pages", "search_text", "read_page"]
+    assert [t.name for t in tools] == [
+        "search_pages",
+        "search_text",
+        "read_page",
+        "find_appearances",
+    ]
 
 
 def test_passages_are_numbered_for_the_model_and_citable() -> None:

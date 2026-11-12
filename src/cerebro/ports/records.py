@@ -5,7 +5,7 @@ from collections.abc import Iterable, Iterator
 
 from cerebro.domain.comicvine import ComicVineCharacter
 from cerebro.domain.pages import Category, RawPage
-from cerebro.domain.records import Character, Comic, PageHit, Record
+from cerebro.domain.records import Appearances, Character, Comic, PageHit, Record
 
 
 class RecordsMissing(Exception):
@@ -68,6 +68,17 @@ class RecordLookup(ABC):
         """The character, team or comic with this title, or None.
 
         Raises RecordsMissing if nothing is stored.
+        """
+
+    @abstractmethod
+    def appearances(self, title: str, limit: int) -> Appearances:
+        """The comics whose cast lists link to the page with this title.
+
+        A comic counts once however many of its stories list the page. The total is
+        of all of them; `first` holds at most `limit`, in publication order: by cover
+        year, then month, then title, with comics that have no year last. A title
+        that no cast list links to has none.
+        Raises RecordsMissing if no comics are stored.
         """
 
     @abstractmethod

@@ -16,6 +16,8 @@ from cerebro.adapters.sqlite_comicvine import SqliteComicVineStore
 from cerebro.domain.comicvine import ComicVineCharacter
 from cerebro.domain.pages import Category
 from cerebro.domain.records import (
+    Appearance,
+    Appearances,
     Character,
     Comic,
     Link,
@@ -91,6 +93,21 @@ NAME_SEPARATORS = re.compile(r"[\n,;]")
 
 # Builds a record from its row and the connection its links and categories are in.
 type RowReader[R] = Callable[[sqlite3.Connection, sqlite3.Row], R]
+
+MONTHS = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
 
 WIKI_PAGES = "https://marvel.fandom.com/wiki/"
 # Left readable in a citation; quote() encodes the rest.
@@ -208,6 +225,34 @@ class SqliteRecordStore(RecordStore, RecordReader, RecordLookup):
                 if row is not None:
                     return read(db, row)
         return None
+
+    def appearances(self, title: str, limit: int) -> Appearances:
+        if not has_table(self.path, Category.COMICS):
+            raise RecordsMissing("No comics are stored yet")
+
+        # The subquery lists each comic once however many stories link the title, and
+        # the `links_in_casts` index answers it.
+        casts = (
+            f"SELECT pageid FROM links WHERE kind = '{Category.COMICS}'"
+            " AND field = 'appearing' AND title = ?"
+        )
+        with closing(sqlite3.connect(self.path)) as db:
+            db.create_function("month_number", 1, _month_number, deterministic=True)
+
+            (total,) = db.execute(
+                f"SELECT COUNT(DISTINCT pageid) FROM ({casts})", (title,)
+            ).fetchone()
+            rows = db.execute(
+                "SELECT title, month, year FROM comics"
+                f" WHERE pageid IN ({casts})"
+                " ORDER BY year IS NULL, year, month_number(month), title LIMIT ?",
+                (title, limit),
+            ).fetchall()
+
+        first = tuple(
+            Appearance(name, _cover_date(month, year)) for name, month, year in rows
+        )
+        return Appearances(total, first)
 
     def comicvine(self, pageid: int) -> ComicVineCharacter | None:
         return self._comicvine.character(pageid)
@@ -378,6 +423,23 @@ def _links_of(
         (kind, pageid, story),
     )
     return tuple(Link(field, title, text) for field, title, text in rows)
+
+
+def _month_number(month: str | None) -> int:
+    """1 for January up to 12; 0 when the cover gives no month or a season. A month
+    can be qualified ("Mid December").
+    """
+    for number, name in enumerate(MONTHS, start=1):
+        if month and month.endswith(name):
+            return number
+    return 0
+
+
+def _cover_date(month: str | None, year: str | None) -> str | None:
+    """The date as the comic gives it: "March 1963", "1963", or None without a year."""
+    if not year:
+        return None
+    return f"{month} {year}" if month else year
 
 
 def _words(text: str) -> list[str]:

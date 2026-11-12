@@ -1,4 +1,5 @@
-"""The agent's tools: search pages by name, search their text, and read one."""
+"""The agent's tools: search pages by name, search their text, read one, and list the
+comics a page appears in."""
 
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING
@@ -17,6 +18,8 @@ if TYPE_CHECKING:
 SEARCH_LIMIT = 10
 # Five passages keep a reply near 2,500 tokens.
 TEXT_LIMIT = 5
+# Twenty comics keep a reply short.
+APPEARANCE_LIMIT = 20
 # One read stays within a few thousand tokens.
 FIELD_LIMIT = 1500
 PAGE_LIMIT = 12000
@@ -80,6 +83,22 @@ def read_page(lookup: RecordLookup, title: str) -> ToolResult:
             sources.append(Source(f"Comic Vine: {character.name}", character.url))
 
     return ToolResult(text, tuple(sources))
+
+
+def find_appearances(lookup: RecordLookup, title: str) -> ToolResult:
+    appearances = lookup.appearances(title, APPEARANCE_LIMIT)
+    if not appearances.total:
+        return ToolResult(f'No comic\'s cast list names "{title}".', ())
+
+    shown = len(appearances.first)
+    lines = [
+        f"{title} appears in {appearances.total:,} comics' cast lists;"
+        f" the first {shown} by cover date:"
+    ]
+    for comic in appearances.first:
+        lines.append(f"{comic.title} ({comic.date or 'no date'})")
+
+    return ToolResult("\n".join(lines), (Source(title, lookup.url(title)),))
 
 
 def search_text(chunks: ChunkSearch, lookup: RecordLookup, query: str) -> ToolResult:

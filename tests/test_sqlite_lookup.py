@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from helpers import (
+    blank,
     character,
     comicvine_characters,
     real_character,
@@ -16,7 +17,14 @@ from cerebro.domain.comicvine import (
     CharacterMatch,
 )
 from cerebro.domain.pages import Category
-from cerebro.domain.records import Character, Comic, Link, PageHit
+from cerebro.domain.records import (
+    Appearances,
+    Character,
+    Comic,
+    Link,
+    PageHit,
+    Story,
+)
 from cerebro.ports.records import RecordsMissing
 
 
@@ -318,6 +326,109 @@ def test_record_without_stored_records_says_so(tmp_path: Path) -> None:
 
     with pytest.raises(RecordsMissing):
         store.record(real_character().title)
+
+
+# appearances
+
+ANN = "Ann Doe (Earth-1)"
+
+
+def issue(
+    pageid: int, title: str, month: str | None, year: str | None, *casts: list[str]
+) -> Comic:
+    """A made-up comic with one story for each cast list given."""
+    stories = tuple(
+        blank(
+            Story,
+            number=number,
+            links=tuple(Link("appearing", name, name) for name in names),
+        )
+        for number, names in enumerate(casts, start=1)
+    )
+    return blank(
+        Comic, pageid=pageid, title=title, month=month, year=year, stories=stories
+    )
+
+
+def with_comics(tmp_path: Path, *comics: Comic) -> SqliteRecordStore:
+    store = SqliteRecordStore(tmp_path / "records.sqlite")
+    store.replace(Category.COMICS, comics)
+    return store
+
+
+def test_appearances_come_in_cover_date_order(tmp_path: Path) -> None:
+    store = with_comics(
+        tmp_path,
+        issue(1, "Late", "January", "1990", [ANN]),
+        issue(2, "Autumn", "October", "1963", [ANN]),
+        issue(3, "Early", "March", "1963", [ANN]),
+        issue(4, "Year only", None, "1963", [ANN]),
+    )
+
+    found = store.appearances(ANN, 10)
+
+    assert found.total == 4
+    assert [(c.title, c.date) for c in found.first] == [
+        ("Year only", "1963"),
+        ("Early", "March 1963"),
+        ("Autumn", "October 1963"),
+        ("Late", "January 1990"),
+    ]
+
+
+def test_a_comic_with_no_year_comes_last(tmp_path: Path) -> None:
+    store = with_comics(
+        tmp_path,
+        issue(1, "Undated", None, None, [ANN]),
+        issue(2, "Dated", "May", "2020", [ANN]),
+    )
+
+    found = store.appearances(ANN, 10)
+
+    assert [(c.title, c.date) for c in found.first] == [
+        ("Dated", "May 2020"),
+        ("Undated", None),
+    ]
+
+
+def test_a_comic_counts_once_however_many_stories_list_the_page(
+    tmp_path: Path,
+) -> None:
+    store = with_comics(
+        tmp_path,
+        issue(1, "Twice", "May", "2020", [ANN], [ANN, "Bob Roe (Earth-1)"]),
+        issue(2, "Once", "June", "2020", [ANN]),
+    )
+
+    found = store.appearances(ANN, 10)
+
+    assert found.total == 2
+    assert [c.title for c in found.first] == ["Twice", "Once"]
+
+
+def test_appearances_are_cut_to_the_limit_but_all_counted(tmp_path: Path) -> None:
+    store = with_comics(
+        tmp_path,
+        *(issue(n, f"Issue {n}", "May", str(2000 + n), [ANN]) for n in range(1, 6)),
+    )
+
+    found = store.appearances(ANN, 2)
+
+    assert found.total == 5
+    assert [c.title for c in found.first] == ["Issue 1", "Issue 2"]
+
+
+def test_a_page_no_cast_list_names_has_no_appearances(tmp_path: Path) -> None:
+    store = with_comics(tmp_path, issue(1, "Solo", "May", "2020", [ANN]))
+
+    assert store.appearances("Nobody (Earth-1)", 10) == Appearances(0, ())
+
+
+def test_appearances_without_stored_comics_says_so(tmp_path: Path) -> None:
+    store = SqliteRecordStore(tmp_path / "records.sqlite")
+
+    with pytest.raises(RecordsMissing):
+        store.appearances(ANN, 10)
 
 
 # comicvine

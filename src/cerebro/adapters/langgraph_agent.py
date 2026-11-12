@@ -12,7 +12,13 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from langgraph.errors import GraphRecursionError
 
-from cerebro.application.tools import ToolResult, read_page, search_pages, search_text
+from cerebro.application.tools import (
+    ToolResult,
+    find_appearances,
+    read_page,
+    search_pages,
+    search_text,
+)
 from cerebro.domain.answers import Answer, Source, Step, ToolCall, ToolReply
 from cerebro.ports.agent import Agent, ModelTimeout, ProviderError, RateLimited
 from cerebro.ports.chunks import ChunkSearch
@@ -34,6 +40,8 @@ SYSTEM_PROMPT = (
     "When the question describes a person, a topic or an event instead of naming "
     "a page, or asks for a detail from deep in a long page, use search_text. "
     "Passages it returns are evidence you can cite.\n"
+    "To tell whether a character appears in a comic, how many comics it is in, or "
+    "which comics it first appeared in, use find_appearances with the page's title.\n"
     "Every fact in your answer must come from a page you read, followed by its "
     "source number in brackets, like [1].\n"
     "If the pages you read don't answer the question, say "
@@ -51,6 +59,10 @@ TEXT_DESCRIPTION = (
     "inside a long page; returns the best matches with their page titles."
 )
 READ_DESCRIPTION = "Read one page by its exact title."
+APPEARANCES_DESCRIPTION = (
+    "List the comics whose cast lists name a page, by its exact title: the total "
+    "and the earliest by cover date."
+)
 
 
 class LangGraphAgent(Agent):
@@ -144,7 +156,11 @@ class LangGraphAgent(Agent):
         def read(title: str) -> str:
             return _with_numbers(read_page(lookup, title), numbered)
 
-        return [search, passages, read]
+        @tool("find_appearances", description=APPEARANCES_DESCRIPTION)
+        def appearances(title: str) -> str:
+            return _with_numbers(find_appearances(lookup, title), numbered)
+
+        return [search, passages, read, appearances]
 
     @staticmethod
     def _cited(
