@@ -8,6 +8,7 @@ import httpx
 from langchain_core.language_models import BaseChatModel
 from pydantic import SecretStr
 
+from cerebro.adapters import llm_judge
 from cerebro.adapters.comicvine_api import ComicVineClient
 from cerebro.adapters.comicvine_dump import ComicVineDump
 from cerebro.adapters.fandom import FandomClient
@@ -16,6 +17,7 @@ from cerebro.adapters.http_recording import RecordingTransport, ReplayTransport
 from cerebro.adapters.jsonl_evaluation import JsonlGoldenSet, JsonlRunStore
 from cerebro.adapters.jsonl_pages import JsonlPageStore
 from cerebro.adapters.langgraph_agent import LangGraphAgent
+from cerebro.adapters.llm_judge import LlmJudge
 from cerebro.adapters.mistral import ministral
 from cerebro.adapters.numpy_vectors import NumpyVectorStore
 from cerebro.adapters.ollama import OllamaEmbedder
@@ -28,6 +30,7 @@ from cerebro.application import (
     crawl,
     embedding,
     evaluation,
+    judging,
     loading,
     matching,
     parse,
@@ -197,6 +200,34 @@ def score_run(run_name: str) -> str | None:
     prices = {contestant.value: price for contestant, price in _PRICES.items()}
 
     return scoring.score_run(questions, JsonlRunStore(RUNS_DIR / run_name), prices)
+
+
+def judge_run(
+    run_name: str, progress: judging.Progress | None = None
+) -> judging.JudgeReport:
+    """Have the judge rule on the answers in runs/<run_name>/, into verdicts.jsonl
+    in its folder. One judge serves every run, so their scores compare.
+
+    Raises MissingKey if the judge's key is not set.
+    """
+    key = Settings().cerebras_api_key
+    if key is None:
+        raise MissingKey("CEREBRAS_API_KEY")
+
+    judge = LlmJudge(
+        openai_chat(
+            llm_judge.BASE_URL,
+            llm_judge.MODEL,
+            api_key=key,
+            extra_body=llm_judge.EXTRA_BODY,
+            rate_limiter=llm_judge.PACE,
+        )
+    )
+    questions = JsonlGoldenSet(GOLDEN_FILE).questions(None)
+
+    return judging.judge_run(
+        judge, questions, JsonlRunStore(RUNS_DIR / run_name), progress
+    )
 
 
 def chat_model(

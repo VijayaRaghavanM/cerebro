@@ -7,14 +7,16 @@ from typer.testing import CliRunner
 
 from cerebro import bootstrap
 from cerebro.adapters.jsonl_evaluation import JsonlRunStore
+from cerebro.application import judging
 from cerebro.application.evaluation import (
     Mismatch,
     Progress,
     ReplayReport,
     RunReport,
 )
-from cerebro.domain.evaluation import Failure, RunResult, Split
+from cerebro.domain.evaluation import Failure, RunResult, Split, Verdict
 from cerebro.interfaces.cli import app
+from cerebro.ports.agent import RateLimited
 
 
 class Calls:
@@ -183,6 +185,72 @@ def test_eval_score_writes_the_scores_and_report_and_prints_the_totals(
     assert result.output == "1 of 1 solved, fact recall 100%, cost $0.0000\n"
     assert (data_dir / "runs" / "trial" / "scores.json").exists()
     assert (data_dir / "runs" / "trial" / "report.md").exists()
+
+
+def test_eval_judge_prints_each_verdict_and_a_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asked: list[str] = []
+
+    def judge_run(
+        run_name: str, progress: judging.Progress | None = None
+    ) -> judging.JudgeReport:
+        asked.append(run_name)
+        assert progress is not None
+        progress("a", Verdict(True, "Right."))
+        progress("b", Verdict(False, "Wrong."))
+        return judging.JudgeReport(judged=2, correct=1, skipped=3)
+
+    monkeypatch.setattr(bootstrap, "judge_run", judge_run)
+
+    result = CliRunner().invoke(app, ["eval", "judge", "trial"])
+
+    assert result.exit_code == 0
+    assert asked == ["trial"]
+    assert result.output == (
+        "a: correct\nb: incorrect\n2 judged, 1 correct, 3 already judged\n"
+    )
+
+
+def test_eval_judge_without_a_key_says_which_variable_to_set(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("CEREBRAS_API_KEY", raising=False)
+
+    result = CliRunner().invoke(app, ["eval", "judge", "trial"])
+
+    assert result.exit_code == 1
+    assert result.output == "Set CEREBRAS_API_KEY to judge a run.\n"
+
+
+def test_eval_judge_that_is_rate_limited_says_the_verdicts_are_kept(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def judge_run(
+        run_name: str, progress: judging.Progress | None = None
+    ) -> judging.JudgeReport:
+        raise RateLimited("slow down")
+
+    monkeypatch.setattr(bootstrap, "judge_run", judge_run)
+
+    result = CliRunner().invoke(app, ["eval", "judge", "trial"])
+
+    assert result.exit_code == 1
+    assert "Verdicts are kept" in result.output
+
+
+def test_eval_score_uses_the_verdicts_a_judge_kept(data_dir: Path) -> None:
+    (data_dir / "evals").mkdir()
+    (data_dir / "evals" / "golden.jsonl").write_text(
+        json.dumps(golden_line("a")) + "\n"
+    )
+    store = JsonlRunStore(data_dir / "runs" / "trial")
+    store.append(RunResult("a", "ministral-14b", (), answer()))
+    store.save_verdict("a", Verdict(False, "Wrong."))
+
+    result = CliRunner().invoke(app, ["eval", "score", "trial"])
+
+    assert result.output == "0 of 1 solved, fact recall 100%, cost $0.0000\n"
 
 
 def test_eval_score_of_a_run_with_no_results_says_so(data_dir: Path) -> None:

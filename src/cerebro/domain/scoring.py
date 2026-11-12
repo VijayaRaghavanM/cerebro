@@ -36,6 +36,7 @@ class Score:
     output_tokens: int
     cost: float  # dollars
     solved: bool
+    judge_correct: bool | None  # None when the judge has not ruled on it
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,8 @@ class Summary:
     name: str
     questions: int
     solved: int
+    judged: int  # questions the judge ruled on
+    judge_correct: int  # of those, the ones it found correct
     facts_found: int
     facts_expected: int
     pages_cited: int

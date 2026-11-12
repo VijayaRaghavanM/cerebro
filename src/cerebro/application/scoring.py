@@ -1,6 +1,8 @@
 """Score a run against the golden questions with rules that need no model.
 
 Whether an answer is correct, beyond holding the expected facts, is for a judge.
+When the run holds the judge's verdict on an answer, that decides whether it is
+correct; the rules still score everything else.
 """
 
 import re
@@ -8,7 +10,13 @@ from collections.abc import Mapping
 
 from cerebro.application.report import overall_line, render_report
 from cerebro.domain.answers import Answer, ToolCall
-from cerebro.domain.evaluation import Failure, GoldenQuestion, Outcome, RunResult
+from cerebro.domain.evaluation import (
+    Failure,
+    GoldenQuestion,
+    Outcome,
+    RunResult,
+    Verdict,
+)
 from cerebro.domain.scoring import Price, Score, Summary
 from cerebro.ports.evaluation import RunStore
 
@@ -31,8 +39,14 @@ def score_run(
     is no longer in the golden set is left out.
     """
     by_id = {question.id: question for question in questions}
+    verdicts = store.verdicts()
     scores = [
-        score(by_id[result.question_id], result, prices[result.model])
+        score(
+            by_id[result.question_id],
+            result,
+            prices[result.model],
+            verdicts.get(result.question_id),
+        )
         for result in store.results()
         if result.question_id in by_id
     ]
@@ -45,8 +59,15 @@ def score_run(
     return overall_line(summaries[-1])
 
 
-def score(question: GoldenQuestion, result: RunResult, price: Price) -> Score:
-    """How one result measures against its question."""
+def score(
+    question: GoldenQuestion,
+    result: RunResult,
+    price: Price,
+    verdict: Verdict | None = None,
+) -> Score:
+    """How one result measures against its question, with the judge's verdict on
+    its answer if there is one.
+    """
     observed = observed_outcome(question, result.final)
     called = [step.tool for step in result.trace if isinstance(step, ToolCall)]
 
@@ -55,7 +76,7 @@ def score(question: GoldenQuestion, result: RunResult, price: Price) -> Score:
     cited = cited_pages(answer)
     expected_cited = [title for title in cited if title in question.expected_pages]
     found = facts_found(question.expected_facts, answer.text)
-    solved = is_solved(question, observed, found, len(expected_cited))
+    solved = is_solved(question, observed, found, len(expected_cited), verdict)
 
     return Score(
         question_id=question.id,
@@ -75,6 +96,7 @@ def score(question: GoldenQuestion, result: RunResult, price: Price) -> Score:
         output_tokens=answer.output_tokens,
         cost=cost(answer.input_tokens, answer.output_tokens, price),
         solved=solved,
+        judge_correct=verdict.correct if verdict else None,
     )
 
 
@@ -140,11 +162,16 @@ def cost(input_tokens: int, output_tokens: int, price: Price) -> float:
 
 
 def is_solved(
-    question: GoldenQuestion, observed: Outcome, found: int, pages_cited: int
+    question: GoldenQuestion,
+    observed: Outcome,
+    found: int,
+    pages_cited: int,
+    verdict: Verdict | None,
 ) -> bool:
     """A refusal or a clarification is solved when it is what was expected. An
-    answer is solved when it holds every expected fact and cites an expected page,
-    if the question has any.
+    answer is solved when it is correct and cites an expected page, if the question
+    has any. The judge says whether it is correct; with no verdict, it is correct
+    when it holds every expected fact.
     """
     if question.expected_outcome != Outcome.ANSWER:
         return observed == question.expected_outcome
@@ -152,10 +179,13 @@ def is_solved(
     if observed in (Outcome.REFUSE, Outcome.FAILED):
         return False
 
-    has_every_fact = found == len(question.expected_facts)
+    if verdict is None:
+        is_correct = found == len(question.expected_facts)
+    else:
+        is_correct = verdict.correct
     cites_a_page = pages_cited > 0 or not question.expected_pages
 
-    return has_every_fact and cites_a_page
+    return is_correct and cites_a_page
 
 
 def summarise(scores: list[Score]) -> list[Summary]:
@@ -175,6 +205,8 @@ def _add_up(name: str, scores: list[Score]) -> Summary:
         name=name,
         questions=len(scores),
         solved=sum(s.solved for s in scores),
+        judged=sum(s.judge_correct is not None for s in scores),
+        judge_correct=sum(s.judge_correct is True for s in scores),
         facts_found=sum(s.facts_found for s in scores),
         facts_expected=sum(s.facts_expected for s in scores),
         pages_cited=sum(s.pages_cited for s in scores),

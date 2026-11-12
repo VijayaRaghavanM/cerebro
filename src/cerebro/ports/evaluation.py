@@ -3,12 +3,37 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 
-from cerebro.domain.evaluation import Exchange, GoldenQuestion, RunResult, Split
+from cerebro.domain.evaluation import (
+    Exchange,
+    GoldenQuestion,
+    RunResult,
+    Split,
+    Verdict,
+)
 from cerebro.domain.scoring import Score
 
 
 class ExchangesMissing(Exception):
     """A question's model exchanges were not kept. The message is its id."""
+
+
+class VerdictUnreadable(Exception):
+    """The judge's reply was not a verdict. The message says what it was."""
+
+
+class Judge(ABC):
+    """Rules on whether an answer is correct."""
+
+    @abstractmethod
+    def verdict(
+        self, question: str, expected_answer_facts: tuple[str, ...], answer_text: str
+    ) -> Verdict:
+        """Whether the answer states every expected fact correctly and claims
+        nothing that contradicts them.
+
+        Raises RateLimited, ModelTimeout or ProviderError (from `ports.agent`) if the
+        model fails, and VerdictUnreadable if its reply is not a verdict.
+        """
 
 
 class GoldenSet(ABC):
@@ -45,6 +70,14 @@ class RunStore(ABC):
     @abstractmethod
     def exchanges(self, question_id: str) -> list[Exchange]:
         """The exchanges kept for a question. Raises ExchangesMissing if none are."""
+
+    @abstractmethod
+    def save_verdict(self, question_id: str, verdict: Verdict) -> None:
+        """Keep the judge's verdict on a question, replacing any kept for it before."""
+
+    @abstractmethod
+    def verdicts(self) -> dict[str, Verdict]:
+        """The kept verdicts, by question id."""
 
     @abstractmethod
     def save_scores(self, scores: list[Score], report: str) -> None:

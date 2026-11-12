@@ -16,7 +16,7 @@ from cerebro.application.scoring import (
     summarise,
 )
 from cerebro.domain.answers import Answer, Source, ToolCall
-from cerebro.domain.evaluation import Failure, Outcome, RunResult
+from cerebro.domain.evaluation import Failure, Outcome, RunResult, Verdict
 from cerebro.domain.scoring import Price, Score
 
 FREE = Price(0, 0)
@@ -27,9 +27,11 @@ def cites(*sources: Source, text: str = "James Howlett [1].") -> Answer:
     return replace(answer(text), sources=sources)
 
 
-def scored(final: Answer | Failure, **changes: Any) -> Score:
+def scored(
+    final: Answer | Failure, verdict: Verdict | None = None, **changes: Any
+) -> Score:
     question = replace(golden_question("a"), **changes)
-    return score(question, RunResult("a", "m", (), final), FREE)
+    return score(question, RunResult("a", "m", (), final), FREE, verdict)
 
 
 # Observed outcome
@@ -196,6 +198,33 @@ def test_a_failure_is_not_solved() -> None:
     assert not scored(Failure("ProviderError", "down"), expected_facts=()).solved
 
 
+def test_the_judge_overrules_the_facts_when_it_finds_an_answer_wrong() -> None:
+    result = scored(cites(HOWLETT), verdict=Verdict(False, "Contradicts itself."))
+
+    assert not result.solved
+    assert result.judge_correct is False
+    assert result.facts_found == 1  # fact recall stays what the rule says
+
+
+def test_an_answer_the_judge_finds_correct_is_solved_without_every_fact() -> None:
+    final = cites(HOWLETT, text="Logan, born James [1].")
+
+    result = scored(final, verdict=Verdict(True, "Same person."))
+
+    assert result.solved
+    assert result.facts_found == 0
+
+
+def test_a_correct_verdict_still_needs_an_expected_page_cited() -> None:
+    other = Source("Someone Else (Earth-616)", "https://example.test/d")
+
+    assert not scored(cites(other), verdict=Verdict(True, "Right.")).solved
+
+
+def test_an_answer_with_no_verdict_has_no_judge_score() -> None:
+    assert scored(cites(HOWLETT)).judge_correct is None
+
+
 # Summaries and report
 
 
@@ -235,6 +264,28 @@ def test_the_report_has_a_header_row_and_a_row_per_summary() -> None:
     assert len(lines) == 4
 
 
+def test_the_report_gives_the_judge_correct_rate_and_says_it_is_provisional() -> None:
+    result = RunResult("a", "m", (), cites(HOWLETT))
+    scores = [score(golden_question("a"), result, FREE, Verdict(False, "Wrong."))]
+
+    report = render_report(summarise(scores))
+
+    lines = report.splitlines()
+    assert "provisional until checked against labels" in lines[0]
+    assert lines[2] == "| " + " | ".join(COLUMNS) + " |"
+    assert lines[4].startswith("| identity | 1 | 0 | 100% | 0% |")
+
+
+def test_a_report_without_verdicts_makes_no_claim_about_the_judge() -> None:
+    result = RunResult("a", "m", (), cites(HOWLETT))
+    scores = [score(golden_question("a"), result, FREE)]
+
+    report = render_report(summarise(scores))
+
+    assert "provisional" not in report
+    assert report.splitlines()[2].startswith("| identity | 1 | 1 | 100% | - |")
+
+
 # The use case
 
 
@@ -250,6 +301,19 @@ def test_a_run_is_scored_and_its_scores_and_report_are_kept(tmp_path: Path) -> N
     assert [score["question_id"] for score in kept] == ["a"]
     assert kept[0]["solved"] is True
     assert (tmp_path / "report.md").read_text().startswith("| Category |")
+
+
+def test_a_run_is_scored_with_the_verdicts_the_judge_kept(tmp_path: Path) -> None:
+    store = JsonlRunStore(tmp_path)
+    store.append(RunResult("a", "m", (), cites(HOWLETT)))
+    store.save_verdict("a", Verdict(False, "Wrong person."))
+
+    line = score_run([golden_question("a")], store, {"m": FREE})
+
+    assert line == "0 of 1 solved, fact recall 100%, cost $0.0000"
+    kept = json.loads((tmp_path / "scores.json").read_text())
+    assert kept[0]["judge_correct"] is False
+    assert "provisional" in (tmp_path / "report.md").read_text()
 
 
 def test_a_run_with_no_results_is_not_scored(tmp_path: Path) -> None:

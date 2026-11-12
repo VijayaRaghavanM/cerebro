@@ -59,6 +59,14 @@ class Failure:
 
 
 @dataclass(frozen=True)
+class Verdict:
+    """A judge's ruling on whether an answer states the expected facts correctly."""
+
+    correct: bool
+    reason: str  # one sentence
+
+
+@dataclass(frozen=True)
 class RunResult:
     """What one model did with one golden question."""
 

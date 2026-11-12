@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import httpx
+from langchain_core.rate_limiters import BaseRateLimiter
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
@@ -17,9 +18,11 @@ def openai_chat(
     *,
     api_key: SecretStr | None = None,
     extra_body: Mapping[str, Any] | None = None,
+    rate_limiter: BaseRateLimiter | None = None,
     transport: httpx.BaseTransport | None = None,
 ) -> ChatOpenAI:
-    """A model at temperature 0, sending through `transport` if given.
+    """A model at temperature 0, sending through `transport` if given and waiting
+    its turn at `rate_limiter` if given.
 
     `extra_body` adds fields the protocol lacks.
     """
@@ -31,5 +34,6 @@ def openai_chat(
         api_key=api_key or NO_KEY,
         temperature=0,
         extra_body=extra_body,
+        rate_limiter=rate_limiter,
         http_client=client,
     )

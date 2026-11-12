@@ -7,12 +7,12 @@ import typer
 
 from cerebro import bootstrap
 from cerebro.domain.answers import Answer, Step, ToolCall, ToolReply
-from cerebro.domain.evaluation import Failure, RunResult, Split
+from cerebro.domain.evaluation import Failure, RunResult, Split, Verdict
 from cerebro.domain.pages import Category
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
 from cerebro.ports.comicvine import ComicVineUnavailable
 from cerebro.ports.embeddings import EmbedderUnavailable
-from cerebro.ports.evaluation import ExchangesMissing
+from cerebro.ports.evaluation import ExchangesMissing, VerdictUnreadable
 from cerebro.ports.records import RecordsMissing
 from cerebro.ports.wiki import WikiUnavailable
 
@@ -328,13 +328,53 @@ def eval_replay(
         raise typer.Exit(1)
 
 
+@eval_app.command("judge")
+def eval_judge(
+    run: Annotated[str, typer.Argument(help="The run's folder name under runs/.")],
+) -> None:
+    """Have a model judge whether each answer is correct. Safe to rerun.
+
+    Every run goes to the same judge, so their scores compare. Verdicts are saved
+    as they come, and a rerun skips the questions already judged. Run `eval score`
+    afterwards to use them.
+    """
+    try:
+        report = bootstrap.judge_run(run, progress=show_verdict)
+    except bootstrap.MissingKey as error:
+        typer.echo(f"Set {error} to judge a run.", err=True)
+        raise typer.Exit(1) from None
+    except FileNotFoundError as error:
+        typer.echo(f"No golden questions: {error.filename} is missing.", err=True)
+        raise typer.Exit(1) from None
+    except RateLimited:
+        typer.echo(
+            "The judge is rate limiting requests. Verdicts are kept; rerun later "
+            "to resume.",
+            err=True,
+        )
+        raise typer.Exit(1) from None
+    except ModelTimeout:
+        typer.echo("The judge did not reply in time. Verdicts are kept.", err=True)
+        raise typer.Exit(1) from None
+    except (ProviderError, VerdictUnreadable) as error:
+        typer.echo(f"{error} Verdicts are kept.", err=True)
+        raise typer.Exit(1) from None
+
+    typer.echo(
+        f"{report.judged} judged, {report.correct} correct, "
+        f"{report.skipped} already judged"
+    )
+
+
 @eval_app.command("score")
 def eval_score(
     run: Annotated[str, typer.Argument(help="The run's folder name under runs/.")],
 ) -> None:
-    """Score a saved run against the golden questions, with no model involved.
+    """Score a saved run against the golden questions.
 
-    Writes scores.json and report.md into the run's folder and prints the totals.
+    Uses the judge's verdicts where `eval judge` has saved them, and rules where it
+    has not. Writes scores.json and report.md into the run's folder and prints the
+    totals.
     """
     try:
         overall = bootstrap.score_run(run)
@@ -403,6 +443,11 @@ def show_result(result: RunResult) -> None:
         typer.echo(f"{result.question_id}: failed ({result.final.type})")
     else:
         typer.echo(f"{result.question_id}: answered")
+
+
+def show_verdict(question_id: str, verdict: Verdict) -> None:
+    ruling = "correct" if verdict.correct else "incorrect"
+    typer.echo(f"{question_id}: {ruling}")
 
 
 def show_pages_read(done: int) -> None:

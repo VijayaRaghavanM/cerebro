@@ -7,6 +7,7 @@ COLUMNS = (
     "Questions",
     "Solved",
     "Fact recall",
+    "Judge correct",
     "Citation recall",
     "Citation precision",
     "Tool selection",
@@ -18,13 +19,26 @@ COLUMNS = (
 )
 
 
+# Nobody has yet compared the judge's rulings with answers labelled by hand.
+PROVISIONAL = (
+    "Judge scores (Judge correct, and Solved where the judge ruled) are "
+    "provisional until checked against labels."
+)
+
+
 def render_report(summaries: list[Summary]) -> str:
-    """A Markdown table with a row per summary."""
+    """A Markdown table with a row per summary. When the judge ruled on any answer,
+    a line above it says its scores are provisional.
+    """
     header = "| " + " | ".join(COLUMNS) + " |"
     divider = "|" + " --- |" * len(COLUMNS)
     rows = ["| " + " | ".join(_cells(summary)) + " |" for summary in summaries]
+    table = "\n".join([header, divider, *rows]) + "\n"
 
-    return "\n".join([header, divider, *rows]) + "\n"
+    if not any(summary.judged for summary in summaries):
+        return table
+
+    return f"{PROVISIONAL}\n\n{table}"
 
 
 def overall_line(summary: Summary) -> str:
@@ -42,6 +56,7 @@ def _cells(summary: Summary) -> list[str]:
         str(summary.questions),
         str(summary.solved),
         _percent(summary.facts_found, summary.facts_expected),
+        _percent(summary.judge_correct, summary.judged),
         _percent(summary.pages_cited, summary.pages_expected),
         _percent(summary.pages_cited, summary.cited_total),
         _percent(summary.tools_used, summary.tools_expected),

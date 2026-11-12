@@ -5,7 +5,7 @@ from eval_helpers import answer, golden_line, golden_question
 
 from cerebro.adapters.jsonl_evaluation import JsonlGoldenSet, JsonlRunStore
 from cerebro.domain.answers import ToolCall, ToolReply
-from cerebro.domain.evaluation import Failure, Outcome, RunResult, Split
+from cerebro.domain.evaluation import Failure, Outcome, RunResult, Split, Verdict
 
 
 def write_golden(path: Path, *lines: dict[str, object]) -> None:
@@ -109,6 +109,22 @@ def test_a_run_with_no_results_yet_is_empty(tmp_path: Path) -> None:
 
     assert store.answered_ids() == set()
     assert list(store.results()) == []
+
+
+def test_verdicts_are_kept_per_question_and_a_later_one_replaces_an_earlier(
+    tmp_path: Path,
+) -> None:
+    store = JsonlRunStore(tmp_path / "run")
+    assert store.verdicts() == {}
+
+    store.save_verdict("a", Verdict(False, "Wrong."))
+    store.save_verdict("b", Verdict(True, "Right."))
+    store.save_verdict("a", Verdict(True, "Right on a second look."))
+
+    assert JsonlRunStore(tmp_path / "run").verdicts() == {
+        "a": Verdict(True, "Right on a second look."),
+        "b": Verdict(True, "Right."),
+    }
 
 
 def test_each_result_is_one_line_of_results_jsonl(tmp_path: Path) -> None:

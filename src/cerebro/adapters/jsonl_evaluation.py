@@ -14,6 +14,7 @@ from cerebro.domain.evaluation import (
     Outcome,
     RunResult,
     Split,
+    Verdict,
 )
 from cerebro.domain.scoring import Score
 from cerebro.ports.evaluation import ExchangesMissing, GoldenSet, RunStore
@@ -34,8 +35,9 @@ class JsonlGoldenSet(GoldenSet):
 
 class JsonlRunStore(RunStore):
     """A run's results in `results.jsonl` in its folder, one line per question,
-    and each question's model exchanges in `exchanges/<question id>.json`. Its
-    scores are `scores.json` and `report.md`.
+    and each question's model exchanges in `exchanges/<question id>.json`. The
+    judge's verdicts are in `verdicts.jsonl`, and the scores are `scores.json` and
+    `report.md`.
 
     Results are only ever appended, so a stopped run resumes where it stopped. A
     question tried again has two lines; reading keeps the later one, and its
@@ -86,6 +88,29 @@ class JsonlRunStore(RunStore):
         exchanges: list[Exchange] = json.loads(path.read_text(encoding="utf-8"))
         return exchanges
 
+    def save_verdict(self, question_id: str, verdict: Verdict) -> None:
+        path = self._verdicts_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Append mode, as with results: a stopped judging run resumes where it stopped.
+        line = {"question_id": question_id, **asdict(verdict)}
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(line) + "\n")
+
+    def verdicts(self) -> dict[str, Verdict]:
+        path = self._verdicts_path()
+        if not path.exists():
+            return {}
+
+        # A repeated id takes the later verdict.
+        kept: dict[str, Verdict] = {}
+        with path.open(encoding="utf-8") as fh:
+            for line in fh:
+                data = json.loads(line)
+                kept[data["question_id"]] = Verdict(data["correct"], data["reason"])
+
+        return kept
+
     def save_scores(self, scores: list[Score], report: str) -> None:
         folder = self.path.parent
         folder.mkdir(parents=True, exist_ok=True)
@@ -96,6 +121,9 @@ class JsonlRunStore(RunStore):
 
     def _exchanges_path(self, question_id: str) -> Path:
         return self.path.parent / "exchanges" / f"{question_id}.json"
+
+    def _verdicts_path(self) -> Path:
+        return self.path.parent / "verdicts.jsonl"
 
 
 def _question(data: dict[str, Any]) -> GoldenQuestion:
