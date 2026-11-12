@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 
+from cerebro.adapters.comicvine_api import ComicVineClient
 from cerebro.adapters.comicvine_dump import ComicVineDump
 from cerebro.adapters.fandom import FandomClient
 from cerebro.adapters.fandom_records import FandomRecordParser
@@ -14,6 +15,7 @@ from cerebro.adapters.sqlite_chunks import SqliteChunkIndex
 from cerebro.adapters.sqlite_comicvine import SqliteComicVineStore
 from cerebro.adapters.sqlite_records import SqliteRecordStore
 from cerebro.application import chunking, crawl, embedding, loading, matching, parse
+from cerebro.application import crawl_comicvine as comicvine_crawl
 from cerebro.domain.answers import Step
 from cerebro.domain.pages import Category
 from cerebro.settings import Settings
@@ -35,6 +37,26 @@ def crawl_fandom(
     """Crawl one Marvel Database category into DATA_DIR/raw/fandom/."""
     return crawl.crawl(
         FandomClient(), _pages(), category, limit=limit, progress=progress
+    )
+
+
+def crawl_comicvine(
+    *,
+    top: int,
+    max_calls: int | None = None,
+    progress: comicvine_crawl.Progress | None = None,
+) -> comicvine_crawl.ComicVineCrawlReport:
+    """Crawl Comic Vine's Marvel characters into DATA_DIR/raw/comicvine/."""
+    key = Settings().comicvine_api_key
+    if key is None:
+        raise MissingKey("COMICVINE_API_KEY")
+
+    return comicvine_crawl.crawl_comicvine(
+        ComicVineClient(key),
+        _comicvine_dump(),
+        top=top,
+        max_calls=max_calls,
+        progress=progress,
     )
 
 

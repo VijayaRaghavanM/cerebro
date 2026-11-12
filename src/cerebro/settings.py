@@ -17,4 +17,5 @@ class Settings(BaseSettings):
 
     data_dir: Path = Path("data")
     mistral_api_key: SecretStr | None = None
+    comicvine_api_key: SecretStr | None = None
     ollama_base_url: str | None = None

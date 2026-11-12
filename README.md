@@ -24,6 +24,7 @@ uv run pytest -m live            # check API keys against the real services
 uv run ruff check                # lint
 uv run ruff format               # format
 uv run cerebro crawl fandom      # download raw wiki pages; safe to rerun
+uv run cerebro crawl comicvine   # download Comic Vine's Marvel characters; safe to rerun (needs COMICVINE_API_KEY)
 uv run cerebro parse fandom      # turn them into records in data/records.sqlite
 uv run cerebro chunk             # cut the parsed character pages into chunks for search
 uv run cerebro embed             # embed every chunk; safe to resume (needs OLLAMA_BASE_URL)
@@ -44,7 +45,7 @@ Open the address Vite prints. Vite sends `/ask` to the API.
 ## Data and credits
 
 - Character, team and comic pages, including comic creators and appearances, come from the [Marvel Database](https://marvel.fandom.com) on Fandom, licensed under [CC BY-SA](https://creativecommons.org/licenses/by-sa/3.0/). Text derived from it keeps that license.
-- Issue dates and per-character issue lists come from the [Comic Vine API](https://comicvine.gamespot.com/api/) under its terms for non-commercial use. It is not redistributed here; it is fetched with your own API key.
+- Issue dates and per-character issue lists come from the [Comic Vine API](https://comicvine.gamespot.com/api/) under its terms for non-commercial use. It is not redistributed here. `cerebro crawl comicvine` fetches it with your own API key.
 
 This is a non-commercial fan project. It is not affiliated with or endorsed by Marvel, Fandom or Comic Vine.
 

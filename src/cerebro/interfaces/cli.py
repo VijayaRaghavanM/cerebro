@@ -9,6 +9,7 @@ from cerebro import bootstrap
 from cerebro.domain.answers import Answer, Step, ToolCall, ToolReply
 from cerebro.domain.pages import Category
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
+from cerebro.ports.comicvine import ComicVineUnavailable
 from cerebro.ports.embeddings import EmbedderUnavailable
 from cerebro.ports.records import RecordsMissing
 from cerebro.ports.wiki import WikiUnavailable
@@ -59,6 +60,52 @@ def crawl_fandom(
             f"\r  {report.listed} listed, {report.already_saved} already saved, "
             f"{report.fetched} fetched, {report.missing} missing"
         )
+
+
+@crawl_app.command("comicvine")
+def crawl_comicvine(
+    top: Annotated[
+        int,
+        typer.Option(
+            help="How many of the most-appearing characters to fetch in detail."
+        ),
+    ] = 300,
+    max_calls: Annotated[
+        int | None,
+        typer.Option(help="Stop after this many API calls; the next run resumes."),
+    ] = None,
+) -> None:
+    """Download Marvel characters from Comic Vine. Safe to rerun: saved records stay.
+
+    Comic Vine allows about 200 calls an hour, so a big --top takes hours.
+    """
+    # Print the client's retry warnings; hide debug and info logs.
+    logging.basicConfig(level=logging.WARNING, format="%(message)s")
+
+    try:
+        report = bootstrap.crawl_comicvine(
+            top=top, max_calls=max_calls, progress=show_step_progress
+        )
+    except bootstrap.MissingKey as error:
+        typer.echo(f"Set {error} to crawl Comic Vine.", err=True)
+        raise typer.Exit(1) from None
+    except ComicVineUnavailable:
+        # A fixed message: whatever the error carries never reaches the terminal, so
+        # the key in Comic Vine's URLs cannot either.
+        typer.echo(
+            "\nComic Vine is unavailable. Saved records are kept; rerun to resume.",
+            err=True,
+        )
+        raise typer.Exit(1) from None
+
+    # The leading \r writes the final counts over the progress line.
+    typer.echo(
+        f"\r{report.listed:,} characters listed; fetched {report.summaries:,} "
+        f"summaries, {report.details:,} details, {report.issues:,} issues "
+        f"in {report.calls:,} calls"
+    )
+    if report.stopped:
+        typer.echo("Stopped at --max-calls; rerun to resume.")
 
 
 @parse_app.command("fandom")
@@ -246,6 +293,11 @@ def show_pages_read(done: int) -> None:
     # Every thousand pages: often enough to see it move, rarely enough to stay cheap.
     if done % 1000 == 0:
         typer.echo(f"\r  {done} pages", nl=False)
+
+
+def show_step_progress(step: str, done: int, total: int) -> None:
+    # Padded to the longest step name, so a shorter name leaves nothing behind.
+    typer.echo(f"\r  {step:<10} {done}/{total}", nl=False)
 
 
 def show_progress(done: int, total: int) -> None:
