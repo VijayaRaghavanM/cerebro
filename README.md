@@ -33,6 +33,8 @@ uv run cerebro match comicvine   # match Comic Vine's characters to the parsed o
 uv run cerebro ask "..."         # answer a question, with citations (needs MISTRAL_API_KEY)
 ```
 
+CI runs these checks and replays a recorded evaluation on every push, so a tool that changes what the model sees fails it.
+
 To use the chat page, start the API and then the page, which needs Node 22 (`nvm use` reads it from `web/.nvmrc`):
 
 ```sh
