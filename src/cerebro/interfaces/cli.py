@@ -12,6 +12,7 @@ from cerebro.domain.pages import Category
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
 from cerebro.ports.comicvine import ComicVineUnavailable
 from cerebro.ports.embeddings import EmbedderUnavailable
+from cerebro.ports.evaluation import ExchangesMissing
 from cerebro.ports.records import RecordsMissing
 from cerebro.ports.wiki import WikiUnavailable
 
@@ -292,6 +293,39 @@ def eval_run(
         f"{report.answered} answered, {report.failed} failed, "
         f"{report.skipped} already answered"
     )
+
+
+@eval_app.command("replay")
+def eval_replay(
+    run: Annotated[str, typer.Argument(help="The run's folder name under runs/.")],
+) -> None:
+    """Rerun a saved run offline and check it gives the same steps and answers.
+
+    Each answered question is asked again from its saved model exchanges, so
+    nothing leaves this machine and no key is needed. Exits 1 if any answer differs.
+    """
+    try:
+        report = bootstrap.replay_run(run)
+    except FileNotFoundError as error:
+        typer.echo(f"No golden questions: {error.filename} is missing.", err=True)
+        raise typer.Exit(1) from None
+    except ExchangesMissing as error:
+        typer.echo(f"{error}: its model exchanges were not saved.", err=True)
+        raise typer.Exit(1) from None
+    except RecordsMissing as error:
+        typer.echo(f"{error}. Run `cerebro parse fandom` first.", err=True)
+        raise typer.Exit(1) from None
+
+    if report.checked == 0:
+        typer.echo(f"No answered questions in runs/{run}.", err=True)
+        raise typer.Exit(1)
+
+    for mismatch in report.mismatches:
+        typer.echo(f"{mismatch.question_id}: {mismatch.difference}")
+    reproduced = report.checked - len(report.mismatches)
+    typer.echo(f"{reproduced} of {report.checked} answers reproduced exactly")
+    if report.mismatches:
+        raise typer.Exit(1)
 
 
 @app.command()

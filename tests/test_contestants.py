@@ -1,10 +1,12 @@
 from collections.abc import Iterator
 
+import httpx
 import pytest
 from langchain_openai import ChatOpenAI
 from typer.testing import CliRunner
 
 from cerebro import bootstrap
+from cerebro.adapters.http_recording import ReplayTransport
 from cerebro.bootstrap import Contestant, MissingKey, chat_model
 from cerebro.domain.answers import Step
 from cerebro.interfaces.cli import app
@@ -81,6 +83,58 @@ def test_a_missing_key_names_its_variable(
 
     with pytest.raises(MissingKey, match=variable):
         chat_model(contestant)
+
+
+def chat_reply() -> dict[str, object]:
+    message = {"role": "assistant", "content": "Hi."}
+    return {
+        "id": "x",
+        "object": "chat.completion",
+        "created": 0,
+        "model": "m",
+        "choices": [{"index": 0, "finish_reason": "stop", "message": message}],
+    }
+
+
+# Mistral's model waits its turn before a request, which a test should not.
+@pytest.mark.parametrize("contestant", list(Contestant)[1:])
+def test_a_model_on_the_openai_protocol_sends_through_the_transport_it_is_given(
+    contestant: Contestant,
+) -> None:
+    sent: list[httpx.Request] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json=chat_reply())
+
+    model = chat_model(contestant, httpx.MockTransport(answer))
+    model.invoke("Hello")
+
+    assert len(sent) == 1
+
+
+@pytest.mark.parametrize("contestant", list(Contestant))
+def test_an_offline_model_needs_no_key_or_server(
+    monkeypatch: pytest.MonkeyPatch, contestant: Contestant
+) -> None:
+    for variable in ("MISTRAL_API_KEY", "OPENROUTER_API_KEY", "OLLAMA_BASE_URL"):
+        monkeypatch.delenv(variable)
+    replayed = ReplayTransport(
+        [{"request": {}, "response": {"status": 200, "body": chat_reply()}}],
+        same=lambda sent, recorded: True,
+    )
+
+    reply = chat_model(contestant, replayed, offline=True).invoke("Hello")
+
+    assert reply.content == "Hi."
+
+
+def test_an_offline_mistral_model_does_not_wait_between_requests() -> None:
+    online = chat_model(Contestant.MINISTRAL_14B)
+    offline = chat_model(Contestant.MINISTRAL_14B, offline=True)
+
+    assert online.rate_limiter is not None
+    assert offline.rate_limiter is None
 
 
 def test_ask_passes_the_chosen_model_through(

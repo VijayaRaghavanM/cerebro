@@ -8,13 +8,14 @@ from typing import Any
 
 from cerebro.domain.answers import Answer, Source, ToolCall, ToolReply
 from cerebro.domain.evaluation import (
+    Exchange,
     Failure,
     GoldenQuestion,
     Outcome,
     RunResult,
     Split,
 )
-from cerebro.ports.evaluation import GoldenSet, RunStore
+from cerebro.ports.evaluation import ExchangesMissing, GoldenSet, RunStore
 
 
 class JsonlGoldenSet(GoldenSet):
@@ -31,10 +32,12 @@ class JsonlGoldenSet(GoldenSet):
 
 
 class JsonlRunStore(RunStore):
-    """A run's results in `results.jsonl` in its folder, one line per question.
+    """A run's results in `results.jsonl` in its folder, one line per question,
+    and each question's model exchanges in `exchanges/<question id>.json`.
 
     Results are only ever appended, so a stopped run resumes where it stopped. A
-    question tried again has two lines; reading keeps the later one.
+    question tried again has two lines; reading keeps the later one, and its
+    exchanges file is written over.
     """
 
     def __init__(self, folder: Path) -> None:
@@ -66,6 +69,23 @@ class JsonlRunStore(RunStore):
                 latest[result.question_id] = result
 
         yield from latest.values()
+
+    def save_exchanges(self, question_id: str, exchanges: list[Exchange]) -> None:
+        path = self._exchanges_path(question_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        path.write_text(json.dumps(exchanges, indent=2) + "\n", encoding="utf-8")
+
+    def exchanges(self, question_id: str) -> list[Exchange]:
+        path = self._exchanges_path(question_id)
+        if not path.exists():
+            raise ExchangesMissing(question_id)
+
+        exchanges: list[Exchange] = json.loads(path.read_text(encoding="utf-8"))
+        return exchanges
+
+    def _exchanges_path(self, question_id: str) -> Path:
+        return self.path.parent / "exchanges" / f"{question_id}.json"
 
 
 def _question(data: dict[str, Any]) -> GoldenQuestion:

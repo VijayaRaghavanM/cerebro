@@ -90,12 +90,28 @@ def retrying_client(
     )
 
 
-def ministral(api_key: SecretStr) -> BaseChatModel:
-    """Ministral 14B at temperature 0, waiting its turn between requests."""
+def ministral(
+    api_key: SecretStr,
+    transport: httpx.BaseTransport | None = None,
+    *,
+    paced: bool = True,
+) -> BaseChatModel:
+    """Ministral 14B at temperature 0, sending through `transport` if given.
+
+    Unless `paced` is False it waits its turn between requests and waits out a
+    429. A replay has no server to wait for.
+    """
+    sleep = time.sleep if paced else _no_wait
+    client = retrying_client(api_key, transport, sleep)
+
     return ChatMistralAI(
         model_name=MODEL,
         api_key=api_key,
         temperature=0,
-        rate_limiter=PACE,
-        client=retrying_client(api_key),
+        rate_limiter=PACE if paced else None,
+        client=client,
     )
+
+
+def _no_wait(seconds: float) -> None:
+    pass

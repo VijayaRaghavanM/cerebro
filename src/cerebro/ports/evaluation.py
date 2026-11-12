@@ -3,7 +3,11 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 
-from cerebro.domain.evaluation import GoldenQuestion, RunResult, Split
+from cerebro.domain.evaluation import Exchange, GoldenQuestion, RunResult, Split
+
+
+class ExchangesMissing(Exception):
+    """A question's model exchanges were not kept. The message is its id."""
 
 
 class GoldenSet(ABC):
@@ -30,3 +34,13 @@ class RunStore(ABC):
         """One result per question, the latest kept, in the order the questions
         were first kept.
         """
+
+    @abstractmethod
+    def save_exchanges(self, question_id: str, exchanges: list[Exchange]) -> None:
+        """Keep the model exchanges that answered a question, replacing any kept
+        for it before.
+        """
+
+    @abstractmethod
+    def exchanges(self, question_id: str) -> list[Exchange]:
+        """The exchanges kept for a question. Raises ExchangesMissing if none are."""

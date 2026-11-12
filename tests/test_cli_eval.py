@@ -6,7 +6,13 @@ from eval_helpers import answer, golden_line
 from typer.testing import CliRunner
 
 from cerebro import bootstrap
-from cerebro.application.evaluation import Progress, RunReport
+from cerebro.adapters.jsonl_evaluation import JsonlRunStore
+from cerebro.application.evaluation import (
+    Mismatch,
+    Progress,
+    ReplayReport,
+    RunReport,
+)
 from cerebro.domain.evaluation import Failure, RunResult, Split
 from cerebro.interfaces.cli import app
 
@@ -90,6 +96,74 @@ def test_eval_run_prints_each_question_and_a_summary(
         "b: failed (RateLimited)\n"
         "1 answered, 1 failed, 3 already answered\n"
     )
+
+
+def fake_replay_run(monkeypatch: pytest.MonkeyPatch, report: ReplayReport) -> list[str]:
+    """Replaces the replay, and returns the run names it was asked to replay."""
+    asked: list[str] = []
+
+    def replay_run(run_name: str) -> ReplayReport:
+        asked.append(run_name)
+        return report
+
+    monkeypatch.setattr(bootstrap, "replay_run", replay_run)
+    return asked
+
+
+def test_eval_replay_says_how_many_answers_were_reproduced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    asked = fake_replay_run(monkeypatch, ReplayReport(checked=4, mismatches=()))
+
+    result = CliRunner().invoke(app, ["eval", "replay", "trial"])
+
+    assert result.exit_code == 0
+    assert result.output == "4 of 4 answers reproduced exactly\n"
+    assert asked == ["trial"]
+
+
+def test_eval_replay_lists_each_mismatch_and_exits_1(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    report = ReplayReport(
+        checked=4, mismatches=(Mismatch("g002", "step 2: saved x, replayed y"),)
+    )
+    fake_replay_run(monkeypatch, report)
+
+    result = CliRunner().invoke(app, ["eval", "replay", "trial"])
+
+    assert result.exit_code == 1
+    assert result.output == (
+        "g002: step 2: saved x, replayed y\n3 of 4 answers reproduced exactly\n"
+    )
+
+
+def test_eval_replay_of_a_run_with_no_answers_says_so(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_replay_run(monkeypatch, ReplayReport(checked=0, mismatches=()))
+
+    result = CliRunner().invoke(app, ["eval", "replay", "trial"])
+
+    assert result.exit_code == 1
+    assert result.output == "No answered questions in runs/trial.\n"
+
+
+def test_eval_replay_of_a_run_without_exchanges_says_which_question(
+    data_dir: Path,
+) -> None:
+    (data_dir / "evals").mkdir()
+    (data_dir / "evals" / "golden.jsonl").write_text(
+        json.dumps(golden_line("a")) + "\n"
+    )
+    JsonlRunStore(data_dir / "runs" / "trial").append(
+        RunResult("a", "ministral-14b", (), answer())
+    )
+
+    result = CliRunner().invoke(app, ["eval", "replay", "trial"])
+
+    assert result.exit_code == 1
+    assert result.output == "a: its model exchanges were not saved.\n"
 
 
 def test_eval_run_without_golden_questions_says_where_they_belong(

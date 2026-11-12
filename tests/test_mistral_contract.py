@@ -13,7 +13,6 @@ import pytest
 from helpers import (
     FakeChunkSearch,
     FakeLookup,
-    RecordingTransport,
     character,
     final_answer,
     replay,
@@ -22,6 +21,7 @@ from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_mistralai import ChatMistralAI
 from pydantic import SecretStr
 
+from cerebro.adapters.http_recording import RecordingTransport
 from cerebro.adapters.langgraph_agent import LangGraphAgent
 from cerebro.adapters.mistral import (
     MODEL,

@@ -2,8 +2,13 @@
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 from cerebro.domain.answers import Answer, ToolCall, ToolReply
+
+# One request to the model and its reply, as JSON. Serving a question's exchanges
+# back in order reruns its model calls with no network.
+type Exchange = dict[str, Any]
 
 
 class Split(StrEnum):

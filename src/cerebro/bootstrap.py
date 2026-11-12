@@ -4,12 +4,15 @@ from collections.abc import Callable, Iterator
 from enum import StrEnum
 from pathlib import Path
 
+import httpx
 from langchain_core.language_models import BaseChatModel
+from pydantic import SecretStr
 
 from cerebro.adapters.comicvine_api import ComicVineClient
 from cerebro.adapters.comicvine_dump import ComicVineDump
 from cerebro.adapters.fandom import FandomClient
 from cerebro.adapters.fandom_records import FandomRecordParser
+from cerebro.adapters.http_recording import RecordingTransport, ReplayTransport
 from cerebro.adapters.jsonl_evaluation import JsonlGoldenSet, JsonlRunStore
 from cerebro.adapters.jsonl_pages import JsonlPageStore
 from cerebro.adapters.langgraph_agent import LangGraphAgent
@@ -31,7 +34,7 @@ from cerebro.application import (
 )
 from cerebro.application import crawl_comicvine as comicvine_crawl
 from cerebro.domain.answers import Step
-from cerebro.domain.evaluation import Split
+from cerebro.domain.evaluation import Exchange, Split
 from cerebro.domain.pages import Category
 from cerebro.settings import Settings
 
@@ -134,7 +137,7 @@ def ask(question: str, model: Contestant = Contestant.MINISTRAL_14B) -> Iterator
     Returns the agent's steps, ending with the answer. The key is checked here, not
     on the first step, so a missing key fails before any step is read.
     """
-    return LangGraphAgent(chat_model(model), _records(), _chunks()).steps(question)
+    return _agent(chat_model(model)).steps(question)
 
 
 def run_eval(
@@ -148,13 +151,15 @@ def run_eval(
     """Answer the golden questions with one model into runs/<run_name>/.
 
     The run is named after the model and split unless `run_name` says otherwise,
-    so running the same command again resumes the same run.
+    so running the same command again resumes the same run. Every model exchange
+    is kept in the run's folder, so `replay_run` can rerun it.
     """
     name = run_name or f"{model}-{split or 'all'}"
     questions = JsonlGoldenSet(GOLDEN_FILE).questions(split)
 
-    def ask_model(question: str) -> Iterator[Step]:
-        return ask(question, model)
+    def ask_model(question: str, exchanges: list[Exchange]) -> Iterator[Step]:
+        recorder = RecordingTransport(exchanges=exchanges)
+        return _agent(chat_model(model, recorder)).steps(question)
 
     return evaluation.run_eval(
         ask_model,
@@ -166,25 +171,66 @@ def run_eval(
     )
 
 
-def chat_model(contestant: Contestant) -> BaseChatModel:
-    """The contestant's model. Raises MissingKey if its key or server is not set."""
-    return _CONTESTANTS[contestant](Settings())
+def replay_run(run_name: str) -> evaluation.ReplayReport:
+    """Rerun runs/<run_name>/ from its saved exchanges, with no network and no keys,
+    and compare each answered question with its saved result.
+    """
+    questions = JsonlGoldenSet(GOLDEN_FILE).questions(None)
+
+    def reask(model: str, question: str, exchanges: list[Exchange]) -> Iterator[Step]:
+        replayer = ReplayTransport(exchanges)
+        return _agent(chat_model(Contestant(model), replayer, offline=True)).steps(
+            question
+        )
+
+    return evaluation.replay_run(reask, questions, JsonlRunStore(RUNS_DIR / run_name))
 
 
-# Each contestant's builder takes the settings and raises MissingKey for what it lacks.
-def _mistral(settings: Settings) -> BaseChatModel:
+def chat_model(
+    contestant: Contestant,
+    transport: httpx.BaseTransport | None = None,
+    *,
+    offline: bool = False,
+) -> BaseChatModel:
+    """The contestant's model, sending through `transport` if given.
+
+    Raises MissingKey if its key or server is not set. An offline model is for a
+    replay: it needs no key, and does not wait between requests.
+    """
+    settings = Settings()
+    if offline:
+        settings = settings.model_copy(update=_PLACEHOLDERS)
+
+    return _CONTESTANTS[contestant](settings, transport, offline)
+
+
+# What an offline model is built with: nothing is sent, so no real key is needed.
+_PLACEHOLDERS = {
+    "mistral_api_key": SecretStr("replay"),
+    "openrouter_api_key": SecretStr("replay"),
+    "ollama_base_url": "http://replay.invalid",
+}
+
+# Each contestant's builder takes the settings, the transport and whether the model
+# is offline, and raises MissingKey for what it lacks.
+Builder = Callable[[Settings, httpx.BaseTransport | None, bool], BaseChatModel]
+
+
+def _mistral(
+    settings: Settings, transport: httpx.BaseTransport | None, offline: bool
+) -> BaseChatModel:
     if settings.mistral_api_key is None:
         raise MissingKey("MISTRAL_API_KEY")
 
-    return ministral(settings.mistral_api_key)
+    return ministral(settings.mistral_api_key, transport, paced=not offline)
 
 
-def _openrouter(
-    model: str, *, pin_to: str | None = None
-) -> Callable[[Settings], BaseChatModel]:
+def _openrouter(model: str, *, pin_to: str | None = None) -> Builder:
     """A builder for one OpenRouter model, optionally served only by one provider."""
 
-    def build(settings: Settings) -> BaseChatModel:
+    def build(
+        settings: Settings, transport: httpx.BaseTransport | None, offline: bool
+    ) -> BaseChatModel:
         if settings.openrouter_api_key is None:
             raise MissingKey("OPENROUTER_API_KEY")
 
@@ -198,22 +244,27 @@ def _openrouter(
             model,
             api_key=settings.openrouter_api_key,
             extra_body=extra_body,
+            transport=transport,
         )
 
     return build
 
 
-def _ollama(model: str) -> Callable[[Settings], BaseChatModel]:
-    def build(settings: Settings) -> BaseChatModel:
+def _ollama(model: str) -> Builder:
+    def build(
+        settings: Settings, transport: httpx.BaseTransport | None, offline: bool
+    ) -> BaseChatModel:
         if settings.ollama_base_url is None:
             raise MissingKey("OLLAMA_BASE_URL")
 
-        return openai_chat(f"{settings.ollama_base_url.rstrip('/')}/v1", model)
+        return openai_chat(
+            f"{settings.ollama_base_url.rstrip('/')}/v1", model, transport=transport
+        )
 
     return build
 
 
-_CONTESTANTS: dict[Contestant, Callable[[Settings], BaseChatModel]] = {
+_CONTESTANTS: dict[Contestant, Builder] = {
     Contestant.MINISTRAL_14B: _mistral,
     Contestant.MINISTRAL_14B_OPENROUTER: _openrouter(
         "mistralai/ministral-14b-2512", pin_to="Mistral"
@@ -224,6 +275,10 @@ _CONTESTANTS: dict[Contestant, Callable[[Settings], BaseChatModel]] = {
     Contestant.QWEN3_14B_OLLAMA: _ollama("qwen3:14b"),
     Contestant.GEMINI_FLASH_OPENROUTER: _openrouter("google/gemini-3.8-flash"),
 }
+
+
+def _agent(model: BaseChatModel) -> LangGraphAgent:
+    return LangGraphAgent(model, _records(), _chunks())
 
 
 def _pages() -> JsonlPageStore:
