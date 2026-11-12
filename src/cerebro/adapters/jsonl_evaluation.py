@@ -58,9 +58,7 @@ class JsonlRunStore(RunStore):
     def append(self, result: RunResult) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Append mode: results already in the file are never rewritten.
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(_result_to_json(result)) + "\n")
+        _append_line(self.path, _result_to_json(result))
 
     def results(self) -> Iterator[RunResult]:
         if not self.path.exists():
@@ -68,10 +66,9 @@ class JsonlRunStore(RunStore):
 
         # A repeated id keeps its first place in the dict and takes the later value.
         latest: dict[str, RunResult] = {}
-        with self.path.open(encoding="utf-8") as fh:
-            for line in fh:
-                result = _result_from_json(json.loads(line))
-                latest[result.question_id] = result
+        for data in _read_records(self.path):
+            result = _result_from_json(data)
+            latest[result.question_id] = result
 
         yield from latest.values()
 
@@ -90,13 +87,9 @@ class JsonlRunStore(RunStore):
         return exchanges
 
     def save_verdict(self, question_id: str, verdict: Verdict) -> None:
-        path = self._verdicts_path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-
         # Append mode, as with results: a stopped judging run resumes where it stopped.
         line = {"question_id": question_id, **asdict(verdict)}
-        with path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(line) + "\n")
+        _append_line(self._verdicts_path(), line)
 
     def verdicts(self) -> dict[str, Verdict]:
         return _read_rulings(self._verdicts_path())
@@ -125,12 +118,61 @@ def _read_rulings(path: Path) -> dict[str, Verdict]:
 
     # A repeated id takes the later ruling.
     kept: dict[str, Verdict] = {}
-    with path.open(encoding="utf-8") as fh:
-        for line in fh:
-            data = json.loads(line)
-            kept[data["question_id"]] = Verdict(data["correct"], data["reason"])
+    for data in _read_records(path):
+        kept[data["question_id"]] = Verdict(data["correct"], data["reason"])
 
     return kept
+
+
+def _read_records(path: Path) -> list[dict[str, Any]]:
+    """Every record in a JSONL file.
+
+    A crash in the middle of a write leaves a last line with no newline and only
+    part of a record. That record never finished, so it is left out and its
+    question is done again. Any other bad line is real damage and raises.
+    """
+    finished, _, tail = path.read_text(encoding="utf-8").rpartition("\n")
+    lines = finished.split("\n") if finished else []
+    records = [json.loads(line) for line in lines]
+
+    if tail:
+        try:
+            records.append(json.loads(tail))
+        except json.JSONDecodeError:
+            pass
+
+    return records
+
+
+def _append_line(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    if path.exists():
+        _drop_torn_tail(path)
+
+    # Append mode: records already in the file are never rewritten.
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(data) + "\n")
+
+
+def _drop_torn_tail(path: Path) -> None:
+    """Cut an unfinished last line off before an append, so the new record is not
+    glued to it and no bad line is left in the middle of the file.
+    """
+    raw = path.read_bytes()
+    tail = raw.rpartition(b"\n")[2]
+    if not tail:
+        return
+
+    try:
+        json.loads(tail)
+    except json.JSONDecodeError:
+        with path.open("r+b") as fh:
+            fh.truncate(len(raw) - len(tail))
+    else:
+        # A whole record that only lost its newline is kept.
+        with path.open("ab") as fh:
+            fh.write(b"\n")
 
 
 def _question(data: dict[str, Any]) -> GoldenQuestion:

@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from eval_helpers import answer, golden_line, golden_question
 
 from cerebro.adapters.jsonl_evaluation import JsonlGoldenSet, JsonlRunStore
@@ -134,6 +135,70 @@ def test_each_result_is_one_line_of_results_jsonl(tmp_path: Path) -> None:
 
     lines = (tmp_path / "run" / "results.jsonl").read_text().splitlines()
     assert len(lines) == 2
+
+
+def test_a_torn_last_line_is_skipped_so_its_question_is_not_answered(
+    tmp_path: Path,
+) -> None:
+    store = JsonlRunStore(tmp_path)
+    store.append(RunResult("a", "m", (), answer()))
+    store.append(RunResult("b", "m", (), answer()))
+    path = tmp_path / "results.jsonl"
+    path.write_text(path.read_text() + '{"question_id": "c", "mod')
+
+    assert [r.question_id for r in store.results()] == ["a", "b"]
+    assert store.answered_ids() == {"a", "b"}
+
+
+def test_appending_after_a_torn_last_line_leaves_every_line_readable(
+    tmp_path: Path,
+) -> None:
+    store = JsonlRunStore(tmp_path)
+    store.append(RunResult("a", "m", (), answer()))
+    path = tmp_path / "results.jsonl"
+    path.write_text(path.read_text() + '{"question_id": "b", "mod')
+
+    redone = RunResult("b", "m", (), answer("Second try."))
+    store.append(redone)
+
+    lines = path.read_text().splitlines()
+    assert [json.loads(line)["question_id"] for line in lines] == ["a", "b"]
+    assert [r.question_id for r in store.results()] == ["a", "b"]
+    assert list(store.results())[-1] == redone
+
+
+def test_a_torn_verdict_is_skipped_and_appending_after_it_stays_readable(
+    tmp_path: Path,
+) -> None:
+    store = JsonlRunStore(tmp_path)
+    store.save_verdict("a", Verdict(True, "Right."))
+    path = tmp_path / "verdicts.jsonl"
+    path.write_text(path.read_text() + '{"question_id": "b", "corr')
+    assert store.verdicts() == {"a": Verdict(True, "Right.")}
+
+    store.save_verdict("b", Verdict(False, "Wrong."))
+
+    assert store.verdicts() == {
+        "a": Verdict(True, "Right."),
+        "b": Verdict(False, "Wrong."),
+    }
+
+
+def test_a_bad_line_that_is_not_the_torn_last_one_still_raises(
+    tmp_path: Path,
+) -> None:
+    store = JsonlRunStore(tmp_path)
+    store.append(RunResult("a", "m", (), answer()))
+    path = tmp_path / "results.jsonl"
+    good = path.read_text()
+
+    path.write_text(good + "not json\n" + good)
+    with pytest.raises(json.JSONDecodeError):
+        list(store.results())
+
+    path.write_text(good + "not json\n")
+    with pytest.raises(json.JSONDecodeError):
+        list(store.results())
 
 
 def test_labels_are_read_from_labels_jsonl_and_a_later_one_replaces_an_earlier(
