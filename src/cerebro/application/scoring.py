@@ -9,7 +9,7 @@ import re
 from collections.abc import Mapping
 
 from cerebro.application.report import overall_line, render_report
-from cerebro.domain.answers import REFUSAL, Answer, ToolCall
+from cerebro.domain.answers import REFUSAL, Answer, ToolCall, is_comic_vine
 from cerebro.domain.evaluation import (
     Failure,
     GoldenQuestion,
@@ -25,9 +25,6 @@ REFUSALS = (
     REFUSAL.removeprefix("I "),
     REFUSAL.removeprefix("I ").replace("couldn't", "could not"),
 )
-
-# A source titled this way is the Comic Vine record of a page the answer also reads.
-COMIC_VINE = "Comic Vine: "
 
 NOTHING = Answer("", (), 0, 0, 0, 0, 0.0)
 
@@ -138,11 +135,7 @@ def facts_found(facts: tuple[str, ...], text: str) -> int:
 
 def cited_pages(answer: Answer) -> list[str]:
     """The titles an answer cites, once each, without the Comic Vine records."""
-    titles = [
-        source.title
-        for source in answer.sources
-        if not source.title.startswith(COMIC_VINE)
-    ]
+    titles = [source.title for source in answer.sources if not is_comic_vine(source)]
 
     return list(dict.fromkeys(titles))
 

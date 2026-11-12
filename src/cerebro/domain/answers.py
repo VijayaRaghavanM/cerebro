@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from cerebro.domain.comicvine import ComicVineCharacter
+
 
 @dataclass(frozen=True)
 class Source:
@@ -9,6 +11,19 @@ class Source:
 
     title: str
     url: str
+
+
+# A source titled this way is the Comic Vine record of a page the answer also reads.
+_COMIC_VINE = "Comic Vine: "
+
+
+def comic_vine_source(character: ComicVineCharacter) -> Source:
+    """The source for a character's Comic Vine record."""
+    return Source(f"{_COMIC_VINE}{character.name}", character.url)
+
+
+def is_comic_vine(source: Source) -> bool:
+    return source.title.startswith(_COMIC_VINE)
 
 
 @dataclass(frozen=True)

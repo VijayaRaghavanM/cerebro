@@ -5,7 +5,7 @@ two characters or teams."""
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING
 
-from cerebro.domain.answers import Source
+from cerebro.domain.answers import Source, comic_vine_source
 from cerebro.domain.comicvine import ComicVineCharacter, ComicVineIssue
 from cerebro.domain.pages import Category
 from cerebro.domain.records import Character, Comic, Team
@@ -105,7 +105,7 @@ def read_page(lookup: RecordLookup, title: str) -> ToolResult:
         character = lookup.comicvine(record.pageid)
         if character is not None:
             text += "\n\n" + _comicvine_block(character)
-            sources.append(Source(f"Comic Vine: {character.name}", character.url))
+            sources.append(comic_vine_source(character))
 
     return ToolResult(text, tuple(sources))
 
@@ -134,7 +134,7 @@ def compare_characters(lookup: RecordLookup, first: str, second: str) -> ToolRes
             character = lookup.comicvine(record.pageid)
             if character is not None:
                 lines += _comicvine_brief(character)
-                sources.append(Source(f"Comic Vine: {character.name}", character.url))
+                sources.append(comic_vine_source(character))
 
         blocks.append("\n".join(lines))
 
@@ -186,7 +186,7 @@ def reading_order(lookup: RecordLookup, title: str) -> ToolResult:
 
     sources = (
         Source(title, lookup.url(title)),
-        Source(f"Comic Vine: {character.name}", character.url),
+        comic_vine_source(character),
     )
     return ToolResult("\n".join(lines), sources)
 
