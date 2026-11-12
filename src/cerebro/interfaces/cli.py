@@ -91,7 +91,7 @@ def crawl_comicvine(
         report = bootstrap.crawl_comicvine(
             top=top, max_calls=max_calls, progress=show_step_progress
         )
-    except bootstrap.MissingKey as error:
+    except bootstrap.MissingSetting as error:
         typer.echo(f"Set {error} to crawl Comic Vine.", err=True)
         raise typer.Exit(1) from None
     except ComicVineUnavailable:
@@ -196,7 +196,7 @@ def embed() -> None:
     """
     try:
         report = bootstrap.embed_chunks(progress=show_progress)
-    except bootstrap.MissingKey as error:
+    except bootstrap.MissingSetting as error:
         typer.echo(f"Set {error} to embed chunks.", err=True)
         raise typer.Exit(1) from None
     except RecordsMissing as error:
@@ -234,7 +234,7 @@ def ask(
         typer.echo(bootstrap.search_label(), err=True)
         for step in steps:
             show_step(step)
-    except bootstrap.MissingKey as error:
+    except bootstrap.MissingSetting as error:
         typer.echo(f"Set {error} to ask questions.", err=True)
         raise typer.Exit(1) from None
     except RecordsMissing as error:
@@ -288,7 +288,7 @@ def eval_run(
             run_name=run,
             progress=show_result,
         )
-    except bootstrap.MissingKey as error:
+    except bootstrap.MissingSetting as error:
         typer.echo(f"Set {error} to run the evaluation.", err=True)
         raise typer.Exit(1) from None
     except FileNotFoundError as error:
@@ -355,7 +355,7 @@ def eval_judge(
     """
     try:
         report = bootstrap.judge_run(run, progress=show_verdict)
-    except bootstrap.MissingKey as error:
+    except bootstrap.MissingSetting as error:
         typer.echo(f"Set {error} to judge a run.", err=True)
         raise typer.Exit(1) from None
     except FileNotFoundError as error:

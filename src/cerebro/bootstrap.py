@@ -68,8 +68,8 @@ class Contestant(StrEnum):
     GEMINI_FLASH_OPENROUTER = "gemini-3.8-flash-openrouter"
 
 
-class MissingKey(Exception):
-    """An API key the command needs is not set. The message is the variable's name."""
+class MissingSetting(Exception):
+    """A setting the command needs is unset. The message is the variable's name."""
 
 
 def crawl_fandom(
@@ -93,7 +93,7 @@ def crawl_comicvine(
     """Crawl Comic Vine's Marvel characters into DATA_DIR/raw/comicvine/."""
     key = Settings().comicvine_api_key
     if key is None:
-        raise MissingKey("COMICVINE_API_KEY")
+        raise MissingSetting("COMICVINE_API_KEY")
 
     return comicvine_crawl.crawl_comicvine(
         ComicVineClient(key),
@@ -132,7 +132,7 @@ def embed_chunks(progress: embedding.Progress | None = None) -> embedding.EmbedR
     """Embed the stored chunks on the Ollama server into DATA_DIR/embeddings/text/."""
     settings = Settings()
     if settings.ollama_base_url is None:
-        raise MissingKey("OLLAMA_BASE_URL")
+        raise MissingSetting("OLLAMA_BASE_URL")
 
     embedder = OllamaEmbedder(settings.ollama_base_url)
     store = NumpyVectorStore(settings.data_dir / "embeddings" / "text")
@@ -241,11 +241,11 @@ def judge_run(
     """Have the judge rule on the answers in runs/<run_name>/, into verdicts.jsonl
     in its folder. One judge serves every run, so their scores compare.
 
-    Raises MissingKey if the judge's key is not set.
+    Raises MissingSetting if the judge's key is not set.
     """
     key = Settings().cerebras_api_key
     if key is None:
-        raise MissingKey("CEREBRAS_API_KEY")
+        raise MissingSetting("CEREBRAS_API_KEY")
 
     judge = LlmJudge(
         openai_chat(
@@ -271,7 +271,7 @@ def chat_model(
 ) -> BaseChatModel:
     """The contestant's model, sending through `transport` if given.
 
-    Raises MissingKey if its key or server is not set. An offline model is for a
+    Raises MissingSetting if its key or server is not set. An offline model is for a
     replay: it needs no key, and does not wait between requests.
     """
     settings = Settings()
@@ -290,7 +290,7 @@ _PLACEHOLDERS = {
 }
 
 # Each contestant's builder takes the settings, the transport and whether the model
-# is offline, and raises MissingKey for what it lacks.
+# is offline, and raises MissingSetting for what it lacks.
 Builder = Callable[[Settings, httpx.BaseTransport | None, bool], BaseChatModel]
 
 
@@ -298,7 +298,7 @@ def _mistral(
     settings: Settings, transport: httpx.BaseTransport | None, offline: bool
 ) -> BaseChatModel:
     if settings.mistral_api_key is None:
-        raise MissingKey("MISTRAL_API_KEY")
+        raise MissingSetting("MISTRAL_API_KEY")
 
     return ministral(settings.mistral_api_key, transport, paced=not offline)
 
@@ -310,7 +310,7 @@ def _openrouter(model: str, *, pin_to: str | None = None) -> Builder:
         settings: Settings, transport: httpx.BaseTransport | None, offline: bool
     ) -> BaseChatModel:
         if settings.openrouter_api_key is None:
-            raise MissingKey("OPENROUTER_API_KEY")
+            raise MissingSetting("OPENROUTER_API_KEY")
 
         # Without the pin, OpenRouter may route to a provider that quantizes the model.
         extra_body = None
@@ -333,7 +333,7 @@ def _ollama(model: str) -> Builder:
         settings: Settings, transport: httpx.BaseTransport | None, offline: bool
     ) -> BaseChatModel:
         if settings.ollama_base_url is None:
-            raise MissingKey("OLLAMA_BASE_URL")
+            raise MissingSetting("OLLAMA_BASE_URL")
 
         return openai_chat(
             f"{settings.ollama_base_url.rstrip('/')}/v1", model, transport=transport

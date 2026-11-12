@@ -7,7 +7,7 @@ from typer.testing import CliRunner
 
 from cerebro import bootstrap
 from cerebro.adapters.http_recording import ReplayTransport
-from cerebro.bootstrap import Contestant, MissingKey, chat_model
+from cerebro.bootstrap import Contestant, MissingSetting, chat_model
 from cerebro.domain.answers import Step
 from cerebro.interfaces.cli import app
 
@@ -81,7 +81,7 @@ def test_a_missing_key_names_its_variable(
 ) -> None:
     monkeypatch.delenv(variable)
 
-    with pytest.raises(MissingKey, match=variable):
+    with pytest.raises(MissingSetting, match=variable):
         chat_model(contestant)
 
 

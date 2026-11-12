@@ -7,7 +7,7 @@ from eval_helpers import answer, golden_question
 
 from cerebro.adapters.jsonl_evaluation import JsonlRunStore
 from cerebro.application.evaluation import Mismatch, Reask, replay_run, run_eval
-from cerebro.bootstrap import MissingKey
+from cerebro.bootstrap import MissingSetting
 from cerebro.domain.answers import Step, ToolCall, ToolReply
 from cerebro.domain.evaluation import Exchange, Failure, GoldenQuestion, RunResult
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
@@ -95,9 +95,9 @@ def test_every_provider_error_is_a_failure(tmp_path: Path, error: Exception) -> 
 
 def test_an_error_that_is_not_the_provider_s_stops_the_run(tmp_path: Path) -> None:
     store = JsonlRunStore(tmp_path)
-    ask = Script(b=[MissingKey("MISTRAL_API_KEY")])
+    ask = Script(b=[MissingSetting("MISTRAL_API_KEY")])
 
-    with pytest.raises(MissingKey):
+    with pytest.raises(MissingSetting):
         run_eval(ask, QUESTIONS, store, model="m")
 
     assert [result.question_id for result in store.results()] == ["a"]

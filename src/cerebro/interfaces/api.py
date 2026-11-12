@@ -35,7 +35,7 @@ def ask(request: AskRequest) -> StreamingResponse:
     # fixed at 200, so a missing key has to fail here to become a 503.
     try:
         steps = bootstrap.ask(request.question)
-    except bootstrap.MissingKey as error:
+    except bootstrap.MissingSetting as error:
         raise HTTPException(503, f"Set {error} to ask questions.") from None
 
     return StreamingResponse(stream(steps), media_type="text/event-stream")
