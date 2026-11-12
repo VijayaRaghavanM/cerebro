@@ -2,6 +2,8 @@ from collections.abc import Iterator, Sequence
 from typing import Any
 
 import httpx
+import httpx2
+import openai
 import pytest
 from helpers import (
     FakeChunkSearch,
@@ -304,6 +306,46 @@ def test_a_timeout_is_a_model_timeout() -> None:
 )
 def test_other_provider_failures_are_provider_errors(error: Exception) -> None:
     with pytest.raises(ProviderError):
+        ask(FailingModel(error=error))
+
+
+# The OpenAI SDK builds its errors from httpx2, its own copy of httpx.
+def sdk_request() -> httpx2.Request:
+    return httpx2.Request("POST", "https://model.example/v1?key=sk-secret")
+
+
+def sdk_response(code: int) -> httpx2.Response:
+    return httpx2.Response(code, request=sdk_request())
+
+
+def sdk_status_error(code: int) -> openai.APIStatusError:
+    return openai.APIStatusError("failed", response=sdk_response(code), body=None)
+
+
+def test_an_sdk_429_is_rate_limited() -> None:
+    error = openai.RateLimitError("slow down", response=sdk_response(429), body=None)
+
+    with pytest.raises(RateLimited):
+        ask(FailingModel(error=error))
+
+
+def test_an_sdk_timeout_is_a_model_timeout() -> None:
+    with pytest.raises(ModelTimeout):
+        ask(FailingModel(error=openai.APITimeoutError(sdk_request())))
+
+
+def test_an_sdk_status_error_is_a_provider_error_naming_the_status() -> None:
+    with pytest.raises(ProviderError, match="HTTP 503") as caught:
+        ask(FailingModel(error=sdk_status_error(503)))
+
+    assert "sk-secret" not in str(caught.value)
+    assert "model.example" not in str(caught.value)
+
+
+def test_an_sdk_connection_error_is_a_provider_error() -> None:
+    error = openai.APIConnectionError(request=sdk_request())
+
+    with pytest.raises(ProviderError, match="could not be reached"):
         ask(FailingModel(error=error))
 
 

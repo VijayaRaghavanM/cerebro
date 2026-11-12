@@ -6,6 +6,7 @@ from collections.abc import Generator, Iterator
 from typing import Any
 
 import httpx
+import openai
 from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
@@ -137,17 +138,9 @@ class LangGraphAgent(Agent):
                     yield from _steps_in(message)
         except GraphRecursionError:
             pass
-        except httpx.TimeoutException as error:
-            raise ModelTimeout("The model did not reply in time.") from error
-        except httpx.HTTPStatusError as error:
-            if error.response.status_code == 429:
-                raise RateLimited("The model provider is rate limiting us.") from error
-            status = error.response.status_code
-            raise ProviderError(
-                f"The model provider returned HTTP {status}."
-            ) from error
-        except httpx.HTTPError as error:
-            raise ProviderError("The model provider could not be reached.") from error
+        # Mistral's client raises httpx errors; the OpenAI SDK raises its own.
+        except (httpx.HTTPError, openai.APIError) as error:
+            raise _port_error(error) from error
 
         return messages
 
@@ -204,6 +197,26 @@ class LangGraphAgent(Agent):
             return f"[{renumbered[number]}]"
 
         return CITATION.sub(renumber, text), tuple(cited)
+
+
+def _port_error(error: httpx.HTTPError | openai.APIError) -> Exception:
+    """The port's error for a failed model call. The message names the status, never
+    the URL or a key.
+    """
+    if isinstance(error, (httpx.TimeoutException, openai.APITimeoutError)):
+        return ModelTimeout("The model did not reply in time.")
+
+    status = None
+    if isinstance(error, httpx.HTTPStatusError):
+        status = error.response.status_code
+    if isinstance(error, openai.APIStatusError):
+        status = error.status_code
+
+    if status == 429:
+        return RateLimited("The model provider is rate limiting us.")
+    if status is not None:
+        return ProviderError(f"The model provider returned HTTP {status}.")
+    return ProviderError("The model provider could not be reached.")
 
 
 def _steps_in(message: BaseMessage) -> Iterator[ToolCall | ToolReply]:
