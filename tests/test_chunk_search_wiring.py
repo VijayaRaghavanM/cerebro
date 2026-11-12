@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import numpy as np
 import pytest
 from eval_helpers import golden_line, golden_question
 from pydantic import SecretStr
@@ -114,6 +115,26 @@ def test_with_an_ollama_server_the_agent_searches_by_keyword_and_meaning(
     # tea one comes last: it is a lesser meaning hit and no keyword hit.
     assert found == [TEXTS[0], TEXTS[1], TEXTS[2]]
     assert server.embeddings == 1
+
+
+def test_searches_for_one_data_folder_read_the_stored_vectors_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OLLAMA_BASE_URL", OLLAMA_URL)
+    loads: list[object] = []
+    load = np.load
+
+    def counting_load(*args: Any, **kwargs: Any) -> Any:
+        loads.append(args[0])
+        return load(*args, **kwargs)
+
+    monkeypatch.setattr(np, "load", counting_load)
+
+    first = texts_found(httpx.MockTransport(Server()))
+    second = texts_found(httpx.MockTransport(Server()))
+
+    assert first == second == [TEXTS[0], TEXTS[1], TEXTS[2]]
+    assert len(loads) == 1
 
 
 def test_the_search_line_names_what_is_in_use(monkeypatch: pytest.MonkeyPatch) -> None:

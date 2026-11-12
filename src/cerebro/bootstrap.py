@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Iterator
 from enum import StrEnum
+from functools import cache
 from pathlib import Path
 
 import httpx
@@ -391,9 +392,16 @@ def _agent(model: BaseChatModel, chunks: ChunkSearch) -> LangGraphAgent:
 def _fused(url: str, transport: httpx.BaseTransport | None) -> FusedSearch:
     keyword = _chunks()
     embedder = OllamaEmbedder(url, transport=transport)
-    vectors = NumpyVectorIndex(Settings().data_dir / "embeddings" / "text")
+    vectors = _vector_index(Settings().data_dir / "embeddings" / "text")
 
     return FusedSearch([keyword, VectorChunkSearch(embedder, vectors, keyword)])
+
+
+@cache
+def _vector_index(folder: Path) -> NumpyVectorIndex:
+    # The matrix is about a gigabyte. One index per folder for the whole process
+    # means it loads once; a new index per question or request would read it again.
+    return NumpyVectorIndex(folder)
 
 
 def _embedded(exchange: Exchange) -> bool:
