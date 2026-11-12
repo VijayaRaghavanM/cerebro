@@ -85,6 +85,21 @@ def test_a_replay_serves_the_recorded_replies_in_order() -> None:
     assert (second.status_code, second.json()) == (500, {"n": 2})
 
 
+def test_a_reply_that_is_not_json_is_kept_as_text_and_replayed() -> None:
+    page = "<html>502 Bad Gateway</html>"
+    proxy = httpx.MockTransport(lambda request: httpx.Response(502, text=page))
+    recording = RecordingTransport(proxy)
+
+    live = post(recording, {"q": "one"})
+    replayed = post(ReplayTransport(recording.exchanges), {"q": "one"})
+
+    assert recording.exchanges == [
+        {"request": {"q": "one"}, "response": {"status": 502, "text": page}}
+    ]
+    assert (live.status_code, live.text) == (502, page)
+    assert (replayed.status_code, replayed.text) == (502, page)
+
+
 def test_a_replay_fails_on_a_request_that_differs_from_the_recording() -> None:
     recording = RecordingTransport(server())
     post(recording, {"q": "one"})

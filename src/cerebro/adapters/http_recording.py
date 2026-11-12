@@ -33,11 +33,17 @@ class RecordingTransport(httpx.BaseTransport):
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         response = self.inner.handle_request(request)
 
-        body = json.loads(response.read())
+        raw = response.read()
+        # A reply that is not JSON, such as a proxy's HTML error page, is kept as
+        # "text" where a JSON one is kept as "body".
+        try:
+            kept = {"body": json.loads(raw)}
+        except ValueError:
+            kept = {"text": raw.decode("utf-8", errors="replace")}
         self.exchanges.append(
             {
                 "request": json.loads(request.content),
-                "response": {"status": response.status_code, "body": body},
+                "response": {"status": response.status_code, **kept},
             }
         )
 
@@ -46,7 +52,7 @@ class RecordingTransport(httpx.BaseTransport):
             for name, value in response.headers.multi_items()
             if name.lower() not in BODY_HEADERS
         ]
-        return httpx.Response(response.status_code, headers=headers, json=body)
+        return httpx.Response(response.status_code, headers=headers, content=raw)
 
     def save(self, path: Path, last_only: bool = False) -> None:
         exchanges = self.exchanges[-1:] if last_only else self.exchanges
@@ -95,4 +101,6 @@ class ReplayTransport(httpx.BaseTransport):
         # Counted only after a match, so a retried request meets the same exchange.
         self._served += 1
         reply = exchange["response"]
+        if "text" in reply:
+            return httpx.Response(reply["status"], text=reply["text"])
         return httpx.Response(reply["status"], json=reply["body"])
