@@ -9,9 +9,9 @@
 
 A research agent that answers questions about Marvel characters, teams and comics, with citations, plus the evaluation suite that measures how often it is right.
 
-The agent searches a local copy of the Marvel Database wiki and Comic Vine, calls tools to look things up, and cites the record behind every claim. The evaluation suite runs a fixed set of hand-checked questions against several models and reports correctness, grounding, refusals, latency and cost per solved question.
+The agent searches a local copy of the Marvel Database wiki and Comic Vine, calls tools to look things up, and cites the record behind every claim. The evaluation suite runs a fixed set of questions, each checked against the records, against several models and reports correctness, grounding, refusals, latency and cost per solved question.
 
-Status: early. The data pipeline runs, and the agent answers questions with citations, in the CLI or on a local chat page that shows each tool call as it happens; the evaluation suite does not exist yet.
+Status: early. The data pipeline runs, and the agent answers questions with citations, in the CLI or on a local chat page that shows each tool call as it happens. The evaluation suite answers the golden questions with a chosen model, has a second model judge the answers, and scores them.
 
 ## Development
 
@@ -34,6 +34,17 @@ uv run cerebro ask "..."         # answer a question, with citations (needs MIST
 ```
 
 CI runs these checks and replays a recorded evaluation on every push, so a tool that changes what the model sees fails it.
+
+To evaluate a model, answer the golden questions in `evals/golden.jsonl`, judge the answers, then score them. Each run keeps its results in `runs/<run>/`. `eval run --help` lists the models: the `-openrouter` ones need `OPENROUTER_API_KEY`, `ministral-14b` needs `MISTRAL_API_KEY`, and `qwen3-14b-ollama` needs `OLLAMA_BASE_URL`, which also adds vector search to the keyword search.
+
+```sh
+uv run cerebro eval run --model ministral-14b-openrouter --run m14   # answer the questions; safe to rerun
+uv run cerebro eval judge m14        # have the judge rule on each answer (needs CEREBRAS_API_KEY)
+uv run cerebro eval score m14        # write scores.json and report.md
+uv run cerebro eval replay m14       # rerun it offline from the saved model exchanges
+uv run cerebro eval agreement m14    # check the judge against labels in runs/m14/labels.jsonl
+uv run cerebro eval compare m14 m3   # put runs side by side, as Markdown
+```
 
 To use the chat page, start the API and then the page, which needs Node 22 (`nvm use` reads it from `web/.nvmrc`):
 
