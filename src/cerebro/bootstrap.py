@@ -29,6 +29,7 @@ from cerebro.adapters.vector_chunks import VectorChunkSearch
 from cerebro.application import (
     agreement,
     chunking,
+    compare,
     crawl,
     embedding,
     evaluation,
@@ -230,9 +231,23 @@ def score_run(run_name: str) -> str | None:
     the run has no results.
     """
     questions = JsonlGoldenSet(GOLDEN_FILE).questions(None)
-    prices = {contestant.value: price for contestant, price in _PRICES.items()}
 
-    return scoring.score_run(questions, JsonlRunStore(RUNS_DIR / run_name), prices)
+    return scoring.score_run(
+        questions, JsonlRunStore(RUNS_DIR / run_name), _model_prices()
+    )
+
+
+def compare_runs(run_names: list[str]) -> str:
+    """Score runs/<name>/ for each name, as `score_run` does but keeping nothing,
+    and put them side by side in Markdown.
+
+    Raises compare.RunEmpty if a run has no results.
+    """
+    questions = JsonlGoldenSet(GOLDEN_FILE).questions(None)
+    prices = _model_prices()
+    stores = {name: JsonlRunStore(RUNS_DIR / name) for name in run_names}
+
+    return compare.compare_runs(questions, stores, prices)
 
 
 def judge_run(
@@ -363,6 +378,10 @@ _PRICES: dict[Contestant, Price] = {
     Contestant.QWEN3_14B_OLLAMA: Price(0, 0),
     Contestant.GEMINI_FLASH_OPENROUTER: Price(0.825, 4.125),
 }
+
+
+def _model_prices() -> dict[str, Price]:
+    return {contestant.value: price for contestant, price in _PRICES.items()}
 
 
 def _agent(model: BaseChatModel, chunks: ChunkSearch) -> LangGraphAgent:

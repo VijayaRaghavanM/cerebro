@@ -35,12 +35,28 @@ def score_run(
     """Score every saved result, keep the scores and a report, and return the
     overall totals in one line, or None when the run has no results.
 
-    `prices` is keyed by the model name a result carries. A result whose question
-    is no longer in the golden set is left out.
+    `prices` is keyed by the model name a result carries.
+    """
+    scores = score_results(questions, store, prices)
+    if not scores:
+        return None
+
+    summaries = summarise(scores)
+    store.save_scores(scores, render_report(summaries))
+
+    return overall_line(summaries[-1])
+
+
+def score_results(
+    questions: list[GoldenQuestion], store: RunStore, prices: Mapping[str, Price]
+) -> list[Score]:
+    """The score of every saved result, with the judge's verdict where the run has
+    one. A result whose question is no longer in the golden set is left out.
     """
     by_id = {question.id: question for question in questions}
     verdicts = store.verdicts()
-    scores = [
+
+    return [
         score(
             by_id[result.question_id],
             result,
@@ -50,13 +66,6 @@ def score_run(
         for result in store.results()
         if result.question_id in by_id
     ]
-    if not scores:
-        return None
-
-    summaries = summarise(scores)
-    store.save_scores(scores, render_report(summaries))
-
-    return overall_line(summaries[-1])
 
 
 def score(

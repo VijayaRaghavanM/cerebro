@@ -1,11 +1,13 @@
 """Command-line entry point: `cerebro <command>`."""
 
 import logging
+from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from cerebro import bootstrap
+from cerebro.application.compare import RunEmpty
 from cerebro.domain.answers import Answer, Step, ToolCall, ToolReply
 from cerebro.domain.evaluation import Failure, RunResult, Split, Verdict
 from cerebro.domain.pages import Category
@@ -433,6 +435,36 @@ def eval_score(
         raise typer.Exit(1)
 
     typer.echo(overall)
+
+
+@eval_app.command("compare")
+def eval_compare(
+    runs: Annotated[
+        list[str], typer.Argument(help="The runs' folder names under runs/.")
+    ],
+    out: Annotated[
+        Path | None, typer.Option(help="Write the Markdown to this file.")
+    ] = None,
+) -> None:
+    """Compare saved runs side by side, as Markdown.
+
+    Scores each run as `eval score` does, but keeps nothing in the run's folder.
+    Prints a table with a row per run, the questions solved in each category, and
+    how well the judge agrees with the hand labels of each run that has them.
+    """
+    try:
+        markdown = bootstrap.compare_runs(runs)
+    except FileNotFoundError as error:
+        typer.echo(f"No golden questions: {error.filename} is missing.", err=True)
+        raise typer.Exit(1) from None
+    except RunEmpty as error:
+        typer.echo(f"No results in runs/{error}.", err=True)
+        raise typer.Exit(1) from None
+
+    if out is None:
+        typer.echo(markdown, nl=False)
+    else:
+        out.write_text(markdown, encoding="utf-8")
 
 
 @app.command()
