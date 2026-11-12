@@ -1,9 +1,38 @@
-"""What matching needs from Comic Vine, and where its data and the matches go."""
+"""What a crawl and matching need from Comic Vine, and where its data and matches go."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 
-from cerebro.domain.comicvine import CharacterMatch, ComicVineCharacter
+from cerebro.domain.comicvine import CharacterMatch, ComicVineCharacter, RawRecord
+
+
+class ComicVineUnavailable(Exception):
+    """Comic Vine kept failing after every retry, or refused a request."""
+
+
+class ComicVineAPI(ABC):
+    """What a crawl needs from Comic Vine. Every method raises ComicVineUnavailable."""
+
+    @property
+    @abstractmethod
+    def batch_limit(self) -> int:
+        """Most ids `character_summaries` and `issues` accept in one call."""
+
+    @abstractmethod
+    def marvel_characters(self) -> list[RawRecord]:
+        """Every Marvel character, with its id and name."""
+
+    @abstractmethod
+    def character_summaries(self, ids: Sequence[int]) -> list[RawRecord]:
+        """Name, aliases, appearance count and page url of each character."""
+
+    @abstractmethod
+    def character_detail(self, character_id: int) -> RawRecord:
+        """Everything kept about one character, with its issues as `issue_ids`."""
+
+    @abstractmethod
+    def issues(self, ids: Sequence[int]) -> list[RawRecord]:
+        """Number, dates, page url and series (id and name) of each issue."""
 
 
 class ComicVineSource(ABC):

@@ -1,6 +1,10 @@
 """Comic Vine's characters, and the Fandom pages they match."""
 
 from dataclasses import dataclass
+from typing import Any
+
+# A record as the API returned it, kept as is for the download.
+type RawRecord = dict[str, Any]
 
 
 @dataclass(frozen=True)
