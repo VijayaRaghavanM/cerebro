@@ -23,7 +23,7 @@ from cerebro.application.tools import (
     search_pages,
     search_text,
 )
-from cerebro.domain.answers import Answer, Source, Step, ToolCall, ToolReply
+from cerebro.domain.answers import REFUSAL, Answer, Source, Step, ToolCall, ToolReply
 from cerebro.ports.agent import Agent
 from cerebro.ports.chunks import ChunkSearch
 from cerebro.ports.records import RecordLookup
@@ -33,7 +33,6 @@ MAX_TOOL_CALLS = 8
 # One model step and one tool step per call, plus the final reply.
 RECURSION_LIMIT = 2 * MAX_TOOL_CALLS + 1
 GAVE_UP = f"I couldn't answer within {MAX_TOOL_CALLS} tool calls."
-REFUSAL = "I couldn't find that in the records."
 CITATION = re.compile(r"\[(\d+)\]")
 
 SYSTEM_PROMPT = (

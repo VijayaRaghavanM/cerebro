@@ -25,11 +25,10 @@ from pydantic import ConfigDict
 from cerebro.adapters.langgraph_agent import (
     GAVE_UP,
     MAX_TOOL_CALLS,
-    REFUSAL,
     SYSTEM_PROMPT,
     LangGraphAgent,
 )
-from cerebro.domain.answers import Answer, Source, ToolCall, ToolReply
+from cerebro.domain.answers import REFUSAL, Answer, Source, ToolCall, ToolReply
 from cerebro.domain.pages import Category
 from cerebro.domain.records import Character, PageHit
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited

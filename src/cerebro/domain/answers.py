@@ -42,4 +42,8 @@ class Answer:
     seconds: float
 
 
+# What the agent says when the records lack the answer: the agent writes it and
+# scoring reads it.
+REFUSAL = "I couldn't find that in the records."
+
 type Step = ToolCall | ToolReply | Answer

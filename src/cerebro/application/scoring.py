@@ -9,7 +9,7 @@ import re
 from collections.abc import Mapping
 
 from cerebro.application.report import overall_line, render_report
-from cerebro.domain.answers import Answer, ToolCall
+from cerebro.domain.answers import REFUSAL, Answer, ToolCall
 from cerebro.domain.evaluation import (
     Failure,
     GoldenQuestion,
@@ -20,8 +20,11 @@ from cerebro.domain.evaluation import (
 from cerebro.domain.scoring import Price, Score, Summary
 from cerebro.ports.evaluation import RunStore
 
-# What the agent says when the records lack the answer.
-REFUSALS = ("couldn't find that in the records", "could not find that in the records")
+# Without the leading "I", so a refusal in any person counts; plus the spelled-out form.
+REFUSALS = (
+    REFUSAL.removeprefix("I "),
+    REFUSAL.removeprefix("I ").replace("couldn't", "could not"),
+)
 
 # A source titled this way is the Comic Vine record of a page the answer also reads.
 COMIC_VINE = "Comic Vine: "

@@ -6,14 +6,13 @@ from eval_helpers import answer, golden_question
 
 from cerebro.adapters.jsonl_evaluation import JsonlRunStore
 from cerebro.application.judging import JudgeReport, judge_run
-from cerebro.domain.answers import Answer
+from cerebro.domain.answers import REFUSAL, Answer
 from cerebro.domain.evaluation import Failure, Outcome, RunResult, Verdict
 from cerebro.ports.agent import RateLimited
 from cerebro.ports.evaluation import Judge
 
 CORRECT = Verdict(True, "States the fact.")
 WRONG = Verdict(False, "Names someone else.")
-REFUSAL = "I couldn't find that in the records."
 
 
 class FakeJudge(Judge):
