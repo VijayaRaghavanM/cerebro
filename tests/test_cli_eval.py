@@ -239,6 +239,59 @@ def test_eval_judge_that_is_rate_limited_says_the_verdicts_are_kept(
     assert "Verdicts are kept" in result.output
 
 
+def write_labels(run: Path, labels: dict[str, bool]) -> None:
+    run.mkdir(parents=True, exist_ok=True)
+    lines = [
+        {"question_id": question_id, "correct": correct, "reason": "By hand."}
+        for question_id, correct in labels.items()
+    ]
+    (run / "labels.jsonl").write_text(
+        "".join(json.dumps(line) + "\n" for line in lines)
+    )
+
+
+def test_eval_agreement_prints_the_counts_kappa_and_the_disagreements(
+    data_dir: Path,
+) -> None:
+    run = data_dir / "runs" / "trial"
+    store = JsonlRunStore(run)
+    for question_id, correct in {"a": True, "b": True, "c": False, "d": False}.items():
+        store.save_verdict(question_id, Verdict(correct, "."))
+    write_labels(run, {"a": True, "b": False, "c": False, "d": True, "z": True})
+
+    result = CliRunner().invoke(app, ["eval", "agreement", "trial"])
+
+    assert result.exit_code == 0
+    assert result.output == (
+        "4 compared, agreement 50%, kappa 0.00\n"
+        "both correct 1, both wrong 1, judge only 1, labels only 1\n"
+        "disagree: b, d\n"
+    )
+
+
+def test_eval_agreement_says_when_kappa_is_undefined(data_dir: Path) -> None:
+    run = data_dir / "runs" / "trial"
+    JsonlRunStore(run).save_verdict("a", Verdict(True, "."))
+    write_labels(run, {"a": True})
+
+    result = CliRunner().invoke(app, ["eval", "agreement", "trial"])
+
+    assert result.exit_code == 0
+    assert result.output == (
+        "1 compared, agreement 100%, kappa undefined (chance agreement is 1)\n"
+        "both correct 1, both wrong 0, judge only 0, labels only 0\n"
+    )
+
+
+def test_eval_agreement_without_labels_says_so(data_dir: Path) -> None:
+    JsonlRunStore(data_dir / "runs" / "trial").save_verdict("a", Verdict(True, "."))
+
+    result = CliRunner().invoke(app, ["eval", "agreement", "trial"])
+
+    assert result.exit_code == 1
+    assert result.output == "No question in runs/trial has a verdict and a label.\n"
+
+
 def test_eval_score_uses_the_verdicts_a_judge_kept(data_dir: Path) -> None:
     (data_dir / "evals").mkdir()
     (data_dir / "evals" / "golden.jsonl").write_text(

@@ -27,6 +27,7 @@ from cerebro.adapters.sqlite_comicvine import SqliteComicVineStore
 from cerebro.adapters.sqlite_records import SqliteRecordStore
 from cerebro.adapters.vector_chunks import VectorChunkSearch
 from cerebro.application import (
+    agreement,
     chunking,
     crawl,
     embedding,
@@ -252,6 +253,13 @@ def judge_run(
     return judging.judge_run(
         judge, questions, JsonlRunStore(RUNS_DIR / run_name), progress
     )
+
+
+def agreement_run(run_name: str) -> agreement.AgreementReport:
+    """Compare the judge's verdicts in runs/<run_name>/ with the hand labels in
+    its labels.jsonl.
+    """
+    return agreement.check_agreement(JsonlRunStore(RUNS_DIR / run_name))
 
 
 def chat_model(

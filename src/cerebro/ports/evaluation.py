@@ -80,6 +80,10 @@ class RunStore(ABC):
         """The kept verdicts, by question id."""
 
     @abstractmethod
+    def labels(self) -> dict[str, Verdict]:
+        """The rulings a person made by hand on the answers, by question id."""
+
+    @abstractmethod
     def save_scores(self, scores: list[Score], report: str) -> None:
         """Keep the scores of the results and the report that sums them up,
         replacing any kept before.

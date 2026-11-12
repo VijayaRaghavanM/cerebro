@@ -134,3 +134,23 @@ def test_each_result_is_one_line_of_results_jsonl(tmp_path: Path) -> None:
 
     lines = (tmp_path / "run" / "results.jsonl").read_text().splitlines()
     assert len(lines) == 2
+
+
+def test_labels_are_read_from_labels_jsonl_and_a_later_one_replaces_an_earlier(
+    tmp_path: Path,
+) -> None:
+    store = JsonlRunStore(tmp_path)
+    assert store.labels() == {}
+
+    lines = [
+        {"question_id": "a", "correct": False, "reason": "Wrong film."},
+        {"question_id": "b", "correct": True, "reason": "Right."},
+        {"question_id": "a", "correct": True, "reason": "Right on a second look."},
+    ]
+    write_golden(tmp_path / "labels.jsonl", *lines)
+
+    assert store.labels() == {
+        "a": Verdict(True, "Right on a second look."),
+        "b": Verdict(True, "Right."),
+    }
+    assert store.verdicts() == {}

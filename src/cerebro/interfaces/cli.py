@@ -382,6 +382,36 @@ def eval_judge(
     )
 
 
+@eval_app.command("agreement")
+def eval_agreement(
+    run: Annotated[str, typer.Argument(help="The run's folder name under runs/.")],
+) -> None:
+    """Check the judge against hand labels.
+
+    Compares the verdicts in verdicts.jsonl with the labels in labels.jsonl, one
+    line each of question_id, correct and reason, over the questions that have
+    both.
+    """
+    report = bootstrap.agreement_run(run)
+
+    if report.compared == 0:
+        typer.echo(f"No question in runs/{run} has a verdict and a label.", err=True)
+        raise typer.Exit(1)
+
+    if report.kappa is None:
+        kappa = "kappa undefined (chance agreement is 1)"
+    else:
+        kappa = f"kappa {report.kappa:.2f}"
+
+    typer.echo(f"{report.compared} compared, agreement {report.agreement:.0%}, {kappa}")
+    typer.echo(
+        f"both correct {report.both_correct}, both wrong {report.both_wrong}, "
+        f"judge only {report.judge_only}, labels only {report.labels_only}"
+    )
+    if report.disagreed:
+        typer.echo("disagree: " + ", ".join(report.disagreed))
+
+
 @eval_app.command("score")
 def eval_score(
     run: Annotated[str, typer.Argument(help="The run's folder name under runs/.")],

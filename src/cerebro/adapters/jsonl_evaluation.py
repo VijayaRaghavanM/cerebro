@@ -36,7 +36,8 @@ class JsonlGoldenSet(GoldenSet):
 class JsonlRunStore(RunStore):
     """A run's results in `results.jsonl` in its folder, one line per question,
     and each question's model exchanges in `exchanges/<question id>.json`. The
-    judge's verdicts are in `verdicts.jsonl`, and the scores are `scores.json` and
+    judge's verdicts are in `verdicts.jsonl`, the hand labels a person wrote to
+    check them against are in `labels.jsonl`, and the scores are `scores.json` and
     `report.md`.
 
     Results are only ever appended, so a stopped run resumes where it stopped. A
@@ -98,18 +99,10 @@ class JsonlRunStore(RunStore):
             fh.write(json.dumps(line) + "\n")
 
     def verdicts(self) -> dict[str, Verdict]:
-        path = self._verdicts_path()
-        if not path.exists():
-            return {}
+        return _read_rulings(self._verdicts_path())
 
-        # A repeated id takes the later verdict.
-        kept: dict[str, Verdict] = {}
-        with path.open(encoding="utf-8") as fh:
-            for line in fh:
-                data = json.loads(line)
-                kept[data["question_id"]] = Verdict(data["correct"], data["reason"])
-
-        return kept
+    def labels(self) -> dict[str, Verdict]:
+        return _read_rulings(self.path.parent / "labels.jsonl")
 
     def save_scores(self, scores: list[Score], report: str) -> None:
         folder = self.path.parent
@@ -124,6 +117,20 @@ class JsonlRunStore(RunStore):
 
     def _verdicts_path(self) -> Path:
         return self.path.parent / "verdicts.jsonl"
+
+
+def _read_rulings(path: Path) -> dict[str, Verdict]:
+    if not path.exists():
+        return {}
+
+    # A repeated id takes the later ruling.
+    kept: dict[str, Verdict] = {}
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            data = json.loads(line)
+            kept[data["question_id"]] = Verdict(data["correct"], data["reason"])
+
+    return kept
 
 
 def _question(data: dict[str, Any]) -> GoldenQuestion:
