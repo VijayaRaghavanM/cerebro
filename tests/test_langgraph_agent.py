@@ -25,6 +25,7 @@ from pydantic import ConfigDict
 from cerebro.adapters.langgraph_agent import (
     GAVE_UP,
     MAX_TOOL_CALLS,
+    REFUSAL,
     SYSTEM_PROMPT,
     LangGraphAgent,
 )
@@ -258,19 +259,46 @@ def test_a_second_page_is_numbered_after_the_first() -> None:
     assert [s.title for s in answer.sources] == [TITLE, "Bob Roe (Earth-1)"]
 
 
-def test_a_marker_with_no_source_cites_nothing_and_shows_as_unknown() -> None:
+def test_a_marker_with_no_source_shows_as_unknown_beside_a_real_citation() -> None:
+    model = scripted(call("read_page", TITLE), reply("Real [1], made up [7]."))
+
+    answer = ask(model)
+
+    assert answer.text == "Real [1], made up [?]."
+    assert [s.title for s in answer.sources] == [TITLE]
+
+
+def test_an_answer_with_no_citation_becomes_the_refusal() -> None:
+    model = scripted(call("read_page", TITLE), reply("Ann Doe controls the weather."))
+
+    answer = ask(model)
+
+    assert answer.text == REFUSAL
+    assert answer.sources == ()
+
+
+def test_an_answer_citing_only_unknown_sources_becomes_the_refusal() -> None:
     model = scripted(call("read_page", TITLE), reply("Made up [7]."))
 
     answer = ask(model)
 
-    assert answer.text == "Made up [?]."
+    assert answer.text == REFUSAL
     assert answer.sources == ()
 
 
-def test_an_answer_without_markers_cites_nothing() -> None:
-    model = scripted(call("read_page", TITLE), reply("I couldn't find that."))
+def test_a_clarifying_question_is_kept_without_a_citation() -> None:
+    model = scripted(call("search_pages", "ann"), reply("Which version do you mean?"))
 
-    assert ask(model).sources == ()
+    answer = ask(model)
+
+    assert answer.text == "Which version do you mean?"
+    assert answer.sources == ()
+
+
+def test_the_refusal_sentence_is_kept() -> None:
+    model = scripted(call("read_page", TITLE), reply(REFUSAL))
+
+    assert ask(model).text == REFUSAL
 
 
 def test_the_step_cap_stops_a_looping_model() -> None:
