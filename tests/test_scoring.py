@@ -265,6 +265,16 @@ def test_a_summary_adds_up_each_category_and_all_of_them() -> None:
     assert lookup.cost == overall.cost
 
 
+def test_a_failure_never_counts_as_a_right_refusal() -> None:
+    answered = scored(cites(HOWLETT))
+    failed = scored(Failure("ProviderError", "down"))
+
+    overall = summarise([answered, failed])[-1]
+
+    assert overall.questions == 2
+    assert overall.refusals_right == 1
+
+
 def test_the_report_has_a_header_row_and_a_row_per_summary() -> None:
     result = RunResult("a", "m", (), cites(HOWLETT))
     scores = [score(golden_question("a"), result, FREE)]
