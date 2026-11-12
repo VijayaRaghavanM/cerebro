@@ -267,6 +267,27 @@ def test_a_marker_with_no_source_shows_as_unknown_beside_a_real_citation() -> No
     assert [s.title for s in answer.sources] == [TITLE]
 
 
+def test_a_bracket_of_several_numbers_cites_each_in_the_order_written() -> None:
+    model = scripted(call("read_page", TITLE), reply("Both facts [2,1]."))
+
+    answer = ask(model, matched=True)
+
+    assert answer.text == "Both facts [1][2]."
+    assert [s.title for s in answer.sources] == [
+        "Comic Vine: Weather Witch",
+        TITLE,
+    ]
+
+
+def test_an_unknown_number_in_a_list_shows_as_unknown_beside_a_real_one() -> None:
+    model = scripted(call("read_page", TITLE), reply("Mixed [1, 9]."))
+
+    answer = ask(model)
+
+    assert answer.text == "Mixed [1][?]."
+    assert [s.title for s in answer.sources] == [TITLE]
+
+
 def test_an_answer_with_no_citation_becomes_the_refusal() -> None:
     model = scripted(call("read_page", TITLE), reply("Ann Doe controls the weather."))
 

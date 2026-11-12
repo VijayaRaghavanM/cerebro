@@ -33,7 +33,8 @@ MAX_TOOL_CALLS = 8
 # One model step and one tool step per call, plus the final reply.
 RECURSION_LIMIT = 2 * MAX_TOOL_CALLS + 1
 GAVE_UP = f"I couldn't answer within {MAX_TOOL_CALLS} tool calls."
-CITATION = re.compile(r"\[(\d+)\]")
+# One bracket holding one or more numbers: [3], [2,1] or [1, 3].
+CITATION = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
 
 SYSTEM_PROMPT = (
     "You answer questions about Marvel characters, teams and comics using only "
@@ -185,20 +186,27 @@ class LangGraphAgent(Agent):
         text: str, numbered: dict[Source, int]
     ) -> tuple[str, tuple[Source, ...]]:
         """The text with its citations renumbered 1, 2, 3 in citation order, and the
-        sources they cite, each once. A marker that names no source becomes [?].
+        sources they cite, each once. A bracket listing several numbers, like [2,1],
+        cites each in the order written and becomes one marker per number: [1][2].
+        A number that names no source becomes [?]. Ranges like [1-3] are left as text.
         """
         by_number = {number: source for source, number in numbered.items()}
         renumbered: dict[int, int] = {}
         cited: list[Source] = []
 
-        def renumber(match: re.Match[str]) -> str:
-            number = int(match.group(1))
+        def marker(number: int) -> str:
             if number not in by_number:
                 return "[?]"
             if number not in renumbered:
                 cited.append(by_number[number])
                 renumbered[number] = len(cited)
             return f"[{renumbered[number]}]"
+
+        def renumber(match: re.Match[str]) -> str:
+            # Models also write [2,1]. Left unread, such an answer cites nothing
+            # and becomes the refusal.
+            written = match.group(1).split(",")
+            return "".join(marker(int(number)) for number in written)
 
         return CITATION.sub(renumber, text), tuple(cited)
 
