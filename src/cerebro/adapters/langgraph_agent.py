@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from langgraph.errors import GraphRecursionError
 
+from cerebro.adapters.provider_errors import port_error
 from cerebro.application.tools import (
     ToolResult,
     compare_characters,
@@ -23,7 +24,7 @@ from cerebro.application.tools import (
     search_text,
 )
 from cerebro.domain.answers import Answer, Source, Step, ToolCall, ToolReply
-from cerebro.ports.agent import Agent, ModelTimeout, ProviderError, RateLimited
+from cerebro.ports.agent import Agent
 from cerebro.ports.chunks import ChunkSearch
 from cerebro.ports.records import RecordLookup
 
@@ -144,7 +145,7 @@ class LangGraphAgent(Agent):
             pass
         # Mistral's client raises httpx errors; the OpenAI SDK raises its own.
         except (httpx.HTTPError, openai.APIError) as error:
-            raise _port_error(error) from error
+            raise port_error(error) from error
 
         return messages
 
@@ -201,26 +202,6 @@ class LangGraphAgent(Agent):
             return f"[{renumbered[number]}]"
 
         return CITATION.sub(renumber, text), tuple(cited)
-
-
-def _port_error(error: httpx.HTTPError | openai.APIError) -> Exception:
-    """The port's error for a failed model call. The message names the status, never
-    the URL or a key.
-    """
-    if isinstance(error, (httpx.TimeoutException, openai.APITimeoutError)):
-        return ModelTimeout("The model did not reply in time.")
-
-    status = None
-    if isinstance(error, httpx.HTTPStatusError):
-        status = error.response.status_code
-    if isinstance(error, openai.APIStatusError):
-        status = error.status_code
-
-    if status == 429:
-        return RateLimited("The model provider is rate limiting us.")
-    if status is not None:
-        return ProviderError(f"The model provider returned HTTP {status}.")
-    return ProviderError("The model provider could not be reached.")
 
 
 def _steps_in(message: BaseMessage) -> Iterator[ToolCall | ToolReply]:
