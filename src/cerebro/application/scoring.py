@@ -113,10 +113,12 @@ def observed_outcome(question: GoldenQuestion, final: Answer | Failure) -> Outco
     """What the response was: a failure, a refusal, a clarification or an answer.
 
     A refusal says it could not find the answer and cites nothing; one that cites
-    a source is an answer. A clarification ends with a question mark, or names two
-    or more of the question's expected pages, as when it lists the characters a
-    name could mean. The rule reads the expected pages, so it only fits questions
-    that have them.
+    a source is an answer. A clarification ends with a question mark, for any
+    question. On a question that expects a clarification, it also counts when the
+    reply names two or more of the expected pages, as when it lists the characters
+    an ambiguous name could mean. On a question that expects an answer the
+    expected pages are what a correct answer should cite, so a reply that names
+    them, as a comparison does, is still an answer.
     """
     if isinstance(final, Failure):
         return Outcome.FAILED
@@ -125,9 +127,15 @@ def observed_outcome(question: GoldenQuestion, final: Answer | Failure) -> Outco
     if not final.sources and any(_normal(phrase) in text for phrase in REFUSALS):
         return Outcome.REFUSE
 
+    if final.text.rstrip().endswith("?"):
+        return Outcome.CLARIFY
+
+    if question.expected_outcome != Outcome.CLARIFY:
+        return Outcome.ANSWER
+
     names = [_without_reality(title) for title in question.expected_pages]
     named = [name for name in names if _normal(name) in text]
-    if final.text.rstrip().endswith("?") or len(named) >= 2:
+    if len(named) >= 2:
         return Outcome.CLARIFY
 
     return Outcome.ANSWER

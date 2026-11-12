@@ -116,6 +116,23 @@ def test_refusals_clarifications_and_failures_are_not_judged(tmp_path: Path) -> 
     assert judge.asked == ["James Howlett [1]."]
 
 
+def test_a_comparison_answer_naming_both_expected_pages_is_judged(
+    tmp_path: Path,
+) -> None:
+    text = "Thor Odinson outweighs Steven Rogers [1]."
+    store = kept(tmp_path, result("a", answer(text)))
+    question = replace(
+        golden_question("a"),
+        expected_pages=("Thor Odinson (Earth-616)", "Steven Rogers (Earth-616)"),
+    )
+    judge = FakeJudge(CORRECT)
+
+    report = judge_run(judge, [question], store)
+
+    assert report.judged == 1
+    assert judge.asked == [text]
+
+
 def test_a_question_that_expects_a_refusal_is_not_judged(tmp_path: Path) -> None:
     store = kept(tmp_path, result("a", answer("Somebody [1].")))
     question = replace(

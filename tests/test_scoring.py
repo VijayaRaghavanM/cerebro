@@ -58,14 +58,27 @@ def test_an_answer_ending_in_a_question_is_a_clarification() -> None:
     assert observed_outcome(question, final) == Outcome.CLARIFY
 
 
-def test_an_answer_naming_two_expected_pages_is_a_clarification() -> None:
+def test_naming_two_expected_pages_is_a_clarification_when_one_is_expected() -> None:
     question = replace(
         golden_question("a"),
+        expected_outcome=Outcome.CLARIFY,
         expected_pages=("Mar-Vell (Earth-616)", "Carol Danvers (Earth-616)"),
     )
     final = cites(text="Mar-Vell and Carol Danvers have both used the name.")
 
     assert observed_outcome(question, final) == Outcome.CLARIFY
+
+
+def test_a_comparison_naming_both_expected_pages_is_an_answer_and_is_solved() -> None:
+    thor = Source("Thor Odinson (Earth-616)", "https://example.test/t")
+    result = scored(
+        cites(thor, text="Thor Odinson outweighs Steven Rogers [1]."),
+        expected_facts=("Thor Odinson",),
+        expected_pages=("Thor Odinson (Earth-616)", "Steven Rogers (Earth-616)"),
+    )
+
+    assert result.observed == Outcome.ANSWER
+    assert result.solved
 
 
 def test_an_answer_naming_one_expected_page_is_an_answer() -> None:
