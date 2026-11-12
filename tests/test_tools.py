@@ -3,11 +3,13 @@ from helpers import FakeChunkSearch, FakeLookup, blank, character, detail, passa
 from cerebro.application.tools import (
     APPEARANCE_LIMIT,
     FIELD_LIMIT,
+    ORDER_LIMIT,
     PAGE_LIMIT,
     SEARCH_LIMIT,
     TEXT_LIMIT,
     find_appearances,
     read_page,
+    reading_order,
     search_pages,
     search_text,
 )
@@ -314,4 +316,80 @@ def test_a_page_in_no_cast_list_says_so_and_cites_nothing() -> None:
     result = find_appearances(FakeLookup(), "Nobody")
 
     assert result.text == 'No comic\'s cast list names "Nobody".'
+    assert result.sources == ()
+
+
+def test_a_reading_order_sorts_comic_vine_issues_by_cover_date_undated_last() -> None:
+    ann = character(name="Ann Doe")
+    issues = (
+        ComicVineIssue("Storm Tales", "10", "1990-03-01"),
+        ComicVineIssue("Lost Tales", "1", None),
+        ComicVineIssue("Storm Tales", "9", "1990-03-01"),
+        ComicVineIssue("Early Tales", "2", "1985-01-01"),
+    )
+    matched = vine(detail(issues=issues))
+
+    result = reading_order(FakeLookup(records=[ann], comicvine=matched), ann.title)
+
+    assert result.text == (
+        "Ann Doe (Earth-1) is in 4 issues on Comic Vine;"
+        " the first 4 by cover date:\n"
+        "Early Tales #2 (1985-01-01)\n"
+        "Storm Tales #9 (1990-03-01)\n"
+        "Storm Tales #10 (1990-03-01)\n"
+        "Lost Tales #1"
+    )
+
+
+def test_a_reading_order_cites_the_page_and_the_comic_vine_character() -> None:
+    ann = character(name="Ann Doe")
+    issues = (ComicVineIssue("Storm Tales", "1", "1990-01-01"),)
+    matched = vine(detail(issues=issues))
+    lookup = FakeLookup(records=[ann], comicvine=matched)
+
+    result = reading_order(lookup, ann.title)
+
+    assert result.sources == (
+        Source(ann.title, "https://wiki.example/Ann_Doe_(Earth-1)"),
+        Source("Comic Vine: Weather Witch", "https://vine.example/5"),
+    )
+
+
+def test_a_reading_order_shows_a_limited_number_of_issues_and_the_total() -> None:
+    ann = character(name="Ann Doe")
+    issues = tuple(
+        ComicVineIssue("Storm Tales", str(n), f"1990-01-{n:02d}")
+        for n in range(1, ORDER_LIMIT + 4)
+    )
+    matched = vine(detail(issues=issues))
+
+    result = reading_order(FakeLookup(records=[ann], comicvine=matched), ann.title)
+
+    lines = result.text.splitlines()
+    assert f"is in {ORDER_LIMIT + 3} issues" in lines[0]
+    assert len(lines) == ORDER_LIMIT + 1
+    assert lines[-1].startswith(f"Storm Tales #{ORDER_LIMIT} ")
+
+
+def test_a_reading_order_without_comic_vine_uses_the_wiki_cast_lists() -> None:
+    ann = character(name="Ann Doe")
+    comics = [Appearance("Storm Tales Vol 1 1", "May 1951"), Appearance("Lost", None)]
+    lookup = FakeLookup(records=[ann], casts={ann.title: comics})
+
+    result = reading_order(lookup, ann.title)
+
+    assert result.text.splitlines()[0].endswith(
+        "the order comes from the wiki's cast lists."
+    )
+    assert result.text.splitlines()[-2:] == [
+        "Storm Tales Vol 1 1 (May 1951)",
+        "Lost (no date)",
+    ]
+    assert result.sources == (Source(ann.title, lookup.url(ann.title)),)
+
+
+def test_a_reading_order_for_an_unknown_title_says_to_search() -> None:
+    result = reading_order(FakeLookup(), "Nobody")
+
+    assert result.text == 'No page is titled "Nobody". Search for it first.'
     assert result.sources == ()

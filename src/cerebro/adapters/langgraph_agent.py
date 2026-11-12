@@ -16,6 +16,7 @@ from cerebro.application.tools import (
     ToolResult,
     find_appearances,
     read_page,
+    reading_order,
     search_pages,
     search_text,
 )
@@ -42,6 +43,8 @@ SYSTEM_PROMPT = (
     "Passages it returns are evidence you can cite.\n"
     "To tell whether a character appears in a comic, how many comics it is in, or "
     "which comics it first appeared in, use find_appearances with the page's title.\n"
+    "To list a character's comics in reading order, use reading_order with the "
+    "page's title.\n"
     "Every fact in your answer must come from a page you read, followed by its "
     "source number in brackets, like [1].\n"
     "If the pages you read don't answer the question, say "
@@ -62,6 +65,10 @@ READ_DESCRIPTION = "Read one page by its exact title."
 APPEARANCES_DESCRIPTION = (
     "List the comics whose cast lists name a page, by its exact title: the total "
     "and the earliest by cover date."
+)
+ORDER_DESCRIPTION = (
+    "List a character's comics in publication order, by the page's exact title: "
+    "the total and the earliest issues."
 )
 
 
@@ -160,7 +167,11 @@ class LangGraphAgent(Agent):
         def appearances(title: str) -> str:
             return _with_numbers(find_appearances(lookup, title), numbered)
 
-        return [search, passages, read, appearances]
+        @tool("reading_order", description=ORDER_DESCRIPTION)
+        def order(title: str) -> str:
+            return _with_numbers(reading_order(lookup, title), numbered)
+
+        return [search, passages, read, appearances, order]
 
     @staticmethod
     def _cited(

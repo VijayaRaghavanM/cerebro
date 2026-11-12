@@ -1,5 +1,5 @@
-"""The agent's tools: search pages by name, search their text, read one, and list the
-comics a page appears in."""
+"""The agent's tools: search pages by name, search their text, read one, list the
+comics a page appears in, and put a character's comics in reading order."""
 
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING
@@ -20,6 +20,8 @@ SEARCH_LIMIT = 10
 TEXT_LIMIT = 5
 # Twenty comics keep a reply short.
 APPEARANCE_LIMIT = 20
+# Twenty-five issues keep a reading order short.
+ORDER_LIMIT = 25
 # One read stays within a few thousand tokens.
 FIELD_LIMIT = 1500
 PAGE_LIMIT = 12000
@@ -101,6 +103,40 @@ def find_appearances(lookup: RecordLookup, title: str) -> ToolResult:
     return ToolResult("\n".join(lines), (Source(title, lookup.url(title)),))
 
 
+def reading_order(lookup: RecordLookup, title: str) -> ToolResult:
+    record = lookup.record(title)
+    if record is None:
+        return ToolResult(f'No page is titled "{title}". Search for it first.', ())
+
+    character = (
+        lookup.comicvine(record.pageid) if isinstance(record, Character) else None
+    )
+    if character is None or character.detail is None or not character.detail.issues:
+        # The wiki's cast lists are already in publication order.
+        result = find_appearances(lookup, title)
+        if not result.sources:
+            return result
+
+        note = "Comic Vine has no issue list for this page, so the order comes from"
+        return ToolResult(
+            f"{note} the wiki's cast lists.\n{result.text}", result.sources
+        )
+
+    issues = sorted(character.detail.issues, key=_publication_order)
+    shown = issues[:ORDER_LIMIT]
+    lines = [
+        f"{title} is in {len(issues):,} issues on Comic Vine;"
+        f" the first {len(shown)} by cover date:"
+    ]
+    lines += [_show(issue) for issue in shown]
+
+    sources = (
+        Source(title, lookup.url(title)),
+        Source(f"Comic Vine: {character.name}", character.url),
+    )
+    return ToolResult("\n".join(lines), sources)
+
+
 def search_text(chunks: ChunkSearch, lookup: RecordLookup, query: str) -> ToolResult:
     hits = chunks.search(query, TEXT_LIMIT)
     if not hits:
@@ -141,6 +177,21 @@ def _show(value: object) -> str:
         dated = f" ({value.cover_date})" if value.cover_date else ""
         return f"{value.series} #{value.number}{dated}"
     return str(value)
+
+
+def _publication_order(issue: ComicVineIssue) -> tuple[bool, str, str, int, str]:
+    """Dated issues first by cover date, then by series and issue number; Comic Vine's
+    own order is not publication order.
+    """
+    # Plain numbers sort as numbers ("10" after "9"); "1/2" or "Annual 1" as text.
+    number = int(issue.number) if issue.number.isdigit() else -1
+    return (
+        issue.cover_date is None,
+        issue.cover_date or "",
+        issue.series,
+        number,
+        issue.number,
+    )
 
 
 def _stories(comic: Comic) -> list[str]:

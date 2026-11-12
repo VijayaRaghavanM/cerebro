@@ -316,6 +316,7 @@ def test_tools_are_named_for_the_model() -> None:
         "search_text",
         "read_page",
         "find_appearances",
+        "reading_order",
     ]
 
 
