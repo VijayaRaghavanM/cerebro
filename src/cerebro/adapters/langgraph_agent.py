@@ -14,6 +14,7 @@ from langgraph.errors import GraphRecursionError
 
 from cerebro.application.tools import (
     ToolResult,
+    compare_characters,
     find_appearances,
     read_page,
     reading_order,
@@ -45,6 +46,7 @@ SYSTEM_PROMPT = (
     "which comics it first appeared in, use find_appearances with the page's title.\n"
     "To list a character's comics in reading order, use reading_order with the "
     "page's title.\n"
+    "To compare two characters or teams, use compare_characters with both titles.\n"
     "Every fact in your answer must come from a page you read, followed by its "
     "source number in brackets, like [1].\n"
     "If the pages you read don't answer the question, say "
@@ -69,6 +71,10 @@ APPEARANCES_DESCRIPTION = (
 ORDER_DESCRIPTION = (
     "List a character's comics in publication order, by the page's exact title: "
     "the total and the earliest issues."
+)
+COMPARE_DESCRIPTION = (
+    "Compare two characters or two teams, by their exact titles: key facts side by "
+    "side, with the comics they appear in and Comic Vine's counts."
 )
 
 
@@ -171,7 +177,11 @@ class LangGraphAgent(Agent):
         def order(title: str) -> str:
             return _with_numbers(reading_order(lookup, title), numbered)
 
-        return [search, passages, read, appearances, order]
+        @tool("compare_characters", description=COMPARE_DESCRIPTION)
+        def compare(first: str, second: str) -> str:
+            return _with_numbers(compare_characters(lookup, first, second), numbered)
+
+        return [search, passages, read, appearances, order, compare]
 
     @staticmethod
     def _cited(
@@ -199,8 +209,9 @@ class LangGraphAgent(Agent):
 def _steps_in(message: BaseMessage) -> Iterator[ToolCall | ToolReply]:
     if isinstance(message, AIMessage):
         for call in message.tool_calls:
-            (argument,) = call["args"].values()
-            yield ToolCall(call["name"], str(argument))
+            # compare_characters takes two titles.
+            argument = ", ".join(str(value) for value in call["args"].values())
+            yield ToolCall(call["name"], argument)
 
     if isinstance(message, ToolMessage):
         yield ToolReply(message.name or "", message.text)

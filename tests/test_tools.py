@@ -2,11 +2,13 @@ from helpers import FakeChunkSearch, FakeLookup, blank, character, detail, passa
 
 from cerebro.application.tools import (
     APPEARANCE_LIMIT,
+    COMPARE_FIELD_LIMIT,
     FIELD_LIMIT,
     ORDER_LIMIT,
     PAGE_LIMIT,
     SEARCH_LIMIT,
     TEXT_LIMIT,
+    compare_characters,
     find_appearances,
     read_page,
     reading_order,
@@ -20,6 +22,7 @@ from cerebro.domain.comicvine import (
 from cerebro.domain.pages import Category
 from cerebro.domain.records import (
     Appearance,
+    Character,
     Comic,
     Credits,
     PageHit,
@@ -316,6 +319,125 @@ def test_a_page_in_no_cast_list_says_so_and_cites_nothing() -> None:
     result = find_appearances(FakeLookup(), "Nobody")
 
     assert result.text == 'No comic\'s cast list names "Nobody".'
+    assert result.sources == ()
+
+
+def bob() -> Character:
+    return blank(
+        Character, pageid=2, title="Bob Roe (Earth-1)", revid=1, name="Bob Roe"
+    )
+
+
+def test_a_comparison_shows_a_block_for_each_page() -> None:
+    ann = character(
+        name="Ann Doe", reality="Earth-1", status="Alive", history="Long story."
+    )
+    casts = {ann.title: [Appearance("Storm Tales Vol 1 1", "May 1951")]}
+    lookup = FakeLookup(records=[ann, bob()], casts=casts)
+
+    result = compare_characters(lookup, ann.title, "Bob Roe (Earth-1)")
+
+    assert result.text == (
+        "Ann Doe (Earth-1) (character)\n"
+        "name: Ann Doe\n"
+        "reality: Earth-1\n"
+        "status: Alive\n"
+        "comics' cast lists: 1\n\n"
+        "Bob Roe (Earth-1) (character)\n"
+        "name: Bob Roe\n"
+        "comics' cast lists: 0"
+    )
+
+
+def test_a_comparison_of_teams_shows_leaders_and_members_cut_short() -> None:
+    members = "m" * (COMPARE_FIELD_LIMIT + 1)
+    club = blank(
+        Team,
+        pageid=3,
+        title="Storm Club (Earth-1)",
+        revid=1,
+        name="Storm Club",
+        leaders="Ann Doe",
+        current_members=members,
+        history="Long story.",
+    )
+    other = blank(
+        Team, pageid=4, title="Rain Club (Earth-1)", revid=1, name="Rain Club"
+    )
+
+    result = compare_characters(
+        FakeLookup(records=[club, other]), club.title, other.title
+    )
+
+    assert result.text.startswith(
+        "Storm Club (Earth-1) (team)\n"
+        "name: Storm Club\n"
+        "leaders: Ann Doe\n"
+        f"current members: {'m' * COMPARE_FIELD_LIMIT} [cut]\n\n"
+        "Rain Club (Earth-1) (team)\n"
+    )
+    assert "history" not in result.text
+    assert "cast lists" not in result.text
+
+
+def test_a_comparison_shows_comic_vine_counts_for_a_matched_character() -> None:
+    ann = character(name="Ann Doe")
+    matched = vine(detail(powers=("Flight", "Wind")))
+
+    result = compare_characters(
+        FakeLookup(records=[ann, bob()], comicvine=matched), ann.title, bob().title
+    )
+
+    assert result.text.split("\n\n")[0].endswith(
+        "comic vine real name: Ann Doe\n"
+        "comic vine appearances: 321\n"
+        "comic vine powers: Flight, Wind"
+    )
+
+
+def test_a_comparison_without_a_match_has_no_comic_vine_lines() -> None:
+    ann = character(name="Ann Doe")
+
+    result = compare_characters(
+        FakeLookup(records=[ann, bob()]), ann.title, bob().title
+    )
+
+    assert "comic vine" not in result.text
+    assert len(result.sources) == 2
+
+
+def test_a_comparison_cites_both_pages_and_the_comic_vine_characters() -> None:
+    ann = character(name="Ann Doe")
+    lookup = FakeLookup(records=[ann, bob()], comicvine=vine(detail()))
+
+    result = compare_characters(lookup, ann.title, bob().title)
+
+    assert result.sources == (
+        Source(ann.title, "https://wiki.example/Ann_Doe_(Earth-1)"),
+        Source("Comic Vine: Weather Witch", "https://vine.example/5"),
+        Source("Bob Roe (Earth-1)", "https://wiki.example/Bob_Roe_(Earth-1)"),
+        Source("Comic Vine: Weather Witch", "https://vine.example/5"),
+    )
+
+
+def test_a_comparison_names_the_unknown_title_and_says_to_search() -> None:
+    ann = character(name="Ann Doe")
+
+    result = compare_characters(FakeLookup(records=[ann]), ann.title, "Nobody")
+
+    assert result.text == 'No page is titled "Nobody". Search for it first.'
+    assert result.sources == ()
+
+
+def test_a_comparison_leaves_a_comic_to_read_page() -> None:
+    ann = character(name="Ann Doe")
+    comic = blank(Comic, pageid=2, title="Storm Tales Vol 1 1", revid=1)
+
+    result = compare_characters(
+        FakeLookup(records=[ann, comic]), ann.title, comic.title
+    )
+
+    assert result.text == '"Storm Tales Vol 1 1" is a comic; read it with read_page.'
     assert result.sources == ()
 
 

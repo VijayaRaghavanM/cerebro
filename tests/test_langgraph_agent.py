@@ -6,6 +6,7 @@ import pytest
 from helpers import (
     FakeChunkSearch,
     FakeLookup,
+    blank,
     character,
     detail,
     final_answer,
@@ -27,7 +28,7 @@ from cerebro.adapters.langgraph_agent import (
 )
 from cerebro.domain.answers import Answer, Source, ToolCall, ToolReply
 from cerebro.domain.pages import Category
-from cerebro.domain.records import PageHit
+from cerebro.domain.records import Character, PageHit
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
 
 TITLE = "Ann Doe (Earth-1)"
@@ -317,7 +318,33 @@ def test_tools_are_named_for_the_model() -> None:
         "read_page",
         "find_appearances",
         "reading_order",
+        "compare_characters",
     ]
+
+
+def test_a_comparison_takes_two_titles_and_shows_both_in_the_steps() -> None:
+    other = "Bob Roe (Earth-1)"
+    both = FakeLookup(
+        [],
+        [character(name="Ann Doe"), blank(Character, pageid=2, title=other, revid=1)],
+    )
+    compare = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "compare_characters",
+                "args": {"first": TITLE, "second": other},
+                "id": "compare",
+            }
+        ],
+    )
+    model = scripted(compare, reply("Both [1] [2]."))
+
+    steps = list(LangGraphAgent(model, both, passages()).steps("Who is older?"))
+
+    assert steps[0] == ToolCall("compare_characters", f"{TITLE}, {other}")
+    assert isinstance(steps[1], ToolReply)
+    assert steps[1].text.endswith(f"Sources: [1] {TITLE}, [2] {other}")
 
 
 def test_passages_are_numbered_for_the_model_and_citable() -> None:

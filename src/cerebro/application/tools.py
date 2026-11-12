@@ -1,5 +1,6 @@
 """The agent's tools: search pages by name, search their text, read one, list the
-comics a page appears in, and put a character's comics in reading order."""
+comics a page appears in, put a character's comics in reading order, and compare
+two characters or teams."""
 
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING
@@ -26,6 +27,8 @@ ORDER_LIMIT = 25
 FIELD_LIMIT = 1500
 PAGE_LIMIT = 12000
 CUT = " [cut]"
+# A comparison puts two pages in one reply, so each field is one short line.
+COMPARE_FIELD_LIMIT = 200
 
 SEARCH_KINDS = {
     Category.CHARACTERS: "character",
@@ -37,6 +40,26 @@ READ_KINDS: dict[type, str] = {Character: "character", Team: "team", Comic: "com
 NOT_FIELDS = {"pageid", "revid", "title", "categories", "links", "stories"}
 # A story's cast comes before its synopsis; its other fields are not for the model.
 STORY_FIELDS = ("appearing", "synopsis")
+# The fields that settle most comparisons: age, size, rank, origin.
+CHARACTER_COMPARE_FIELDS = (
+    "name",
+    "current_alias",
+    "reality",
+    "identity",
+    "first_appearance",
+    "status",
+)
+TEAM_COMPARE_FIELDS = (
+    "name",
+    "reality",
+    "leaders",
+    "current_members",
+    "first_appearance",
+)
+COMPARE_FIELDS: dict[type, tuple[str, ...]] = {
+    Character: CHARACTER_COMPARE_FIELDS,
+    Team: TEAM_COMPARE_FIELDS,
+}
 
 
 @dataclass(frozen=True)
@@ -85,6 +108,37 @@ def read_page(lookup: RecordLookup, title: str) -> ToolResult:
             sources.append(Source(f"Comic Vine: {character.name}", character.url))
 
     return ToolResult(text, tuple(sources))
+
+
+def compare_characters(lookup: RecordLookup, first: str, second: str) -> ToolResult:
+    blocks = []
+    sources = []
+    for title in (first, second):
+        record = lookup.record(title)
+        if record is None:
+            return ToolResult(f'No page is titled "{title}". Search for it first.', ())
+
+        names = COMPARE_FIELDS.get(type(record))
+        if names is None:
+            return ToolResult(f'"{title}" is a comic; read it with read_page.', ())
+
+        lines = [f"{title} ({READ_KINDS[type(record)]})"]
+        lines += _brief(record, names)
+        sources.append(Source(title, lookup.url(title)))
+
+        if isinstance(record, Character):
+            # A limit of 0 asks for the total alone.
+            casts = lookup.appearances(title, 0).total
+            lines.append(f"comics' cast lists: {casts:,}")
+
+            character = lookup.comicvine(record.pageid)
+            if character is not None:
+                lines += _comicvine_brief(character)
+                sources.append(Source(f"Comic Vine: {character.name}", character.url))
+
+        blocks.append("\n".join(lines))
+
+    return ToolResult("\n\n".join(blocks), tuple(sources))
 
 
 def find_appearances(lookup: RecordLookup, title: str) -> ToolResult:
@@ -166,8 +220,32 @@ def _lines(item: "DataclassInstance", skip: set[str] = NOT_FIELDS) -> list[str]:
     return lines
 
 
-def _line(name: str, value: object) -> str:
-    return f"{name.replace('_', ' ')}: {_cut(_show(value), FIELD_LIMIT)}"
+def _line(name: str, value: object, limit: int = FIELD_LIMIT) -> str:
+    return f"{name.replace('_', ' ')}: {_cut(_show(value), limit)}"
+
+
+def _brief(item: "DataclassInstance", names: tuple[str, ...]) -> list[str]:
+    """Short lines for the named fields that have something in them."""
+    lines = []
+    for name in names:
+        value = getattr(item, name)
+        if value:
+            lines.append(_line(name, value, COMPARE_FIELD_LIMIT))
+
+    return lines
+
+
+def _comicvine_brief(character: ComicVineCharacter) -> list[str]:
+    lines = []
+    if character.real_name:
+        lines.append(_line("comic vine real name", character.real_name))
+    lines.append(f"comic vine appearances: {character.appearances:,}")
+    if character.detail is not None and character.detail.powers:
+        lines.append(
+            _line("comic vine powers", character.detail.powers, COMPARE_FIELD_LIMIT)
+        )
+
+    return lines
 
 
 def _show(value: object) -> str:
