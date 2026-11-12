@@ -21,10 +21,20 @@ class ChunkReader(ABC):
         """
 
 
+class ChunkLookup(ABC):
+    @abstractmethod
+    def chunks_by_id(self, ids: list[str]) -> list[Chunk]:
+        """The stored chunks with these ids, in the order given. An id that no
+        chunk has is left out.
+
+        Raises `RecordsMissing` if no chunks are stored.
+        """
+
+
 class ChunkSearch(ABC):
     @abstractmethod
     def search(self, query: str, limit: int) -> list[ChunkHit]:
-        """The chunks that best match the query's words, best first.
+        """The chunks that best match the query, best first.
 
         Raises `RecordsMissing` if no chunks are stored.
         """

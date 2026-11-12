@@ -190,3 +190,23 @@ def test_every_chunk_gets_a_row_with_its_own_id(tmp_path: Path) -> None:
     stored = rows(path, "SELECT id, section, text FROM chunks ORDER BY number")
     assert stored == [(c.id, c.section, c.text) for c in chunks]
     assert len({id for id, _, _ in stored}) == len(chunks)
+
+
+def test_chunks_are_fetched_by_id_in_the_order_asked_and_unknown_ids_are_left_out(
+    tmp_path: Path,
+) -> None:
+    store = SqliteChunkIndex(tmp_path / "records.sqlite")
+    chunks = chunk_character(real_character())
+    store.replace_chunks(chunks)
+
+    found = store.chunks_by_id([chunks[2].id, "9:9:9", chunks[0].id])
+
+    assert found == [chunks[2], chunks[0]]
+
+
+def test_fetching_chunks_before_they_are_stored_says_so(tmp_path: Path) -> None:
+    path = tmp_path / "records.sqlite"
+    SqliteRecordStore(path).replace(Category.CHARACTERS, [real_character()])
+
+    with pytest.raises(RecordsMissing):
+        SqliteChunkIndex(path).chunks_by_id(["1:7:0"])

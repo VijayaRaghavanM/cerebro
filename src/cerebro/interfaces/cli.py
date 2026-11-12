@@ -11,7 +11,7 @@ from cerebro.domain.evaluation import Failure, RunResult, Split, Verdict
 from cerebro.domain.pages import Category
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
 from cerebro.ports.comicvine import ComicVineUnavailable
-from cerebro.ports.embeddings import EmbedderUnavailable
+from cerebro.ports.embeddings import EmbedderUnavailable, VectorsMissing
 from cerebro.ports.evaluation import ExchangesMissing, VerdictUnreadable
 from cerebro.ports.records import RecordsMissing
 from cerebro.ports.wiki import WikiUnavailable
@@ -229,13 +229,22 @@ def ask(
     Prints each tool call and what it returned as the agent works, then the answer.
     """
     try:
-        for step in bootstrap.ask(question, model):
+        # Read before the steps, so a missing key fails before this line is shown.
+        steps = bootstrap.ask(question, model)
+        typer.echo(bootstrap.search_label(), err=True)
+        for step in steps:
             show_step(step)
     except bootstrap.MissingKey as error:
         typer.echo(f"Set {error} to ask questions.", err=True)
         raise typer.Exit(1) from None
     except RecordsMissing as error:
         typer.echo(f"{error}. Run `cerebro parse fandom` first.", err=True)
+        raise typer.Exit(1) from None
+    except VectorsMissing as error:
+        typer.echo(f"{error}. Run `cerebro embed` first.", err=True)
+        raise typer.Exit(1) from None
+    except EmbedderUnavailable as error:
+        typer.echo(str(error), err=True)
         raise typer.Exit(1) from None
     except RateLimited:
         typer.echo(
@@ -287,6 +296,12 @@ def eval_run(
         raise typer.Exit(1) from None
     except RecordsMissing as error:
         typer.echo(f"{error}. Run `cerebro parse fandom` first.", err=True)
+        raise typer.Exit(1) from None
+    except VectorsMissing as error:
+        typer.echo(f"{error}. Run `cerebro embed` first.", err=True)
+        raise typer.Exit(1) from None
+    except EmbedderUnavailable as error:
+        typer.echo(str(error), err=True)
         raise typer.Exit(1) from None
 
     typer.echo(

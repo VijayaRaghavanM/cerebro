@@ -19,12 +19,14 @@ from cerebro.adapters.jsonl_pages import JsonlPageStore
 from cerebro.adapters.langgraph_agent import LangGraphAgent
 from cerebro.adapters.llm_judge import LlmJudge
 from cerebro.adapters.mistral import ministral
-from cerebro.adapters.numpy_vectors import NumpyVectorStore
+from cerebro.adapters.numpy_vectors import NumpyVectorIndex, NumpyVectorStore
+from cerebro.adapters.ollama import MODEL as EMBEDDING_MODEL
 from cerebro.adapters.ollama import OllamaEmbedder
 from cerebro.adapters.openai_chat import openai_chat
 from cerebro.adapters.sqlite_chunks import SqliteChunkIndex
 from cerebro.adapters.sqlite_comicvine import SqliteComicVineStore
 from cerebro.adapters.sqlite_records import SqliteRecordStore
+from cerebro.adapters.vector_chunks import VectorChunkSearch
 from cerebro.application import (
     chunking,
     crawl,
@@ -37,10 +39,12 @@ from cerebro.application import (
     scoring,
 )
 from cerebro.application import crawl_comicvine as comicvine_crawl
+from cerebro.application.retrieval import FusedSearch
 from cerebro.domain.answers import Step
 from cerebro.domain.evaluation import Exchange, Split
 from cerebro.domain.pages import Category
 from cerebro.domain.scoring import Price
+from cerebro.ports.chunks import ChunkSearch
 from cerebro.settings import Settings
 
 # The chunks share the records' file, so a search and the agent's tools read one file.
@@ -142,7 +146,26 @@ def ask(question: str, model: Contestant = Contestant.MINISTRAL_14B) -> Iterator
     Returns the agent's steps, ending with the answer. The key is checked here, not
     on the first step, so a missing key fails before any step is read.
     """
-    return _agent(chat_model(model)).steps(question)
+    return _agent(chat_model(model), chunk_search()).steps(question)
+
+
+def search_label() -> str:
+    """One line saying how `ask` searches the passages."""
+    if Settings().ollama_base_url is None:
+        return "Searching by keyword only (set OLLAMA_BASE_URL to add meaning)."
+
+    return "Searching by keyword and meaning."
+
+
+def chunk_search(transport: httpx.BaseTransport | None = None) -> ChunkSearch:
+    """The agent's passage search: keyword and meaning fused when OLLAMA_BASE_URL is
+    set, keyword alone when it is not. Query embeddings are sent through `transport`.
+    """
+    url = Settings().ollama_base_url
+    if url is None:
+        return _chunks()
+
+    return _fused(url, transport)
 
 
 def run_eval(
@@ -157,14 +180,17 @@ def run_eval(
 
     The run is named after the model and split unless `run_name` says otherwise,
     so running the same command again resumes the same run. Every model exchange
-    is kept in the run's folder, so `replay_run` can rerun it.
+    is kept in the run's folder, so `replay_run` can rerun it. That includes the
+    query embeddings, which come from the same server as the search's meaning.
     """
     name = run_name or f"{model}-{split or 'all'}"
     questions = JsonlGoldenSet(GOLDEN_FILE).questions(split)
 
     def ask_model(question: str, exchanges: list[Exchange]) -> Iterator[Step]:
         recorder = RecordingTransport(exchanges=exchanges)
-        return _agent(chat_model(model, recorder)).steps(question)
+        return _agent(chat_model(model, recorder), chunk_search(recorder)).steps(
+            question
+        )
 
     return evaluation.run_eval(
         ask_model,
@@ -183,10 +209,17 @@ def replay_run(run_name: str) -> evaluation.ReplayReport:
     questions = JsonlGoldenSet(GOLDEN_FILE).questions(None)
 
     def reask(model: str, question: str, exchanges: list[Exchange]) -> Iterator[Step]:
+        # One replayer serves the model and the embedder, because the exchanges
+        # are kept in the order they were sent. The run decides which search is
+        # replayed: one that embedded a query used the server, and one that did not
+        # searched by keyword, so a replay needs neither the setting nor the server.
         replayer = ReplayTransport(exchanges)
-        return _agent(chat_model(Contestant(model), replayer, offline=True)).steps(
-            question
-        )
+        search: ChunkSearch = _chunks()
+        if any(_embedded(exchange) for exchange in exchanges):
+            search = _fused(_REPLAY_URL, replayer)
+
+        chat = chat_model(Contestant(model), replayer, offline=True)
+        return _agent(chat, search).steps(question)
 
     return evaluation.replay_run(reask, questions, JsonlRunStore(RUNS_DIR / run_name))
 
@@ -249,10 +282,11 @@ def chat_model(
 
 
 # What an offline model is built with: nothing is sent, so no real key is needed.
+_REPLAY_URL = "http://replay.invalid"
 _PLACEHOLDERS = {
     "mistral_api_key": SecretStr("replay"),
     "openrouter_api_key": SecretStr("replay"),
-    "ollama_base_url": "http://replay.invalid",
+    "ollama_base_url": _REPLAY_URL,
 }
 
 # Each contestant's builder takes the settings, the transport and whether the model
@@ -332,8 +366,22 @@ _PRICES: dict[Contestant, Price] = {
 }
 
 
-def _agent(model: BaseChatModel) -> LangGraphAgent:
-    return LangGraphAgent(model, _records(), _chunks())
+def _agent(model: BaseChatModel, chunks: ChunkSearch) -> LangGraphAgent:
+    return LangGraphAgent(model, _records(), chunks)
+
+
+def _fused(url: str, transport: httpx.BaseTransport | None) -> FusedSearch:
+    keyword = _chunks()
+    embedder = OllamaEmbedder(url, transport=transport)
+    vectors = NumpyVectorIndex(Settings().data_dir / "embeddings" / "text")
+
+    return FusedSearch([keyword, VectorChunkSearch(embedder, vectors, keyword)])
+
+
+def _embedded(exchange: Exchange) -> bool:
+    """Whether the exchange is a query sent to the embedding server."""
+    sent_to: object = exchange["request"].get("model")
+    return sent_to == EMBEDDING_MODEL
 
 
 def _pages() -> JsonlPageStore:

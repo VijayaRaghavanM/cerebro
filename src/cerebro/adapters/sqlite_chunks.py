@@ -9,7 +9,7 @@ from pathlib import Path
 
 from cerebro.adapters.sqlite import has_table, transaction
 from cerebro.domain.chunks import Chunk, ChunkHit
-from cerebro.ports.chunks import ChunkReader, ChunkSearch, ChunkStore
+from cerebro.ports.chunks import ChunkLookup, ChunkReader, ChunkSearch, ChunkStore
 from cerebro.ports.records import RecordsMissing
 
 # What a chunk search reads from a query: runs of letters and digits, as the index's
@@ -18,7 +18,7 @@ from cerebro.ports.records import RecordsMissing
 SEARCH_WORD = re.compile(r"\w+")
 
 
-class SqliteChunkIndex(ChunkStore, ChunkSearch, ChunkReader):
+class SqliteChunkIndex(ChunkStore, ChunkSearch, ChunkReader, ChunkLookup):
     """Character page chunks and their BM25 index, in the records file.
 
     The index holds each chunk's prefix and its text as two columns, so the prefix
@@ -56,7 +56,7 @@ class SqliteChunkIndex(ChunkStore, ChunkSearch, ChunkReader):
             )
             db.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')")
 
-    # Reading: one chunk at a time, in the order they were stored.
+    # Reading: all the chunks in the order they were stored, or some by id.
 
     def chunks(self) -> Iterator[Chunk]:
         # Checked before the generator starts, so a missing table fails at the call.
@@ -69,6 +69,20 @@ class SqliteChunkIndex(ChunkStore, ChunkSearch, ChunkReader):
         with closing(sqlite3.connect(self.path)) as db:
             for row in db.execute("SELECT * FROM chunks ORDER BY rowid"):
                 yield Chunk(*row)
+
+    def chunks_by_id(self, ids: list[str]) -> list[Chunk]:
+        if not has_table(self.path, "chunks"):
+            raise RecordsMissing("No chunks are stored yet")
+
+        if not ids:
+            return []
+
+        marks = ", ".join("?" * len(ids))
+        with closing(sqlite3.connect(self.path)) as db:
+            rows = db.execute(f"SELECT * FROM chunks WHERE id IN ({marks})", ids)
+            found = {row[0]: Chunk(*row) for row in rows}
+
+        return [found[id] for id in ids if id in found]
 
     # Searching.
 

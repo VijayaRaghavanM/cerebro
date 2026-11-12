@@ -25,7 +25,7 @@ class Chunk:
 
 @dataclass(frozen=True)
 class ChunkHit:
-    """A chunk a search found, with its BM25 score (higher is better)."""
+    """A chunk a search found, with the search's score for it (higher is better)."""
 
     chunk: Chunk
     score: float

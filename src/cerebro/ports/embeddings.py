@@ -26,6 +26,10 @@ class Embedder(ABC):
         """
 
 
+class VectorsMissing(Exception):
+    """No vectors are stored yet."""
+
+
 class VectorStore(ABC):
     """Keeps vectors in numbered parts, so a long run can stop and resume."""
 
@@ -40,4 +44,16 @@ class VectorStore(ABC):
         """Keep one vector per chunk id as part `number`.
 
         The part counts as saved only once all of it is written.
+        """
+
+
+class VectorIndex(ABC):
+    """Finds the stored vectors nearest to a vector."""
+
+    @abstractmethod
+    def nearest(self, vector: list[float], limit: int) -> list[tuple[str, float]]:
+        """The chunk ids whose vectors are nearest, with their scores (higher is
+        nearer), best first. The vectors have length 1, so a score is a cosine.
+
+        Raises VectorsMissing if no vectors are stored.
         """

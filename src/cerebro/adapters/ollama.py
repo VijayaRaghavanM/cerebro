@@ -24,8 +24,12 @@ def _unit(vector: list[float]) -> list[float]:
 class OllamaEmbedder(Embedder):
     """Embeds text with nomic-embed-text, in the batches the caller sends."""
 
-    def __init__(self, url: str, *, client: httpx.Client | None = None) -> None:
-        self.client = client or httpx.Client(base_url=url, timeout=TIMEOUT_SECONDS)
+    def __init__(
+        self, url: str, *, transport: httpx.BaseTransport | None = None
+    ) -> None:
+        self.client = httpx.Client(
+            base_url=url, timeout=TIMEOUT_SECONDS, transport=transport
+        )
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         return self._embed([DOCUMENT_PREFIX + text for text in texts])

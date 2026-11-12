@@ -26,10 +26,7 @@ def embedder_over(
             sent.append(json.loads(request.content))
         return handler(request)
 
-    client = httpx.Client(
-        base_url="http://ollama.test", transport=httpx.MockTransport(serve)
-    )
-    return OllamaEmbedder("http://ollama.test", client=client)
+    return OllamaEmbedder("http://ollama.test", transport=httpx.MockTransport(serve))
 
 
 def reply(vectors: list[list[float]]) -> Server:
