@@ -11,7 +11,7 @@ A research agent that answers questions about Marvel characters, teams and comic
 
 The agent searches a local copy of the Marvel Database wiki and Comic Vine, calls tools to look things up, and cites the record behind every claim. The evaluation suite runs a fixed set of questions, each checked against the records, against several models and reports correctness, grounding, refusals, latency and cost per solved question.
 
-Status: early. The data pipeline runs, and the agent answers questions with citations, in the CLI or on a local chat page that shows each tool call as it happens. The evaluation suite answers the golden questions with a chosen model, has a second model judge the answers, and scores them.
+Status: early. The data pipeline runs, and the agent answers questions with citations, in the CLI or on a local chat page that shows each tool call as it happens. The evaluation suite answers the golden questions with a chosen model, has a second model judge the answers, and scores them. Results of the first full evaluation, four models in five runs, are in [RESULTS.md](RESULTS.md).
 
 ## Development
 
