@@ -248,11 +248,12 @@ def ask(
         raise typer.Exit(1) from None
     except RateLimited:
         typer.echo(
-            "Mistral is rate limiting requests; try again in a minute.", err=True
+            "The model provider is rate limiting requests; try again in a minute.",
+            err=True,
         )
         raise typer.Exit(1) from None
     except ModelTimeout:
-        typer.echo("Mistral did not reply in time.", err=True)
+        typer.echo("The model did not reply in time.", err=True)
         raise typer.Exit(1) from None
     except ProviderError as error:
         typer.echo(str(error), err=True)

@@ -48,10 +48,10 @@ def stream(steps: Iterator[Step]) -> Iterator[str]:
     except RecordsMissing as error:
         yield event("error", {"message": f"{error}. Run `cerebro parse fandom` first."})
     except RateLimited:
-        message = "Mistral is rate limiting requests; try again in a minute."
+        message = "The model provider is rate limiting requests; try again in a minute."
         yield event("error", {"message": message})
     except ModelTimeout:
-        yield event("error", {"message": "Mistral did not reply in time."})
+        yield event("error", {"message": "The model did not reply in time."})
     except ProviderError as error:
         yield event("error", {"message": str(error)})
 

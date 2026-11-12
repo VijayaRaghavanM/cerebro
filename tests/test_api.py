@@ -98,7 +98,12 @@ def test_ask_ends_the_stream_with_an_error_event_after_a_failure(
         ("call", {"tool": "search_pages", "argument": "Wolverine"}),
         (
             "error",
-            {"message": "Mistral is rate limiting requests; try again in a minute."},
+            {
+                "message": (
+                    "The model provider is rate limiting requests; "
+                    "try again in a minute."
+                )
+            },
         ),
     ]
 

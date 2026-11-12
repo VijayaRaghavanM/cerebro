@@ -166,7 +166,7 @@ def test_ask_reports_a_failure_that_comes_after_some_steps(
     assert result.output == (
         SEARCH_LINE + "search_pages: Wolverine\n"
         "  James Howlett (Earth-616)\n"
-        "Mistral is rate limiting requests; try again in a minute.\n"
+        "The model provider is rate limiting requests; try again in a minute.\n"
     )
 
 
@@ -179,9 +179,9 @@ def test_ask_reports_a_failure_that_comes_after_some_steps(
         ),
         (
             RateLimited(),
-            "Mistral is rate limiting requests; try again in a minute.",
+            "The model provider is rate limiting requests; try again in a minute.",
         ),
-        (ModelTimeout(), "Mistral did not reply in time."),
+        (ModelTimeout(), "The model did not reply in time."),
         (ProviderError("Mistral said no"), "Mistral said no"),
     ],
 )
