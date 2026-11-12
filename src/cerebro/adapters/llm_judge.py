@@ -8,16 +8,18 @@ import openai
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.rate_limiters import InMemoryRateLimiter
+from pydantic import SecretStr
 
+from cerebro.adapters.openai_chat import openai_chat
 from cerebro.adapters.provider_errors import port_error
 from cerebro.domain.evaluation import Verdict
 from cerebro.ports.evaluation import Judge, VerdictUnreadable
 
-BASE_URL = "https://api.cerebras.ai/v1"
-MODEL = "gpt-oss-120b"
+_BASE_URL = "https://api.cerebras.ai/v1"
+_MODEL = "gpt-oss-120b"
 # Cerebras takes the reasoning effort as a top-level field. Low is enough to compare
 # an answer with a few facts, and spends fewer of the day's tokens.
-EXTRA_BODY = {"reasoning_effort": "low"}
+_EXTRA_BODY = {"reasoning_effort": "low"}
 
 # The free tier allows 5 requests a minute. The margin is the same one Mistral's
 # pace needed: network delay can put one more request inside a window.
@@ -25,7 +27,7 @@ REQUESTS_PER_MINUTE = 5
 MARGIN_SECONDS = 2
 SECONDS_BETWEEN_REQUESTS = 60 / REQUESTS_PER_MINUTE + MARGIN_SECONDS
 # The limit is per account, so every judge in the process shares one pace.
-PACE = InMemoryRateLimiter(
+_PACE = InMemoryRateLimiter(
     requests_per_second=1 / SECONDS_BETWEEN_REQUESTS, max_bucket_size=1
 )
 
@@ -83,6 +85,19 @@ class LlmJudge(Judge):
             raise port_error(error) from error
 
         return _verdict(reply.text)
+
+
+def cerebras_judge(api_key: SecretStr) -> LlmJudge:
+    """The judge on Cerebras's free tier, waiting its turn between requests."""
+    model = openai_chat(
+        _BASE_URL,
+        _MODEL,
+        api_key=api_key,
+        extra_body=_EXTRA_BODY,
+        rate_limiter=_PACE,
+    )
+
+    return LlmJudge(model)
 
 
 def _verdict(reply: str) -> Verdict:

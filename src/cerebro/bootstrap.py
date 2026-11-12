@@ -8,7 +8,6 @@ import httpx
 from langchain_core.language_models import BaseChatModel
 from pydantic import SecretStr
 
-from cerebro.adapters import llm_judge
 from cerebro.adapters.comicvine_api import ComicVineClient
 from cerebro.adapters.comicvine_dump import ComicVineDump
 from cerebro.adapters.fandom import FandomClient
@@ -17,7 +16,7 @@ from cerebro.adapters.http_recording import RecordingTransport, ReplayTransport
 from cerebro.adapters.jsonl_evaluation import JsonlGoldenSet, JsonlRunStore
 from cerebro.adapters.jsonl_pages import JsonlPageStore
 from cerebro.adapters.langgraph_agent import LangGraphAgent
-from cerebro.adapters.llm_judge import LlmJudge
+from cerebro.adapters.llm_judge import cerebras_judge
 from cerebro.adapters.mistral import ministral
 from cerebro.adapters.numpy_vectors import NumpyVectorIndex, NumpyVectorStore
 from cerebro.adapters.ollama import MODEL as EMBEDDING_MODEL
@@ -247,15 +246,7 @@ def judge_run(
     if key is None:
         raise MissingSetting("CEREBRAS_API_KEY")
 
-    judge = LlmJudge(
-        openai_chat(
-            llm_judge.BASE_URL,
-            llm_judge.MODEL,
-            api_key=key,
-            extra_body=llm_judge.EXTRA_BODY,
-            rate_limiter=llm_judge.PACE,
-        )
-    )
+    judge = cerebras_judge(key)
     questions = JsonlGoldenSet(GOLDEN_FILE).questions(None)
 
     return judging.judge_run(
