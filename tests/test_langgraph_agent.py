@@ -1,3 +1,4 @@
+import time
 from collections.abc import Iterator, Sequence
 from typing import Any
 
@@ -30,7 +31,7 @@ from cerebro.adapters.langgraph_agent import (
 )
 from cerebro.domain.answers import REFUSAL, Answer, Source, ToolCall, ToolReply
 from cerebro.domain.pages import Category
-from cerebro.domain.records import Character, PageHit
+from cerebro.domain.records import Character, PageHit, Record
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
 
 TITLE = "Ann Doe (Earth-1)"
@@ -256,6 +257,39 @@ def test_a_second_page_is_numbered_after_the_first() -> None:
     answer = final_answer(LangGraphAgent(model, both, passages()), "Who?")
 
     assert [s.title for s in answer.sources] == [TITLE, "Bob Roe (Earth-1)"]
+
+
+class SlowFirstLookup(FakeLookup):
+    """A lookup whose read of one title is slow, so a parallel run finishes it last."""
+
+    def __init__(self, slow: str, records: list[Character]) -> None:
+        super().__init__([], list(records))
+        self.slow = slow
+
+    def record(self, title: str) -> Record | None:
+        if title == self.slow:
+            time.sleep(0.05)
+        return super().record(title)
+
+
+def test_tools_asked_in_one_step_are_numbered_in_the_order_asked() -> None:
+    other = "Bob Roe (Earth-1)"
+    slow = SlowFirstLookup(
+        TITLE,
+        [character(name="Ann Doe"), blank(Character, pageid=2, title=other, revid=1)],
+    )
+    both = AIMessage(
+        content="",
+        tool_calls=[
+            {"name": "read_page", "args": {"title": TITLE}, "id": "first"},
+            {"name": "read_page", "args": {"title": other}, "id": "second"},
+        ],
+    )
+    model = scripted(both, reply("Ann Doe controls the weather [1]."))
+
+    answer = final_answer(LangGraphAgent(model, slow, passages()), "Who?")
+
+    assert [s.title for s in answer.sources] == [TITLE]
 
 
 def test_a_marker_with_no_source_shows_as_unknown_beside_a_real_citation() -> None:

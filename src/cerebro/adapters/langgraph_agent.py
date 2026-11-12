@@ -133,7 +133,10 @@ class LangGraphAgent(Agent):
         try:
             for state in agent.stream(
                 {"messages": [("user", question)]},
-                {"recursion_limit": RECURSION_LIMIT},
+                # One tool at a time: source numbers follow the order the model
+                # asked, or replaying a saved run differs. The tools are local, so
+                # running them in turn costs nothing noticeable.
+                {"recursion_limit": RECURSION_LIMIT, "max_concurrency": 1},
                 stream_mode="values",
             ):
                 # Each state holds every message so far; only the new ones are steps.
