@@ -1,5 +1,5 @@
 import { useReducer, useState, type FormEvent } from "react";
-import { splitCitations } from "./citations";
+import { AnswerText } from "./AnswerText";
 import { idle, reduce, type Answer, type Step } from "./session";
 import { ask } from "./stream";
 
@@ -64,21 +64,9 @@ function Trace({ steps }: { steps: Step[] }) {
 }
 
 function Result({ answer }: { answer: Answer }) {
-  const parts = splitCitations(answer.text, answer.sources);
-
   return (
     <section>
-      <p className="answer">
-        {parts.map((part, index) =>
-          part.kind === "citation" ? (
-            <a key={index} href={part.url} target="_blank" rel="noreferrer">
-              {part.label}
-            </a>
-          ) : (
-            part.text
-          ),
-        )}
-      </p>
+      <AnswerText text={answer.text} sources={answer.sources} />
 
       <ol className="sources">
         {answer.sources.map((source) => (

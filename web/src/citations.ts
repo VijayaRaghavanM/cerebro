@@ -1,28 +1,13 @@
 import type { Source } from "./stream";
 
-export type Part =
-  | { kind: "text"; text: string }
-  | { kind: "citation"; label: string; url: string };
-
 // Citations are numbered from 1 in the order of `sources`. A marker with no
-// matching source, such as [?], stays plain text.
-export function splitCitations(text: string, sources: Source[]): Part[] {
-  const parts: Part[] = [];
-  let plain = "";
+// matching source, such as [?], stays as it is. The URL goes in angle brackets
+// because wiki URLs contain parentheses, which would end a Markdown link early.
+export function linkCitations(text: string, sources: Source[]): string {
+  return text.replace(/\[(\d+)\]/g, (marker, number: string) => {
+    const source = sources[Number(number) - 1];
+    if (!source) return marker;
 
-  for (const piece of text.split(/(\[[^\]]*\])/)) {
-    const number = /^\[(\d+)\]$/.exec(piece)?.[1];
-    const source = number ? sources[Number(number) - 1] : undefined;
-
-    if (source) {
-      if (plain) parts.push({ kind: "text", text: plain });
-      plain = "";
-      parts.push({ kind: "citation", label: piece, url: source.url });
-    } else {
-      plain += piece;
-    }
-  }
-
-  if (plain) parts.push({ kind: "text", text: plain });
-  return parts;
+    return `[\\[${number}\\]](<${source.url}>)`;
+  });
 }

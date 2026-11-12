@@ -1,36 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { splitCitations } from "./citations";
+import { linkCitations } from "./citations";
 
 const sources = [
   { title: "A", url: "https://wiki/A" },
-  { title: "B", url: "https://wiki/B" },
+  { title: "B", url: "https://wiki/Avengers_(Earth-616)" },
 ];
 
-describe("splitCitations", () => {
-  it("links [n] to the nth source", () => {
-    expect(splitCitations("One [1] and two [2].", sources)).toEqual([
-      { kind: "text", text: "One " },
-      { kind: "citation", label: "[1]", url: "https://wiki/A" },
-      { kind: "text", text: " and two " },
-      { kind: "citation", label: "[2]", url: "https://wiki/B" },
-      { kind: "text", text: "." },
-    ]);
+describe("linkCitations", () => {
+  it("turns [n] into a link to the nth source, URL in angle brackets", () => {
+    expect(linkCitations("One [1].", sources)).toBe("One [\\[1\\]](<https://wiki/A>).");
   });
 
-  it("leaves [?] and numbers without a source as plain text", () => {
-    expect(splitCitations("Odd [?] and [3] and [0].", sources)).toEqual([
-      { kind: "text", text: "Odd [?] and [3] and [0]." },
-    ]);
+  it("links several citations", () => {
+    expect(linkCitations("[1] and [2]", sources)).toBe(
+      "[\\[1\\]](<https://wiki/A>) and [\\[2\\]](<https://wiki/Avengers_(Earth-616)>)",
+    );
   });
 
-  it("joins plain text around an unknown marker", () => {
-    expect(splitCitations("a [?] b [1]", sources)).toEqual([
-      { kind: "text", text: "a [?] b " },
-      { kind: "citation", label: "[1]", url: "https://wiki/A" },
-    ]);
-  });
-
-  it("returns nothing for empty text", () => {
-    expect(splitCitations("", sources)).toEqual([]);
+  it("leaves [?] and numbers without a source as they are", () => {
+    expect(linkCitations("Odd [?] and [3] and [0].", sources)).toBe("Odd [?] and [3] and [0].");
   });
 });

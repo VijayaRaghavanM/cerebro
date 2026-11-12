@@ -79,8 +79,12 @@ button:disabled {
   margin-left: 1rem;
 }
 
-.answer {
-  white-space: pre-wrap;
+.answer > :first-child {
+  margin-top: 0;
+}
+
+.answer > :last-child {
+  margin-bottom: 0;
 }
 
 .cost {
