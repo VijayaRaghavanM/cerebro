@@ -108,7 +108,7 @@ def ask(question: str) -> Iterator[Step]:
 
     model = ministral(settings.mistral_api_key)
 
-    return LangGraphAgent(model, _records()).steps(question)
+    return LangGraphAgent(model, _records(), _chunks()).steps(question)
 
 
 def _pages() -> JsonlPageStore:

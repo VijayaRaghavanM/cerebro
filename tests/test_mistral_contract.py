@@ -10,7 +10,14 @@ from pathlib import Path
 
 import httpx
 import pytest
-from helpers import FakeLookup, RecordingTransport, character, final_answer, replay
+from helpers import (
+    FakeChunkSearch,
+    FakeLookup,
+    RecordingTransport,
+    character,
+    final_answer,
+    replay,
+)
 from langchain_core.rate_limiters import InMemoryRateLimiter
 from langchain_mistralai import ChatMistralAI
 from pydantic import SecretStr
@@ -59,7 +66,7 @@ def model_over(
 def ann_agent(model: ChatMistralAI) -> LangGraphAgent:
     ann = character(name="Anna Doe-Smith", current_alias="Ann Doe")
     hits = [PageHit(ann.title, Category.CHARACTERS, 5)]
-    return LangGraphAgent(model, FakeLookup(hits, [ann]))
+    return LangGraphAgent(model, FakeLookup(hits, [ann]), FakeChunkSearch())
 
 
 def test_a_recorded_answer_is_read_back() -> None:

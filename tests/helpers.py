@@ -10,6 +10,7 @@ import httpx
 
 from cerebro.adapters.fandom_wikitext import parse_character, parse_comic, parse_team
 from cerebro.domain.answers import Answer
+from cerebro.domain.chunks import Chunk, ChunkHit
 from cerebro.domain.comicvine import (
     ComicVineCharacter,
     ComicVineDetail,
@@ -18,6 +19,7 @@ from cerebro.domain.comicvine import (
 from cerebro.domain.pages import RawPage
 from cerebro.domain.records import Character, Comic, PageHit, Record, Team
 from cerebro.ports.agent import Agent
+from cerebro.ports.chunks import ChunkSearch
 from cerebro.ports.records import RecordLookup
 
 if TYPE_CHECKING:
@@ -153,6 +155,24 @@ class FakeLookup(RecordLookup):
 
     def url(self, title: str) -> str:
         return f"https://wiki.example/{title.replace(' ', '_')}"
+
+
+def passage(title: str, section: str, text: str) -> ChunkHit:
+    """A made-up search hit: a chunk of this page and section."""
+    chunk = Chunk("1:7:0", 1, 7, 0, title, section, "", text)
+    return ChunkHit(chunk, 1.0)
+
+
+class FakeChunkSearch(ChunkSearch):
+    """A chunk search that answers the hits it was given, up to the limit."""
+
+    def __init__(self, hits: list[ChunkHit] | None = None) -> None:
+        self.hits = hits or []
+        self.limits: list[int] = []
+
+    def search(self, query: str, limit: int) -> list[ChunkHit]:
+        self.limits.append(limit)
+        return self.hits[:limit]
 
 
 # Running an agent

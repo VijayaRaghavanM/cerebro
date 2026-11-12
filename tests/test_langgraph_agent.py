@@ -3,7 +3,15 @@ from typing import Any
 
 import httpx
 import pytest
-from helpers import FakeLookup, character, detail, final_answer, vine
+from helpers import (
+    FakeChunkSearch,
+    FakeLookup,
+    character,
+    detail,
+    final_answer,
+    passage,
+    vine,
+)
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel, GenericFakeChatModel
 from langchain_core.messages import AIMessage, BaseMessage
@@ -72,7 +80,7 @@ def scripted(*replies: AIMessage) -> ScriptedModel:
 
 
 def call(name: str, argument: str, tokens: tuple[int, int] = (10, 2)) -> AIMessage:
-    key = "name" if name == "search_pages" else "title"
+    key = {"search_pages": "name", "search_text": "query"}.get(name, "title")
     return AIMessage(
         content="",
         tool_calls=[{"name": name, "args": {key: argument}, "id": f"id{argument}"}],
@@ -102,8 +110,19 @@ def lookup(matched: bool = False) -> FakeLookup:
     return FakeLookup(hits, [ann], comicvine)
 
 
+def passages() -> FakeChunkSearch:
+    return FakeChunkSearch(
+        [
+            passage(TITLE, "History", "She called down rain."),
+            passage("Storm Club (Earth-1)", "Members", "Ann leads."),
+            passage(TITLE, "Powers", "She flies."),
+        ]
+    )
+
+
 def ask(model: BaseChatModel, matched: bool = False) -> Any:
-    return final_answer(LangGraphAgent(model, lookup(matched)), "Who is Ann Doe?")
+    agent = LangGraphAgent(model, lookup(matched), passages())
+    return final_answer(agent, "Who is Ann Doe?")
 
 
 def test_a_search_a_read_and_a_cited_reply_make_an_answer() -> None:
@@ -131,7 +150,7 @@ def test_steps_show_each_call_and_reply_in_order_then_the_answer() -> None:
         reply("Ann Doe controls the weather [1]."),
     )
 
-    steps = list(LangGraphAgent(model, lookup()).steps("Who is Ann Doe?"))
+    steps = list(LangGraphAgent(model, lookup(), passages()).steps("Who is Ann Doe?"))
 
     search, found, read, page, final = steps
     assert search == ToolCall("search_pages", "ann")
@@ -149,7 +168,9 @@ def test_steps_show_each_call_and_reply_in_order_then_the_answer() -> None:
 def test_a_run_stopped_by_the_cap_still_ends_with_the_gave_up_answer() -> None:
     loop = [call("search_pages", f"ann{n}") for n in range(MAX_TOOL_CALLS + 5)]
 
-    steps = list(LangGraphAgent(scripted(*loop), lookup()).steps("Who?"))
+    agent = LangGraphAgent(scripted(*loop), lookup(), passages())
+
+    steps = list(agent.steps("Who?"))
 
     final = steps[-1]
     assert isinstance(final, Answer)
@@ -229,7 +250,7 @@ def test_a_second_page_is_numbered_after_the_first() -> None:
         reply("Both [1] [2]."),
     )
 
-    answer = final_answer(LangGraphAgent(model, both), "Who?")
+    answer = final_answer(LangGraphAgent(model, both, passages()), "Who?")
 
     assert [s.title for s in answer.sources] == [TITLE, "Bob Roe (Earth-1)"]
 
@@ -286,6 +307,22 @@ def test_other_provider_failures_are_provider_errors(error: Exception) -> None:
 
 
 def test_tools_are_named_for_the_model() -> None:
-    tools: list[BaseTool] = LangGraphAgent(scripted(), lookup())._tools({})
+    agent = LangGraphAgent(scripted(), lookup(), passages())
 
-    assert [t.name for t in tools] == ["search_pages", "read_page"]
+    tools: list[BaseTool] = agent._tools({})
+
+    assert [t.name for t in tools] == ["search_pages", "search_text", "read_page"]
+
+
+def test_passages_are_numbered_for_the_model_and_citable() -> None:
+    model = scripted(call("search_text", "rain"), reply("Ann calls rain [2]."))
+
+    answer = ask(model)
+
+    tool_text = model.seen[1][-1].content
+    assert isinstance(tool_text, str)
+    assert tool_text.endswith(f"Sources: [1] {TITLE}, [2] Storm Club (Earth-1)")
+    assert answer.text == "Ann calls rain [1]."
+    assert answer.sources == (
+        Source("Storm Club (Earth-1)", "https://wiki.example/Storm_Club_(Earth-1)"),
+    )

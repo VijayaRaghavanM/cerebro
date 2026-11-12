@@ -12,9 +12,10 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from langgraph.errors import GraphRecursionError
 
-from cerebro.application.tools import ToolResult, read_page, search_pages
+from cerebro.application.tools import ToolResult, read_page, search_pages, search_text
 from cerebro.domain.answers import Answer, Source, Step, ToolCall, ToolReply
 from cerebro.ports.agent import Agent, ModelTimeout, ProviderError, RateLimited
+from cerebro.ports.chunks import ChunkSearch
 from cerebro.ports.records import RecordLookup
 
 # A lookup question needs a search and a read or two; the cap stops loops.
@@ -30,6 +31,9 @@ SYSTEM_PROMPT = (
     "Find a page with search_pages, then read it with read_page using an exact "
     "title from the results. Several pages can share a name: prefer the one in "
     "the most comics' cast lists unless the question asks for another version.\n"
+    "When the question describes a person, a topic or an event instead of naming "
+    "a page, or asks for a detail from deep in a long page, use search_text. "
+    "Passages it returns are evidence you can cite.\n"
     "Every fact in your answer must come from a page you read, followed by its "
     "source number in brackets, like [1].\n"
     "If the pages you read don't answer the question, say "
@@ -42,13 +46,20 @@ SYSTEM_PROMPT = (
 SEARCH_DESCRIPTION = (
     "Find pages whose names contain these words; returns titles, most-appearing first."
 )
+TEXT_DESCRIPTION = (
+    "Find passages by what they say, for a description, a topic or a fact "
+    "inside a long page; returns the best matches with their page titles."
+)
 READ_DESCRIPTION = "Read one page by its exact title."
 
 
 class LangGraphAgent(Agent):
-    def __init__(self, model: BaseChatModel, lookup: RecordLookup) -> None:
+    def __init__(
+        self, model: BaseChatModel, lookup: RecordLookup, chunks: ChunkSearch
+    ) -> None:
         self.model = model
         self.lookup = lookup
+        self.chunks = chunks
 
     def steps(self, question: str) -> Iterator[Step]:
         started = time.perf_counter()
@@ -119,16 +130,21 @@ class LangGraphAgent(Agent):
 
     def _tools(self, numbered: dict[Source, int]) -> list[BaseTool]:
         lookup = self.lookup
+        chunks = self.chunks
 
         @tool("search_pages", description=SEARCH_DESCRIPTION)
         def search(name: str) -> str:
             return search_pages(lookup, name).text
 
+        @tool("search_text", description=TEXT_DESCRIPTION)
+        def passages(query: str) -> str:
+            return _with_numbers(search_text(chunks, lookup, query), numbered)
+
         @tool("read_page", description=READ_DESCRIPTION)
         def read(title: str) -> str:
             return _with_numbers(read_page(lookup, title), numbered)
 
-        return [search, read]
+        return [search, passages, read]
 
     @staticmethod
     def _cited(

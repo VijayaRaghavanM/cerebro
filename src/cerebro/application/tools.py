@@ -1,4 +1,4 @@
-"""The agent's tools: search pages by name, and read one."""
+"""The agent's tools: search pages by name, search their text, and read one."""
 
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING
@@ -7,6 +7,7 @@ from cerebro.domain.answers import Source
 from cerebro.domain.comicvine import ComicVineCharacter, ComicVineIssue
 from cerebro.domain.pages import Category
 from cerebro.domain.records import Character, Comic, Team
+from cerebro.ports.chunks import ChunkSearch
 from cerebro.ports.records import RecordLookup
 
 if TYPE_CHECKING:
@@ -14,6 +15,8 @@ if TYPE_CHECKING:
 
 # A search lists few enough pages for the model to read them all.
 SEARCH_LIMIT = 10
+# Five passages keep a reply near 2,500 tokens.
+TEXT_LIMIT = 5
 # One read stays within a few thousand tokens.
 FIELD_LIMIT = 1500
 PAGE_LIMIT = 12000
@@ -77,6 +80,22 @@ def read_page(lookup: RecordLookup, title: str) -> ToolResult:
             sources.append(Source(f"Comic Vine: {character.name}", character.url))
 
     return ToolResult(text, tuple(sources))
+
+
+def search_text(chunks: ChunkSearch, lookup: RecordLookup, query: str) -> ToolResult:
+    hits = chunks.search(query, TEXT_LIMIT)
+    if not hits:
+        return ToolResult(f'No passages match "{query}".', ())
+
+    passages = []
+    sources: dict[Source, None] = {}
+    for hit in hits:
+        chunk = hit.chunk
+        passages.append(f"{chunk.title}, {chunk.section}\n{chunk.text}")
+        # Each page is cited once, however many of its passages were found.
+        sources[Source(chunk.title, lookup.url(chunk.title))] = None
+
+    return ToolResult("\n\n".join(passages), tuple(sources))
 
 
 def _lines(item: "DataclassInstance", skip: set[str] = NOT_FIELDS) -> list[str]:

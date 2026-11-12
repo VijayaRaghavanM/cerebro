@@ -1,11 +1,13 @@
-from helpers import FakeLookup, blank, character, detail, vine
+from helpers import FakeChunkSearch, FakeLookup, blank, character, detail, passage, vine
 
 from cerebro.application.tools import (
     FIELD_LIMIT,
     PAGE_LIMIT,
     SEARCH_LIMIT,
+    TEXT_LIMIT,
     read_page,
     search_pages,
+    search_text,
 )
 from cerebro.domain.answers import Source
 from cerebro.domain.comicvine import (
@@ -57,6 +59,52 @@ def test_a_search_with_no_hits_says_so() -> None:
     result = search_pages(FakeLookup(), "nobody")
 
     assert result.text == 'No pages match "nobody".'
+    assert result.sources == ()
+
+
+def test_a_text_search_shows_each_passage_with_its_page_and_section() -> None:
+    hits = [
+        passage("Ann Doe (Earth-1)", "History > Early Life", "She was born in rain."),
+        passage("Storm Club (Earth-1)", "Members", "Ann leads the club."),
+    ]
+
+    result = search_text(FakeChunkSearch(hits), FakeLookup(), "rain")
+
+    assert result.text == (
+        "Ann Doe (Earth-1), History > Early Life\nShe was born in rain.\n\n"
+        "Storm Club (Earth-1), Members\nAnn leads the club."
+    )
+
+
+def test_a_text_search_cites_each_page_once_in_hit_order() -> None:
+    hits = [
+        passage("Storm Club (Earth-1)", "Members", "one"),
+        passage("Ann Doe (Earth-1)", "History", "two"),
+        passage("Storm Club (Earth-1)", "History", "three"),
+    ]
+
+    result = search_text(FakeChunkSearch(hits), FakeLookup(), "storm")
+
+    assert result.sources == (
+        Source("Storm Club (Earth-1)", "https://wiki.example/Storm_Club_(Earth-1)"),
+        Source("Ann Doe (Earth-1)", "https://wiki.example/Ann_Doe_(Earth-1)"),
+    )
+
+
+def test_a_text_search_asks_for_a_limited_number_of_passages() -> None:
+    hits = [passage(f"Page {n}", "Intro", "text") for n in range(TEXT_LIMIT + 3)]
+    chunks = FakeChunkSearch(hits)
+
+    result = search_text(chunks, FakeLookup(), "page")
+
+    assert chunks.limits == [TEXT_LIMIT]
+    assert len(result.sources) == TEXT_LIMIT
+
+
+def test_a_text_search_with_no_hits_says_so() -> None:
+    result = search_text(FakeChunkSearch(), FakeLookup(), "nothing")
+
+    assert result.text == 'No passages match "nothing".'
     assert result.sources == ()
 
 
