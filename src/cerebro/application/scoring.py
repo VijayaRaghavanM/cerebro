@@ -191,11 +191,14 @@ def is_solved(
     pages_cited: int,
     verdict: Verdict | None,
 ) -> bool:
-    """A refusal or a clarification is solved when it is what was expected. An
-    answer is solved when it is correct and cites an expected page, if the question
-    has any. The judge says whether it is correct; with no verdict, it is correct
-    when it holds every expected fact.
+    """A refusal or a clarification is solved when it is what was expected, or an
+    outcome the question also accepts. An answer is solved when it is correct and
+    cites an expected page, if the question has any. The judge says whether it is
+    correct; with no verdict, it is correct when it holds every expected fact.
     """
+    if observed in question.also_accepts:
+        return True
+
     if question.expected_outcome != Outcome.ANSWER:
         return observed == question.expected_outcome
 

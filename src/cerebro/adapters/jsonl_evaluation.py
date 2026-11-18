@@ -190,6 +190,7 @@ def _question(data: dict[str, Any]) -> GoldenQuestion:
         license=data["license"],
         original=data.get("original"),
         source_author=data.get("source_author"),
+        also_accepts=tuple(Outcome(o) for o in data.get("also_accepts", ())),
     )
 
 

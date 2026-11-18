@@ -25,6 +25,7 @@ def test_golden_questions_are_read_with_their_optional_fields(tmp_path: Path) ->
             source_author="A. Writer",
             expected_outcome="refuse",
             expected_facts=[],
+            also_accepts=["clarify"],
         ),
     )
 
@@ -33,6 +34,8 @@ def test_golden_questions_are_read_with_their_optional_fields(tmp_path: Path) ->
     assert first == golden_question("a")
     assert first.original is None
     assert first.source_author is None
+    assert first.also_accepts == ()
+    assert second.also_accepts == (Outcome.CLARIFY,)
     assert second.split == Split.TEST
     assert second.expected_outcome == Outcome.REFUSE
     assert second.expected_facts == ()

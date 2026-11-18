@@ -143,6 +143,15 @@ def test_a_comic_vine_record_with_no_match_counts_as_no_page() -> None:
     assert (result.pages_cited, result.cited_total) == (1, 1)
 
 
+def test_an_outcome_the_question_also_accepts_is_solved() -> None:
+    asks = replace(answer("Do you mean Mar-Vell or Carol Danvers?"), sources=())
+
+    result = scored(asks, also_accepts=(Outcome.CLARIFY,))
+
+    assert result.observed == Outcome.CLARIFY
+    assert result.solved
+
+
 # Tools
 
 

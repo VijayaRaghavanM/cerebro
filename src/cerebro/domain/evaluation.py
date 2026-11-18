@@ -48,6 +48,9 @@ class GoldenQuestion:
     license: str
     original: str | None = None  # the question as first written, if it was reworded
     source_author: str | None = None
+    # Other outcomes that are also right, as when the answer is the same for every
+    # holder of a shared name, so asking which one is right too.
+    also_accepts: tuple[Outcome, ...] = ()
 
 
 @dataclass(frozen=True)
