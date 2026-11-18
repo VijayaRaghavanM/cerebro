@@ -210,3 +210,19 @@ def test_a_replay_of_a_keyword_run_stays_keyword_when_a_server_is_set(
     report = bootstrap.replay_run("r")
 
     assert (report.checked, report.mismatches) == (1, ())
+
+
+def test_a_replay_puts_main_reality_passages_first_as_the_run_did(
+    data_dir: Path, golden: None, no_network: None
+) -> None:
+    # The keyword search ranks the other reality's passage first.
+    other = Chunk("1:7:0", 1, 7, 0, "Ann Doe (Earth-1)", "Powers", "", "Weather!")
+    main = Chunk(
+        "2:7:0", 2, 7, 0, "Ann Doe (Earth-616)", "Powers", "", "She saw the weather."
+    )
+    SqliteChunkIndex(data_dir / "records.sqlite").replace_chunks([other, main])
+    record_run(data_dir)
+
+    report = bootstrap.replay_run("r")
+
+    assert (report.checked, report.mismatches) == (1, ())

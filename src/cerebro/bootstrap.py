@@ -41,7 +41,7 @@ from cerebro.application import (
     scoring,
 )
 from cerebro.application import crawl_comicvine as comicvine_crawl
-from cerebro.application.retrieval import FusedSearch
+from cerebro.application.retrieval import FusedSearch, MainRealityFirst
 from cerebro.domain.answers import Step
 from cerebro.domain.evaluation import Exchange, Split
 from cerebro.domain.pages import Category
@@ -164,10 +164,7 @@ def chunk_search(transport: httpx.BaseTransport | None = None) -> ChunkSearch:
     set, keyword alone when it is not. Query embeddings are sent through `transport`.
     """
     url = Settings().ollama_base_url
-    if url is None:
-        return _chunks()
-
-    return _fused(url, transport)
+    return _passage_search(url, transport)
 
 
 def run_eval(
@@ -216,9 +213,10 @@ def replay_run(run_name: str) -> evaluation.ReplayReport:
         # replayed: one that embedded a query used the server, and one that did not
         # searched by keyword, so a replay needs neither the setting nor the server.
         replayer = ReplayTransport(exchanges)
-        search: ChunkSearch = _chunks()
+        url = None
         if any(_embedded(exchange) for exchange in exchanges):
-            search = _fused(_REPLAY_URL, replayer)
+            url = _REPLAY_URL
+        search = _passage_search(url, replayer)
 
         chat = chat_model(Contestant(model), replayer, offline=True)
         return _agent(chat, search).steps(question)
@@ -387,6 +385,15 @@ def _model_prices() -> dict[str, Price]:
 
 def _agent(model: BaseChatModel, chunks: ChunkSearch) -> LangGraphAgent:
     return LangGraphAgent(model, _records(), chunks)
+
+
+def _passage_search(
+    url: str | None, transport: httpx.BaseTransport | None
+) -> ChunkSearch:
+    """Keyword and meaning fused when an embedding server is at `url`, keyword alone
+    when there is none; main-reality passages first either way."""
+    search: ChunkSearch = _chunks() if url is None else _fused(url, transport)
+    return MainRealityFirst(search)
 
 
 def _fused(url: str, transport: httpx.BaseTransport | None) -> FusedSearch:

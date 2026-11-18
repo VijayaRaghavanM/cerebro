@@ -1,5 +1,7 @@
 """Chunk search that combines other searches."""
 
+import re
+
 from cerebro.domain.chunks import Chunk, ChunkHit
 from cerebro.ports.chunks import ChunkSearch
 
@@ -38,3 +40,52 @@ class FusedSearch(ChunkSearch):
 
         top = ranked[:limit]
         return [ChunkHit(chunks[chunk_id], scores[chunk_id]) for chunk_id in top]
+
+
+# A character page's title ends with its reality, as in "Ororo Munroe (Earth-616)"
+# or "Rogue (Mojomedia) (Mojoverse)"; a comic page's title names no reality.
+MAIN_REALITY = "(Earth-616)"
+TRAILING_PARENTHETICAL = re.compile(r"\([^()]+\)\s*$")
+# A query that names a reality wants that reality's pages, so it keeps its ranking.
+NAMES_A_REALITY = re.compile(r"\bearth-|\bultimate\b|\bmcu\b", re.IGNORECASE)
+
+
+class MainRealityFirst(ChunkSearch):
+    """Passages from main-reality character pages come first, taking turns with comic
+    passages, then every other reality's, each group in the order the search ranked
+    it. Alternate realities share a character's text almost word for word, so a plain
+    ranking serves them as often as the main page."""
+
+    def __init__(self, search: ChunkSearch) -> None:
+        self.inner = search
+
+    def search(self, query: str, limit: int) -> list[ChunkHit]:
+        if NAMES_A_REALITY.search(query):
+            return self.inner.search(query, limit)
+
+        hits = self.inner.search(query, CANDIDATES)
+
+        # Turns, not one list: synopses that repeat a name hundreds of times would
+        # push the character's own page out of the results.
+        groups: dict[str, list[ChunkHit]] = {"main": [], "comic": [], "other": []}
+        for hit in hits:
+            groups[_page_kind(hit.chunk.title)].append(hit)
+
+        ranked = [*_take_turns(groups["main"], groups["comic"]), *groups["other"]]
+        return ranked[:limit]
+
+
+def _page_kind(title: str) -> str:
+    """The page's kind: "main" for a main-reality character page, "comic" for a comic
+    page, whose title names no reality, and "other" for any other reality's page."""
+    ending = TRAILING_PARENTHETICAL.search(title)
+    if ending is None:
+        return "comic"
+    return "main" if ending[0] == MAIN_REALITY else "other"
+
+
+def _take_turns(first: list[ChunkHit], second: list[ChunkHit]) -> list[ChunkHit]:
+    """One from each list in turn, starting with `first`, then the longer one's rest."""
+    turns = [hit for pair in zip(first, second, strict=False) for hit in pair]
+    shorter = min(len(first), len(second))
+    return turns + first[shorter:] + second[shorter:]

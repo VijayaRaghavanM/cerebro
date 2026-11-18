@@ -138,9 +138,9 @@
     "response": {
       "status": 200,
       "body": {
-        "id": "gen-1795011832-foScOFr2jUmkRk3QVzfd",
+        "id": "gen-1795012011-5HYrMbybqIx4Hv85M6Sn",
         "object": "chat.completion",
-        "created": 1795011832,
+        "created": 1795012011,
         "model": "mistralai/ministral-14b-2512",
         "provider": "Mistral",
         "system_fingerprint": null,
@@ -160,7 +160,7 @@
                 {
                   "type": "function",
                   "index": 0,
-                  "id": "ubB3IVBWd",
+                  "id": "K2rGrVELZ",
                   "function": {
                     "name": "search_text",
                     "arguments": "{\"query\": \"Marvel Comics Presents #170\"}"
@@ -174,17 +174,17 @@
           "prompt_tokens": 736,
           "completion_tokens": 17,
           "total_tokens": 753,
-          "cost": 0.0001506,
+          "cost": 3.54e-05,
           "is_byok": false,
           "prompt_tokens_details": {
-            "cached_tokens": 0,
+            "cached_tokens": 640,
             "cache_write_tokens": 0,
             "audio_tokens": 0,
             "video_tokens": 0
           },
           "cost_details": {
-            "upstream_inference_cost": 0.0001506,
-            "upstream_inference_prompt_cost": 0.0001472,
+            "upstream_inference_cost": 3.54e-05,
+            "upstream_inference_prompt_cost": 3.2e-05,
             "upstream_inference_completions_cost": 3.4e-06
           },
           "completion_tokens_details": {
@@ -215,7 +215,7 @@
           "tool_calls": [
             {
               "type": "function",
-              "id": "ubB3IVBWd",
+              "id": "K2rGrVELZ",
               "function": {
                 "name": "search_text",
                 "arguments": "{\"query\": \"Marvel Comics Presents #170\"}"
@@ -226,7 +226,7 @@
         {
           "content": "Marvel Comics Presents Vol 1 170, Notes\n\"In the Hands of the Mandarin (Part 2)\" and \"Suzi\" are part of the Hands of the Mandarin storyline.\n\"In the Hands of the Mandarin (Part 2)\" takes place prior to Iron Man Vol 1 307.\n\"Suzi\" takes place during the events of Force Works Vol 1 7 and the \"Century\" story from Marvel Comics Presents Vol 1 169.\n\nSources: [1] Marvel Comics Presents Vol 1 170",
           "role": "tool",
-          "tool_call_id": "ubB3IVBWd"
+          "tool_call_id": "K2rGrVELZ"
         }
       ],
       "temperature": 0.0,
@@ -354,9 +354,9 @@
     "response": {
       "status": 200,
       "body": {
-        "id": "gen-1795011833-2pyb9gX7n05wxjl08O8y",
+        "id": "gen-1795012012-6sRq8qcgtGtTEa1oFaHw",
         "object": "chat.completion",
-        "created": 1795011833,
+        "created": 1795012012,
         "model": "mistralai/ministral-14b-2512",
         "provider": "Mistral",
         "system_fingerprint": null,
@@ -376,10 +376,10 @@
                 {
                   "type": "function",
                   "index": 0,
-                  "id": "KmCsxQ0tk",
+                  "id": "WFvLQvXWm",
                   "function": {
                     "name": "search_text",
-                    "arguments": "{\"query\": \"Mandarin Marvel Comics Presents Vol 1 170\"}"
+                    "arguments": "{\"query\": \"Mandarin Marvel Comics Presents #170\"}"
                   }
                 }
               ]
@@ -388,9 +388,9 @@
         ],
         "usage": {
           "prompt_tokens": 872,
-          "completion_tokens": 23,
-          "total_tokens": 895,
-          "cost": 6.38e-05,
+          "completion_tokens": 20,
+          "total_tokens": 892,
+          "cost": 6.32e-05,
           "is_byok": false,
           "prompt_tokens_details": {
             "cached_tokens": 640,
@@ -399,9 +399,9 @@
             "video_tokens": 0
           },
           "cost_details": {
-            "upstream_inference_cost": 6.38e-05,
+            "upstream_inference_cost": 6.32e-05,
             "upstream_inference_prompt_cost": 5.92e-05,
-            "upstream_inference_completions_cost": 4.6e-06
+            "upstream_inference_completions_cost": 4e-06
           },
           "completion_tokens_details": {
             "reasoning_tokens": 0,
@@ -431,7 +431,7 @@
           "tool_calls": [
             {
               "type": "function",
-              "id": "ubB3IVBWd",
+              "id": "K2rGrVELZ",
               "function": {
                 "name": "search_text",
                 "arguments": "{\"query\": \"Marvel Comics Presents #170\"}"
@@ -442,7 +442,7 @@
         {
           "content": "Marvel Comics Presents Vol 1 170, Notes\n\"In the Hands of the Mandarin (Part 2)\" and \"Suzi\" are part of the Hands of the Mandarin storyline.\n\"In the Hands of the Mandarin (Part 2)\" takes place prior to Iron Man Vol 1 307.\n\"Suzi\" takes place during the events of Force Works Vol 1 7 and the \"Century\" story from Marvel Comics Presents Vol 1 169.\n\nSources: [1] Marvel Comics Presents Vol 1 170",
           "role": "tool",
-          "tool_call_id": "ubB3IVBWd"
+          "tool_call_id": "K2rGrVELZ"
         },
         {
           "content": null,
@@ -450,18 +450,18 @@
           "tool_calls": [
             {
               "type": "function",
-              "id": "KmCsxQ0tk",
+              "id": "WFvLQvXWm",
               "function": {
                 "name": "search_text",
-                "arguments": "{\"query\": \"Mandarin Marvel Comics Presents Vol 1 170\"}"
+                "arguments": "{\"query\": \"Mandarin Marvel Comics Presents #170\"}"
               }
             }
           ]
         },
         {
-          "content": "Marvel Comics Presents Vol 1 170, Notes\n\"In the Hands of the Mandarin (Part 2)\" and \"Suzi\" are part of the Hands of the Mandarin storyline.\n\"In the Hands of the Mandarin (Part 2)\" takes place prior to Iron Man Vol 1 307.\n\"Suzi\" takes place during the events of Force Works Vol 1 7 and the \"Century\" story from Marvel Comics Presents Vol 1 169.\n\nDaniel Berkhart (Earth-616), Trivia\nWhen J.M. DeMatteis introduced the character of Mad Jack in Spectacular Spider-Man Vol 1 241, he had no plan for who would be under the mask. DeMatteis intended to fill in the character's identity when he came up with a good idea for it, but had not yet decided who Mad Jack was going to be by the time that he left the book. Tom DeFalco later decided to connect Mad Jack with Danny Berkhart in Spider-Man: Mysterio Manifesto Vol 1 1.\n\nDaniel Berkhart (Earth-616), Profile\nname: Daniel Berkhart\ncurrent alias: Mysterio\naliases: Danny Berkhart,\nJack O'Lantern\nJack\nPumpkin-Headed Friend\nMad Jack\nnicknames: Misty the Wizard of Oz\nidentity: Secret\nreality: Earth-616\ngender: Male\norigin: Human, technology user\ncitizenship: American\noccupation: Criminal\naffiliation: Formerly:\nthe Sinister Six\nbase of operations: New York City, New York\nmarital status: Single\nplace of birth: United States\neducation: Unknown, presumably a degree in acting\nhair: Brown; Balding\neyes: Blue\nheight: 5'10\"\nweight: 160 lbs\nunusual features: Receding hairline, goatee, and mustache\nrelatives: Hudson Berkhart (son)\ndeath: Venom Vol 2 11\nkilled by: Jack O'Lantern (Crime-Master) (Earth-616)\ncause of death: Allegedly killed by the Crime-Master's Jack O'Lantern\nfirst appearance: Amazing Spider-Man Vol 1 141\ncreators: Gerry Conway; Ross Andru\n\nMarvel Comics Presents Vol 1 170, Story 1: In the Hands of the Mandarin (Part 2)- Inner Demons > Synopsis\nThe Mandarin fights and defeats incarnations of his past selves. He then uses the Heart of Darkness to transform his castle and a group of Chinese soldiers.\n\nSources: [1] Marvel Comics Presents Vol 1 170, [2] Daniel Berkhart (Earth-616)",
+          "content": "Marvel Comics Presents Vol 1 170, Notes\n\"In the Hands of the Mandarin (Part 2)\" and \"Suzi\" are part of the Hands of the Mandarin storyline.\n\"In the Hands of the Mandarin (Part 2)\" takes place prior to Iron Man Vol 1 307.\n\"Suzi\" takes place during the events of Force Works Vol 1 7 and the \"Century\" story from Marvel Comics Presents Vol 1 169.\n\nMarvel Comics Presents Vol 1 170, Story 1: In the Hands of the Mandarin (Part 2)- Inner Demons > Synopsis\nThe Mandarin fights and defeats incarnations of his past selves. He then uses the Heart of Darkness to transform his castle and a group of Chinese soldiers.\n\nSources: [1] Marvel Comics Presents Vol 1 170",
           "role": "tool",
-          "tool_call_id": "KmCsxQ0tk"
+          "tool_call_id": "WFvLQvXWm"
         }
       ],
       "temperature": 0.0,
@@ -589,9 +589,9 @@
     "response": {
       "status": 200,
       "body": {
-        "id": "gen-1795011835-6x6m12X6DDb8JD8Q6q8s",
+        "id": "gen-1795012013-IMBLT6ulOormniR8Li2V",
         "object": "chat.completion",
-        "created": 1795011835,
+        "created": 1795012013,
         "model": "mistralai/ministral-14b-2512",
         "provider": "Mistral",
         "system_fingerprint": null,
@@ -611,10 +611,10 @@
           }
         ],
         "usage": {
-          "prompt_tokens": 1497,
+          "prompt_tokens": 1075,
           "completion_tokens": 24,
-          "total_tokens": 1521,
-          "cost": 0.000189,
+          "total_tokens": 1099,
+          "cost": 0.0001046,
           "is_byok": false,
           "prompt_tokens_details": {
             "cached_tokens": 640,
@@ -623,8 +623,8 @@
             "video_tokens": 0
           },
           "cost_details": {
-            "upstream_inference_cost": 0.000189,
-            "upstream_inference_prompt_cost": 0.0001842,
+            "upstream_inference_cost": 0.0001046,
+            "upstream_inference_prompt_cost": 9.98e-05,
             "upstream_inference_completions_cost": 4.8e-06
           },
           "completion_tokens_details": {

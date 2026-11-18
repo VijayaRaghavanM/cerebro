@@ -3,7 +3,12 @@
 import pytest
 from helpers import FakeChunkSearch
 
-from cerebro.application.retrieval import CANDIDATES, RANK_OFFSET, FusedSearch
+from cerebro.application.retrieval import (
+    CANDIDATES,
+    RANK_OFFSET,
+    FusedSearch,
+    MainRealityFirst,
+)
 from cerebro.domain.chunks import Chunk, ChunkHit
 
 
@@ -65,3 +70,65 @@ def test_a_search_that_finds_nothing_leaves_the_other_ranking_as_it_was() -> Non
     fused = FusedSearch([found(), found("a", "b")])
 
     assert ids(fused.search("storm", limit=10)) == ["a", "b"]
+
+
+# Main reality first
+
+
+def pages(*titles: str) -> FakeChunkSearch:
+    """A search that finds one passage per title, best first."""
+    chunks = [
+        Chunk(str(n), n, 7, 0, title, "History", "", title)
+        for n, title in enumerate(titles)
+    ]
+    return FakeChunkSearch([ChunkHit(c, 99.0 - n) for n, c in enumerate(chunks)])
+
+
+def order(search: FakeChunkSearch, query: str = "storm", limit: int = 10) -> list[str]:
+    return [hit.chunk.title for hit in MainRealityFirst(search).search(query, limit)]
+
+
+def test_main_reality_passages_come_before_other_realities() -> None:
+    search = pages(
+        "Ann (Earth-1610)", "Ann (Earth-616)", "Bob (Mojoverse)", "Bob (Earth-616)"
+    )
+
+    assert order(search) == [
+        "Ann (Earth-616)",
+        "Bob (Earth-616)",
+        "Ann (Earth-1610)",
+        "Bob (Mojoverse)",
+    ]
+
+
+def test_comic_passages_take_turns_with_main_reality_ones() -> None:
+    search = pages(
+        "Storm Tales Vol 1 1",
+        "Storm Tales Vol 1 2",
+        "Storm Tales Vol 1 3",
+        "Ann (Earth-616)",
+        "Bob (Earth-616)",
+    )
+
+    assert order(search) == [
+        "Ann (Earth-616)", "Storm Tales Vol 1 1", "Bob (Earth-616)",
+        "Storm Tales Vol 1 2", "Storm Tales Vol 1 3",
+    ]  # fmt: skip
+
+
+def test_a_query_that_names_a_reality_keeps_the_ranking() -> None:
+    search = pages("Ann (Earth-1610)", "Ann (Earth-616)")
+
+    assert order(search, "Ultimate Ann") == ["Ann (Earth-1610)", "Ann (Earth-616)"]
+    assert order(search, "Ann earth-1610") == ["Ann (Earth-1610)", "Ann (Earth-616)"]
+
+
+def test_the_reordering_draws_on_the_candidates_and_returns_the_limit() -> None:
+    search = pages(*(f"Other {n} (Earth-2)" for n in range(30)), "Ann (Earth-616)")
+
+    assert order(search, limit=3) == [
+        "Ann (Earth-616)",
+        "Other 0 (Earth-2)",
+        "Other 1 (Earth-2)",
+    ]
+    assert search.limits == [CANDIDATES]
