@@ -126,10 +126,25 @@ def _name_note(lookup: RecordLookup, name: str) -> str:
     )
 
 
+def _no_page(lookup: RecordLookup, title: str) -> ToolResult:
+    """A guessed title ("Galactus (Earth-616)") gets the page the search ranks first,
+    so the model need not loop to find "Galan (Earth-616)"."""
+    name = TRAILING_TAG.sub("", title)
+    hits = lookup.find(name, 1)
+    if not hits:
+        return ToolResult(f'No page is titled "{title}". Search for it first.', ())
+
+    return ToolResult(
+        f'No page is titled "{title}". search_pages ranks "{hits[0].title}" first '
+        f'for "{name}".',
+        (),
+    )
+
+
 def read_page(lookup: RecordLookup, title: str) -> ToolResult:
     record = lookup.record(title)
     if record is None:
-        return ToolResult(f'No page is titled "{title}". Search for it first.', ())
+        return _no_page(lookup, title)
 
     blocks = ["\n".join([f"{title} ({READ_KINDS[type(record)]})", *_lines(record)])]
     if isinstance(record, Comic):
@@ -154,7 +169,7 @@ def compare_characters(lookup: RecordLookup, first: str, second: str) -> ToolRes
     for title in (first, second):
         record = lookup.record(title)
         if record is None:
-            return ToolResult(f'No page is titled "{title}". Search for it first.', ())
+            return _no_page(lookup, title)
 
         names = COMPARE_FIELDS.get(type(record))
         if names is None:
@@ -180,6 +195,11 @@ def compare_characters(lookup: RecordLookup, first: str, second: str) -> ToolRes
 
 
 def find_appearances(lookup: RecordLookup, title: str) -> ToolResult:
+    # A name that is not a page can still be a link's title in cast lists ("Captain
+    # America" gave 54 stray links from 1974), so ask for the page.
+    if lookup.record(title) is None:
+        return _no_page(lookup, title)
+
     appearances = lookup.appearances(title, APPEARANCE_LIMIT)
     if not appearances.total:
         return ToolResult(f'No comic\'s cast list names "{title}".', ())
@@ -199,7 +219,7 @@ def find_appearances(lookup: RecordLookup, title: str) -> ToolResult:
 def reading_order(lookup: RecordLookup, title: str) -> ToolResult:
     record = lookup.record(title)
     if record is None:
-        return ToolResult(f'No page is titled "{title}". Search for it first.', ())
+        return _no_page(lookup, title)
 
     character = (
         lookup.comicvine(record.pageid) if isinstance(record, Character) else None

@@ -331,10 +331,23 @@ def test_an_unknown_title_says_to_search() -> None:
     assert result.sources == ()
 
 
+def test_a_guessed_title_names_the_page_the_search_ranks_first() -> None:
+    galan = PageHit("Galan (Earth-616)", Category.CHARACTERS, 900)
+    lookup = FakeLookup([galan])
+
+    result = read_page(lookup, "Galactus (Earth-616)")
+
+    assert result.text == (
+        'No page is titled "Galactus (Earth-616)". search_pages ranks'
+        ' "Galan (Earth-616)" first for "Galactus".'
+    )
+    assert result.sources == ()
+
+
 def test_appearances_list_the_total_and_each_comic_with_its_date() -> None:
     title = "Ann Doe (Earth-1)"
     comics = [Appearance("Storm Tales Vol 1 1", "May 1951"), Appearance("Lost", None)]
-    lookup = FakeLookup(casts={title: comics})
+    lookup = FakeLookup(records=[character(name="Ann Doe")], casts={title: comics})
 
     result = find_appearances(lookup, title)
 
@@ -350,7 +363,7 @@ def test_appearances_list_the_total_and_each_comic_with_its_date() -> None:
 def test_appearances_ask_for_a_limited_number_of_comics() -> None:
     title = "Ann Doe (Earth-1)"
     comics = [Appearance(f"Issue {n}", "May 2000") for n in range(APPEARANCE_LIMIT + 5)]
-    lookup = FakeLookup(casts={title: comics})
+    lookup = FakeLookup(records=[character(name="Ann Doe")], casts={title: comics})
 
     result = find_appearances(lookup, title)
 
@@ -360,10 +373,24 @@ def test_appearances_ask_for_a_limited_number_of_comics() -> None:
 
 
 def test_a_page_in_no_cast_list_says_so_and_cites_nothing() -> None:
-    result = find_appearances(FakeLookup(), "Nobody")
+    ann = character(name="Ann Doe")
 
-    assert result.text == 'No comic\'s cast list names "Nobody".'
+    result = find_appearances(FakeLookup(records=[ann]), ann.title)
+
+    assert result.text == 'No comic\'s cast list names "Ann Doe (Earth-1)".'
     assert result.sources == ()
+
+
+def test_appearances_of_a_name_that_is_no_page_ask_for_the_page() -> None:
+    # A cast list can link a name that is no page ("Captain America"), and those
+    # stray links are not the character's appearances.
+    galan = PageHit("Galan (Earth-616)", Category.CHARACTERS, 900)
+    lookup = FakeLookup([galan], casts={"Galactus": [Appearance("Stray", None)]})
+
+    result = find_appearances(lookup, "Galactus")
+
+    assert result.text.startswith('No page is titled "Galactus".')
+    assert lookup.limits == [1]
 
 
 def bob() -> Character:
