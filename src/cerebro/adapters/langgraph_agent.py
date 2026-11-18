@@ -120,16 +120,10 @@ class LangGraphAgent(Agent):
         )
 
         messages = yield from self._run(agent, question)
+        text, cited = self._final(messages, numbered)
 
         ai = [m for m in messages if isinstance(m, AIMessage)]
         tool_replies = [m for m in messages if isinstance(m, ToolMessage)]
-        text, cited = self._cited(ai[-1].text if ai else "", numbered)
-        # A reply to the user is fair without a citation; an answer is not.
-        if not cited and not text.rstrip().endswith("?"):
-            text = REFUSAL
-        # The run stopped while the model still wanted a tool.
-        if ai and ai[-1].tool_calls:
-            text, cited = GAVE_UP, ()
 
         usage = [m.usage_metadata for m in ai if m.usage_metadata]
         yield Answer(
@@ -143,6 +137,19 @@ class LangGraphAgent(Agent):
         )
 
     # Running the graph
+
+    def _final(
+        self, messages: list[BaseMessage], numbered: dict[Source, int]
+    ) -> tuple[str, tuple[Source, ...]]:
+        ai = [m for m in messages if isinstance(m, AIMessage)]
+        text, cited = self._cited(ai[-1].text if ai else "", numbered)
+        # A reply to the user is fair without a citation; an answer is not.
+        if not cited and not text.rstrip().endswith("?"):
+            text = REFUSAL
+        # The run stopped while the model still wanted a tool.
+        if ai and ai[-1].tool_calls:
+            text, cited = GAVE_UP, ()
+        return text, cited
 
     def _run(
         self, agent: Any, question: str
