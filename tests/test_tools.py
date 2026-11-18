@@ -420,6 +420,26 @@ def test_a_comparison_shows_a_block_for_each_page() -> None:
     )
 
 
+def test_a_comparison_shows_size_origin_and_creators() -> None:
+    ann = character(
+        name="Ann Doe", origin="Mutant", height="5'5\"", weight="120 lbs",
+        creators="Stan Lee",
+    )  # fmt: skip
+
+    result = compare_characters(
+        FakeLookup(records=[ann, bob()]), ann.title, bob().title
+    )
+
+    block = result.text.split("\n\n")[0]
+    for line in (
+        "origin: Mutant",
+        "height: 5'5\"",
+        "weight: 120 lbs",
+        "creators: Stan Lee",
+    ):
+        assert line in block
+
+
 def test_a_comparison_of_teams_shows_leaders_and_members_cut_short() -> None:
     members = "m" * (COMPARE_FIELD_LIMIT + 1)
     club = blank(

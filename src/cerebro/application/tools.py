@@ -43,13 +43,18 @@ READ_KINDS: dict[type, str] = {Character: "character", Team: "team", Comic: "com
 NOT_FIELDS = {"pageid", "revid", "title", "categories", "links", "stories"}
 # A story's cast comes before its synopsis; its other fields are not for the model.
 STORY_FIELDS = ("appearing", "synopsis")
-# The fields that settle most comparisons: age, size, rank, origin.
+# The fields that settle most comparisons: who, size, origin, creators. Without height
+# and weight, the model compared heights from memory ("Wolverine is 6'3"").
 CHARACTER_COMPARE_FIELDS = (
     "name",
     "current_alias",
     "reality",
     "identity",
+    "origin",
+    "height",
+    "weight",
     "first_appearance",
+    "creators",
     "status",
 )
 TEAM_COMPARE_FIELDS = (
