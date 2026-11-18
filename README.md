@@ -7,11 +7,57 @@
 
 # Cerebro
 
-A research agent that answers questions about Marvel characters, teams and comics, with citations, plus the evaluation suite that measures how often it is right.
+Cerebro answers questions about Marvel characters, teams and comics, and cites the record behind every claim. It reads a local copy of the Marvel Database wiki joined to Comic Vine. When the records don't hold the answer it says so, and when a name is shared it asks which one you mean. You can ask in the CLI or on a local chat page that shows each tool call as it happens. An evaluation suite measures how often it is right, and [RESULTS.md](RESULTS.md) has every run.
 
-The agent searches a local copy of the Marvel Database wiki and Comic Vine, calls tools to look things up, and cites the record behind every claim. The evaluation suite runs a fixed set of questions, each checked against the records, against several models and reports correctness, grounding, refusals, latency and cost per solved question.
+Here is one question from an evaluation run of the current code, printed the way `cerebro ask` prints it:
 
-Status: early. The data pipeline runs, and the agent answers questions with citations, in the CLI or on a local chat page that shows each tool call as it happens. The evaluation suite answers the golden questions with a chosen model, has a second model judge the answers, and scores them. Results of the first full evaluation, four models in five runs, are in [RESULTS.md](RESULTS.md).
+```text
+search_pages: Gambit
+  MAIN MEANING: the wiki's links mean "Remy LeBeau (Earth-616)" by "Gambit" (99% of them). Read that page unless the question asks for another one.
+read_page: Remy LeBeau (Earth-616)
+  Remy LeBeau (Earth-616) (character)
+find_appearances: Remy LeBeau (Earth-616)
+  Remy LeBeau (Earth-616) appears in person in 922 comics' cast lists on the wiki (not Comic Vine's count); the first 20 by cover date:
+read_page: X-Men Annual Vol 1 14
+  X-Men Annual Vol 1 14 (comic)
+check_answer: answers
+
+The editor-in-chief when Gambit first appeared in *X-Men Annual Vol. 1 14* was **Tom DeFalco** [1].
+
+[1] X-Men Annual Vol 1 14: https://marvel.fandom.com/wiki/X-Men_Annual_Vol_1_14
+
+5 model calls, 4 tool calls, 22,012 tokens in, 111 out, 10 s
+```
+
+The question was "Who was the editor-in-chief when Gambit first appeared in a comic?" The CLI shows the first line of each tool reply; the model reads all of it.
+
+## How it works
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/answer-flow-dark.svg">
+    <img src="assets/answer-flow-light.svg" alt="Wiki pages and Comic Vine are joined into one SQLite file and cut into passages for keyword and vector search. For each question the agent, Ministral 14B, calls up to 8 tools, Gemini Flash checks the answer against the evidence, and the answer goes out with citations." width="100%">
+  </picture>
+</p>
+
+- **Two sources, joined.** The wiki has 106,078 character pages, one for every version of a character: 645 pages are named Wolverine. Comic Vine adds its own counts, powers and creators. Each Comic Vine character is matched to the wiki page whose comics overlap most with its issues ([ADR 1](docs/adr/0001-match-comic-vine-by-shared-issues.md)).
+- **Search that knows what a name usually means.** Name search ranks pages by how often the wiki's own links use the name for them, so "Gambit" finds Remy LeBeau first and says so. Passage search fuses keyword and meaning and puts the main reality first ([ADR 2](docs/adr/0002-search-passages-by-keyword-and-meaning.md)).
+- **An agent with six tools.** Ministral 14B searches names and passages, reads pages, lists a character's comics by cover date, builds reading orders and compares characters, in at most 8 tool calls. The prompt asks for a citation after every fact, and an answer with none becomes a refusal.
+- **A second reader.** Gemini Flash checks each answer against what the tools returned before it is shown ([ADR 3](docs/adr/0003-check-each-answer-with-a-second-model.md)).
+- **Measured.** A fixed set of questions checked against the records, a judge checked against blind labels, a sealed set run once, and a recorded run that CI replays on every push. [How the evaluation works](docs/evaluation.md) covers each part and where its numbers can mislead.
+
+## What's in the repo
+
+| Path | What it holds |
+| --- | --- |
+| `src/cerebro/domain`, `application` | The rules: records, tools, search order, evaluation and scoring. They import no adapter. |
+| `src/cerebro/ports`, `adapters` | The interfaces, and their Fandom, Comic Vine, SQLite, model and file implementations. |
+| `src/cerebro/bootstrap.py` | The one place adapters are wired to ports. |
+| `src/cerebro/interfaces` | The CLI, and the API behind the chat page. |
+| `evals/` | The golden questions, and the rules behind golden v2. |
+| `docs/` | How the evaluation works, and the design decisions. |
+| `tests/` | 552 tests in the default run, including the recorded run CI replays. |
+| `web/` | The chat page. |
 
 ## Development
 
