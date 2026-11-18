@@ -61,29 +61,29 @@ def server() -> httpx.MockTransport:
     return httpx.MockTransport(lambda request: httpx.Response(200, json=next(replies)))
 
 
-def agent_over(transport: httpx.BaseTransport, appearances: int) -> LangGraphAgent:
+def agent_over(transport: httpx.BaseTransport, hit: str) -> LangGraphAgent:
     """The real agent and model, over this transport and a made-up wiki."""
-    hits = [PageHit(TITLE, Category.CHARACTERS, appearances)]
+    hits = [PageHit(hit, Category.CHARACTERS, 5)]
     lookup = FakeLookup(hits, [character(name="Ann Doe")])
     model = ministral(KEY, transport, paced=False)
 
     return LangGraphAgent(model, lookup, FakeChunkSearch())
 
 
-def recorded_run(tmp_path: Path, appearances: int = 5) -> JsonlRunStore:
+def recorded_run(tmp_path: Path, hit: str = TITLE) -> JsonlRunStore:
     store = JsonlRunStore(tmp_path)
 
     def ask(question: str, exchanges: list[Exchange]) -> Iterator[Step]:
         transport = RecordingTransport(server(), exchanges)
-        return agent_over(transport, appearances).steps(question)
+        return agent_over(transport, hit).steps(question)
 
     run_eval(ask, QUESTIONS, store, model="ministral-14b")
     return store
 
 
-def replayed(store: JsonlRunStore, appearances: int = 5) -> ReplayReport:
+def replayed(store: JsonlRunStore, hit: str = TITLE) -> ReplayReport:
     def reask(model: str, question: str, exchanges: list[Exchange]) -> Iterator[Step]:
-        return agent_over(ReplayTransport(exchanges), appearances).steps(question)
+        return agent_over(ReplayTransport(exchanges), hit).steps(question)
 
     return replay_run(reask, QUESTIONS, store)
 
@@ -122,11 +122,12 @@ def test_replaying_a_run_reproduces_its_steps_and_answers_offline(
 def test_a_changed_tool_result_is_reported_at_the_step_that_changed(
     tmp_path: Path,
 ) -> None:
-    store = recorded_run(tmp_path, appearances=5)
+    store = recorded_run(tmp_path)
 
-    report = replayed(store, appearances=9)
+    # The search now ranks another page first.
+    report = replayed(store, hit="Ann Doe (Earth-2)")
 
     assert [m.question_id for m in report.mismatches] == ["a", "b"]
     assert report.mismatches[0].difference.startswith("step 2: saved ToolReply(")
-    assert "in 5 comics" in report.mismatches[0].difference
-    assert "in 9 comics" in report.mismatches[0].difference
+    assert TITLE in report.mismatches[0].difference
+    assert "Ann Doe (Earth-2)" in report.mismatches[0].difference

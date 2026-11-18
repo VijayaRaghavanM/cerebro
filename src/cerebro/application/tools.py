@@ -82,10 +82,9 @@ def search_pages(lookup: RecordLookup, name: str) -> ToolResult:
     for number, hit in enumerate(hits, start=1):
         kind = SEARCH_KINDS[hit.category]
         # Quoted, so the model passes the exact title on: titles can contain colons.
-        line = f'{number}. "{hit.title}": {kind}'
-        if hit.category != Category.COMICS:
-            line += f", in {hit.appearances:,} comics' cast lists"
-        lines.append(line)
+        # No cast-list count: asked for Comic Vine's appearances, the model quoted it
+        # and never read a page.
+        lines.append(f'{number}. "{hit.title}": {kind}')
 
     note = _name_note(lookup, name)
     if note:
@@ -168,7 +167,7 @@ def compare_characters(lookup: RecordLookup, first: str, second: str) -> ToolRes
         if isinstance(record, Character):
             # A limit of 0 asks for the total alone.
             casts = lookup.appearances(title, 0).total
-            lines.append(f"comics' cast lists (in person): {casts:,}")
+            lines.append(f"wiki comics' cast lists (in person): {casts:,}")
 
             character = lookup.comicvine(record.pageid)
             if character is not None:
@@ -187,8 +186,9 @@ def find_appearances(lookup: RecordLookup, title: str) -> ToolResult:
 
     shown = len(appearances.first)
     lines = [
-        f"{title} appears in person in {appearances.total:,} comics' cast lists;"
-        f" the first {shown} by cover date:"
+        # Whose count it is, so it is not taken for Comic Vine's.
+        f"{title} appears in person in {appearances.total:,} comics' cast lists on"
+        f" the wiki (not Comic Vine's count); the first {shown} by cover date:"
     ]
     for comic in appearances.first:
         lines.append(f"{comic.title} ({comic.date or 'no date'})")

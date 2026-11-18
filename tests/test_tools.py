@@ -31,7 +31,7 @@ from cerebro.domain.records import (
 )
 
 
-def test_a_search_lists_numbered_pages_with_their_appearances() -> None:
+def test_a_search_lists_numbered_pages_with_their_kinds() -> None:
     hits = [
         PageHit("Ann Doe (Earth-1)", Category.CHARACTERS, 4990),
         PageHit("Storm Club (Earth-1)", Category.TEAMS, 12),
@@ -41,8 +41,8 @@ def test_a_search_lists_numbered_pages_with_their_appearances() -> None:
     result = search_pages(FakeLookup(hits), "storm")
 
     assert result.text == (
-        '1. "Ann Doe (Earth-1)": character, in 4,990 comics\' cast lists\n'
-        '2. "Storm Club (Earth-1)": team, in 12 comics\' cast lists\n'
+        '1. "Ann Doe (Earth-1)": character\n'
+        '2. "Storm Club (Earth-1)": team\n'
         '3. "Storm Tales Vol 1 1": comic'
     )
 
@@ -315,14 +315,12 @@ def test_a_main_holder_whose_title_lacks_the_name_gets_the_main_meaning() -> Non
 def test_a_main_holder_whose_title_holds_the_name_gets_no_note() -> None:
     uses = {"Thanos (Earth-616)": 95, "Thanos (Clone) (Earth-616)": 5}
 
-    assert first_line(uses, "thanos") == (
-        '1. "Ann Doe (Earth-1)": character, in 5 comics\' cast lists'
-    )
+    assert first_line(uses, "thanos") == '1. "Ann Doe (Earth-1)": character'
 
 
 def test_a_name_one_main_reality_page_holds_gets_no_note() -> None:
     assert first_line({"Irene Adler (Earth-616)": 9}, "Destiny") == (
-        '1. "Ann Doe (Earth-1)": character, in 5 comics\' cast lists'
+        '1. "Ann Doe (Earth-1)": character'
     )
 
 
@@ -341,8 +339,8 @@ def test_appearances_list_the_total_and_each_comic_with_its_date() -> None:
     result = find_appearances(lookup, title)
 
     assert result.text == (
-        "Ann Doe (Earth-1) appears in person in 2 comics' cast lists;"
-        " the first 2 by cover date:\n"
+        "Ann Doe (Earth-1) appears in person in 2 comics' cast lists on the wiki"
+        " (not Comic Vine's count); the first 2 by cover date:\n"
         "Storm Tales Vol 1 1 (May 1951)\n"
         "Lost (no date)"
     )
@@ -388,10 +386,10 @@ def test_a_comparison_shows_a_block_for_each_page() -> None:
         "name: Ann Doe\n"
         "reality: Earth-1\n"
         "status: Alive\n"
-        "comics' cast lists (in person): 1\n\n"
+        "wiki comics' cast lists (in person): 1\n\n"
         "Bob Roe (Earth-1) (character)\n"
         "name: Bob Roe\n"
-        "comics' cast lists (in person): 0"
+        "wiki comics' cast lists (in person): 0"
     )
 
 

@@ -55,6 +55,9 @@ SYSTEM_PROMPT = (
     "To list a character's comics in reading order, use reading_order with the "
     "page's title.\n"
     "To compare two characters or teams, use compare_characters with both titles.\n"
+    # Without it, the model gave the wiki's cast-list count as Comic Vine's.
+    "Comic Vine's counts (appearances, listed powers) are shown only by read_page "
+    "and compare_characters; find_appearances counts the wiki's cast lists.\n"
     "Every fact in your answer must come from a page you read, followed by its "
     "source number in brackets, like [1].\n"
     "If the pages you read don't answer the question, say "
