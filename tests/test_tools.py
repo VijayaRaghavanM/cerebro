@@ -198,8 +198,8 @@ def test_a_matched_character_adds_a_comic_vine_block_and_source() -> None:
         "real name: Ann Doe\n"
         "appearances: 321\n"
         "deck: Controls the weather.\n"
-        "powers: Flight, Wind\n"
-        "died in: Storm Tales #9 (1990-05-01), Storm Tales #10"
+        "powers (2 listed): Flight, Wind\n"
+        "died in (2 listed): Storm Tales #9 (1990-05-01), Storm Tales #10"
     )
     assert result.sources == (
         Source(ann.title, "https://wiki.example/Ann_Doe_(Earth-1)"),
@@ -437,7 +437,7 @@ def test_a_comparison_shows_comic_vine_counts_for_a_matched_character() -> None:
     assert result.text.split("\n\n")[0].endswith(
         "comic vine real name: Ann Doe\n"
         "comic vine appearances: 321\n"
-        "comic vine powers: Flight, Wind"
+        "comic vine powers (2 listed): Flight, Wind"
     )
 
 

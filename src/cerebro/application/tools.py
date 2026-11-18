@@ -280,9 +280,10 @@ def _comicvine_brief(character: ComicVineCharacter) -> list[str]:
         lines.append(_line("comic vine real name", character.real_name))
     lines.append(f"comic vine appearances: {character.appearances:,}")
     if character.detail is not None and character.detail.powers:
-        lines.append(
-            _line("comic vine powers", character.detail.powers, COMPARE_FIELD_LIMIT)
-        )
+        # The total, so a list cut short is never counted by hand.
+        powers = character.detail.powers
+        label = f"comic vine powers ({len(powers)} listed)"
+        lines.append(_line(label, powers, COMPARE_FIELD_LIMIT))
 
     return lines
 
@@ -333,7 +334,17 @@ def _comicvine_block(character: ComicVineCharacter) -> str:
         lines.append(f"real name: {character.real_name}")
     lines.append(f"appearances: {character.appearances}")
     if character.detail is not None:
-        lines += _lines(character.detail, skip={"issues"})
+        for field in fields(character.detail):
+            value = getattr(character.detail, field.name)
+            if field.name == "issues" or not value:
+                continue
+
+            # A list says how many items it holds, so a cut list is never counted by
+            # hand.
+            label = field.name
+            if isinstance(value, tuple) and len(value) > 1:
+                label += f" ({len(value)} listed)"
+            lines.append(_line(label, value))
 
     return "\n".join(lines)
 
