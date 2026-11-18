@@ -52,6 +52,10 @@ SYSTEM_PROMPT = (
     "Passages it returns are evidence you can cite.\n"
     "To tell whether a character appears in a comic, how many comics it is in, or "
     "which comics it first appeared in, use find_appearances with the page's title.\n"
+    # Without it, the model named an issue's creators from a character page, whose
+    # creators field credits the character, not the issue.
+    "A comic's writer, pencilers, inkers and editor-in-chief are on that comic's "
+    "own page: read it with read_page.\n"
     "To list a character's comics in reading order, use reading_order with the "
     "page's title.\n"
     "To compare two characters or teams, use compare_characters with both titles.\n"
