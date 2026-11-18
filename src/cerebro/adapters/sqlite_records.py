@@ -263,29 +263,34 @@ class SqliteRecordStore(RecordStore, RecordReader, RecordLookup):
         if not has_table(self.path, Category.COMICS):
             raise RecordsMissing("No comics are stored yet")
 
-        # The subquery lists each comic once however many stories link the title, and
-        # the `links_in_casts` index answers it.
-        casts = (
-            f"SELECT pageid FROM links WHERE kind = '{Category.COMICS}'"
-            " AND field = 'appearing' AND title = ?"
-        )
+        # A comic counts only if one of its stories shows the character in person:
+        # a cast-list entry tagged as a mention, a picture or a dream does not, so
+        # each linking story's cast line is read along with the link.
         with closing(sqlite3.connect(self.path)) as db:
-            db.create_function("month_number", 1, _month_number, deterministic=True)
-
-            (total,) = db.execute(
-                f"SELECT COUNT(DISTINCT pageid) FROM ({casts})", (title,)
-            ).fetchone()
-            rows = db.execute(
-                "SELECT title, month, year FROM comics"
-                f" WHERE pageid IN ({casts})"
-                " ORDER BY year IS NULL, year, month_number(month), title LIMIT ?",
-                (title, limit),
+            links = db.execute(
+                "SELECT l.pageid, l.text, s.appearing, c.title, c.month, c.year"
+                " FROM links l"
+                " JOIN stories s ON s.pageid = l.pageid AND s.number = l.story"
+                " JOIN comics c ON c.pageid = l.pageid"
+                f" WHERE l.kind = '{Category.COMICS}' AND l.field = 'appearing'"
+                " AND l.title = ?",
+                (title,),
             ).fetchall()
 
-        first = tuple(
-            Appearance(name, _cover_date(month, year)) for name, month, year in rows
+        comics = {}
+        for pageid, text, appearing, name, month, year in links:
+            if _in_person(text, appearing or ""):
+                comics[pageid] = (name, month, year)
+
+        dated = sorted(
+            comics.values(),
+            key=lambda c: (c[2] is None, c[2] or "", _month_number(c[1]), c[0]),
         )
-        return Appearances(total, first)
+        first = tuple(
+            Appearance(name, _cover_date(month, year))
+            for name, month, year in dated[:limit]
+        )
+        return Appearances(len(comics), first)
 
     def comicvine(self, pageid: int) -> ComicVineCharacter | None:
         return self._comicvine.character(pageid)
@@ -456,6 +461,28 @@ def _links_of(
         (kind, pageid, story),
     )
     return tuple(Link(field, title, text) for field, title, text in rows)
+
+
+# Cast-list tags that mean the character is not there in person. "Shadow only" is not
+# one: a character seen only in shadow is still on the page.
+NOT_IN_PERSON = {
+    "Mentioned", "Mentioned in narration or thoughts", "Named only", "Referenced",
+    "Topical Reference", "Invoked", "Behind the scenes", "Voice only",
+    "Photo", "Poster", "Drawing", "Map", "Statue", "Tombstone", "Toy",
+    "Only on screen as a static image or video record", "Imagination", "Dream",
+    "Vision or hallucination", "Illusion or holographic simulation", "In a memory",
+}  # fmt: skip
+TAG = re.compile(r"\(([^()]*)\)")
+
+
+def _in_person(text: str, appearing: str) -> bool:
+    """Whether the cast-list line holding this link carries no not-in-person tag."""
+    for line in appearing.splitlines():
+        at = line.find(text)
+        if at != -1:
+            tags = {tag.strip() for tag in TAG.findall(line[at + len(text) :])}
+            return not tags & NOT_IN_PERSON
+    return True
 
 
 def _month_number(month: str | None) -> int:

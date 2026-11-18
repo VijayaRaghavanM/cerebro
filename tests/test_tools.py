@@ -341,7 +341,7 @@ def test_appearances_list_the_total_and_each_comic_with_its_date() -> None:
     result = find_appearances(lookup, title)
 
     assert result.text == (
-        "Ann Doe (Earth-1) appears in 2 comics' cast lists;"
+        "Ann Doe (Earth-1) appears in person in 2 comics' cast lists;"
         " the first 2 by cover date:\n"
         "Storm Tales Vol 1 1 (May 1951)\n"
         "Lost (no date)"
@@ -357,7 +357,7 @@ def test_appearances_ask_for_a_limited_number_of_comics() -> None:
     result = find_appearances(lookup, title)
 
     assert lookup.limits == [APPEARANCE_LIMIT]
-    assert f"appears in {APPEARANCE_LIMIT + 5} comics'" in result.text
+    assert f"appears in person in {APPEARANCE_LIMIT + 5} comics'" in result.text
     assert len(result.text.splitlines()) == APPEARANCE_LIMIT + 1
 
 
@@ -388,10 +388,10 @@ def test_a_comparison_shows_a_block_for_each_page() -> None:
         "name: Ann Doe\n"
         "reality: Earth-1\n"
         "status: Alive\n"
-        "comics' cast lists: 1\n\n"
+        "comics' cast lists (in person): 1\n\n"
         "Bob Roe (Earth-1) (character)\n"
         "name: Bob Roe\n"
-        "comics' cast lists: 0"
+        "comics' cast lists (in person): 0"
     )
 
 

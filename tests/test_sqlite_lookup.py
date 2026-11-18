@@ -395,6 +395,40 @@ def test_appearances_come_in_cover_date_order(tmp_path: Path) -> None:
     ]
 
 
+def tagged(pageid: int, *lines: str) -> Comic:
+    """A made-up comic with one story per cast line, each linking Ann by her name."""
+    stories = tuple(
+        blank(
+            Story,
+            number=number,
+            appearing=line,
+            links=(Link("appearing", ANN, "Ann Doe"),),
+        )
+        for number, line in enumerate(lines, start=1)
+    )
+    return blank(
+        Comic, pageid=pageid, title=f"Issue {pageid}", month="May", year="2000",
+        stories=stories,
+    )  # fmt: skip
+
+
+def test_a_comic_counts_only_where_a_story_shows_the_page_in_person(
+    tmp_path: Path,
+) -> None:
+    store = with_comics(
+        tmp_path,
+        tagged(1, "Ann Doe (Mentioned)"),
+        tagged(2, "Ann Doe (Shadow only)"),
+        tagged(3, "Ann Doe (Photo)", "Ann Doe"),
+        tagged(4, "Bob Roe\nAnn Doe (Behind the scenes)"),
+    )
+
+    found = store.appearances(ANN, 10)
+
+    assert [c.title for c in found.first] == ["Issue 2", "Issue 3"]
+    assert found.total == 2
+
+
 def test_a_comic_with_no_year_comes_last(tmp_path: Path) -> None:
     store = with_comics(
         tmp_path,

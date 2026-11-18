@@ -168,7 +168,7 @@ def compare_characters(lookup: RecordLookup, first: str, second: str) -> ToolRes
         if isinstance(record, Character):
             # A limit of 0 asks for the total alone.
             casts = lookup.appearances(title, 0).total
-            lines.append(f"comics' cast lists: {casts:,}")
+            lines.append(f"comics' cast lists (in person): {casts:,}")
 
             character = lookup.comicvine(record.pageid)
             if character is not None:
@@ -187,7 +187,7 @@ def find_appearances(lookup: RecordLookup, title: str) -> ToolResult:
 
     shown = len(appearances.first)
     lines = [
-        f"{title} appears in {appearances.total:,} comics' cast lists;"
+        f"{title} appears in person in {appearances.total:,} comics' cast lists;"
         f" the first {shown} by cover date:"
     ]
     for comic in appearances.first:
