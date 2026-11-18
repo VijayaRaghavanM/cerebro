@@ -67,13 +67,29 @@ The golden set's failures guided the early changes, so it flatters them. The sea
 
 9 questions went from unsolved to solved and 1 the other way (p = 0.021). Two labeler models labelled every reply from the records, without knowing which side wrote it; they agreed on all 12 replies both labelled and caught all 6 known-wrong answers mixed in.
 
+### The confirmation set
+
+40 more questions, written blind after the last change to the agent, so nothing could be fitted to them, and run once on `main`'s code with the same setup as the sealed set's "after" side. There is no "before" side.
+
+| | `main` |
+| --- | --- |
+| Solved | 34 of 40 (85%) |
+| Wrong answers, by the judge | 4 of 31 (13%) |
+| Wrong replies, by the blind labels | 2 of 40 (5%) |
+| Refusals where the records hold the answer | 1 of 33 |
+| Right refusals, of 5 | 5 |
+| Clarifying questions where one was due, of 2 | 2 |
+| Ran out of tool calls | 1 |
+
+Of the 4 answers the judge ruled wrong, the labels found 1 wrong, 2 incomplete and 1 right. The other wrong reply is a clarifying question that offered a single holder of a shared name. The labelers agreed on all 12 replies both labelled and caught all 6 known-wrong answers mixed in.
+
 ### Speed and cost
 
 On Mistral's free tier the agent waits behind a rate limit, so its seconds, about 145 a question, measure the queue. On OpenRouter, 20 golden questions with the check on took 10.3 seconds on average (median 8.7, slowest 23) and cost $0.0445, about $0.002 a question. The first evaluation's Ministral 14B run, without the check, took 4.2 seconds.
 
 ### Against the goal
 
-The round aimed for fewer than 5% wrong answers. The golden set ends at 5.2% (4 of 77) and the sealed set at 7% by the judge, so the goal is close but not met. Refusals rose with the fix. On the golden set the agent refused 18 questions the records answer, against 5 before. 17 of them followed a check that found a problem; in its test the check also flagged 2 of 12 right answers, so some of those refusals cost a right answer.
+The round aimed for fewer than 5% wrong answers. By the judge, which runs strict, it missed: 5.2% on the golden set (4 of 77), 7% on the sealed set and 13% on the confirmation set. By the blind labels, 2 of the 40 replies were wrong on each sealed set. Refusals rose with the fix. On the golden set the agent refused 18 questions the records answer, against 5 before. 17 of them followed a check that found a problem; in its test the check also flagged 2 of 12 right answers, so some of those refusals cost a right answer.
 
 ## The first full evaluation, 13 November 2026
 
