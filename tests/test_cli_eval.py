@@ -306,6 +306,21 @@ def test_eval_score_uses_the_verdicts_a_judge_kept(data_dir: Path) -> None:
     assert result.output == "0 of 1 solved, fact recall 100%, cost $0.0000\n"
 
 
+def test_eval_score_reads_the_question_file_golden_file_names(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (data_dir / "evals").mkdir()
+    (data_dir / "evals" / "v2.jsonl").write_text(json.dumps(golden_line("a")) + "\n")
+    monkeypatch.setenv("GOLDEN_FILE", "evals/v2.jsonl")
+    JsonlRunStore(data_dir / "runs" / "trial").append(
+        RunResult("a", "ministral-14b", (), answer())
+    )
+
+    result = CliRunner().invoke(app, ["eval", "score", "trial"])
+
+    assert result.output == "1 of 1 solved, fact recall 100%, cost $0.0000\n"
+
+
 def test_eval_score_of_a_run_with_no_results_says_so(data_dir: Path) -> None:
     (data_dir / "evals").mkdir()
     (data_dir / "evals" / "golden.jsonl").write_text(

@@ -55,8 +55,7 @@ from cerebro.settings import Settings
 # The chunks share the records' file, so a search and the agent's tools read one file.
 RECORDS_FILE = "records.sqlite"
 
-# Both are relative to where the command runs, which is the repository.
-GOLDEN_FILE = Path("evals/golden.jsonl")
+# Relative to where the command runs, which is the repository.
 RUNS_DIR = Path("runs")
 
 
@@ -194,7 +193,7 @@ def run_eval(
     query embeddings, which come from the same server as the search's meaning.
     """
     name = run_name or f"{model}-{split or 'all'}"
-    questions = JsonlGoldenSet(GOLDEN_FILE).questions(split)
+    questions = JsonlGoldenSet(Settings().golden_file).questions(split)
 
     def ask_model(question: str, exchanges: list[Exchange]) -> Iterator[Step]:
         recorder = RecordingTransport(exchanges=exchanges)
@@ -217,7 +216,7 @@ def replay_run(run_name: str) -> evaluation.ReplayReport:
     """Rerun runs/<run_name>/ from its saved exchanges, with no network and no keys,
     and compare each answered question with its saved result.
     """
-    questions = JsonlGoldenSet(GOLDEN_FILE).questions(None)
+    questions = JsonlGoldenSet(Settings().golden_file).questions(None)
 
     def reask(model: str, question: str, exchanges: list[Exchange]) -> Iterator[Step]:
         # One replayer serves the model and the embedder, because the exchanges
@@ -248,7 +247,7 @@ def score_run(run_name: str) -> str | None:
     report.md in its folder. Returns the overall totals in one line, or None when
     the run has no results.
     """
-    questions = JsonlGoldenSet(GOLDEN_FILE).questions(None)
+    questions = JsonlGoldenSet(Settings().golden_file).questions(None)
 
     return scoring.score_run(
         questions, JsonlRunStore(RUNS_DIR / run_name), _model_prices()
@@ -261,7 +260,7 @@ def compare_runs(run_names: list[str]) -> str:
 
     Raises compare.RunEmpty if a run has no results.
     """
-    questions = JsonlGoldenSet(GOLDEN_FILE).questions(None)
+    questions = JsonlGoldenSet(Settings().golden_file).questions(None)
     prices = _model_prices()
     stores = {name: JsonlRunStore(RUNS_DIR / name) for name in run_names}
 
@@ -281,7 +280,7 @@ def judge_run(
         raise MissingSetting("CEREBRAS_API_KEY")
 
     judge = cerebras_judge(key)
-    questions = JsonlGoldenSet(GOLDEN_FILE).questions(None)
+    questions = JsonlGoldenSet(Settings().golden_file).questions(None)
 
     return judging.judge_run(
         judge, questions, JsonlRunStore(RUNS_DIR / run_name), progress

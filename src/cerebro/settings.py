@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     data_dir: Path = Path("data")
+    # The question file the eval commands read, so a run can use another set.
+    golden_file: Path = Path("evals/golden.jsonl")
     mistral_api_key: SecretStr | None = None
     openrouter_api_key: SecretStr | None = None
     cerebras_api_key: SecretStr | None = None

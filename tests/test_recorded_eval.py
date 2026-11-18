@@ -20,6 +20,7 @@ from cerebro.adapters.sqlite_records import SqliteRecordStore
 from cerebro.bootstrap import Contestant
 from cerebro.domain.answers import Answer
 from cerebro.domain.pages import Category
+from cerebro.settings import Settings
 
 EVAL = Path(__file__).parent / "fixtures" / "eval"
 RUN = "recorded"
@@ -39,8 +40,9 @@ def small_wiki(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     records.replace(Category.COMICS, [real_comic()])
     bootstrap.chunk_records()
 
-    bootstrap.GOLDEN_FILE.parent.mkdir()
-    shutil.copy(EVAL / "golden.jsonl", bootstrap.GOLDEN_FILE)
+    golden = Settings().golden_file
+    golden.parent.mkdir()
+    shutil.copy(EVAL / "golden.jsonl", golden)
 
     return data_dir
 
