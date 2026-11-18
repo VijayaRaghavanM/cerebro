@@ -13,7 +13,7 @@ from helpers import (
 
 from cerebro.adapters.sqlite_records import SqliteRecordStore
 from cerebro.domain.pages import Category
-from cerebro.domain.records import Record
+from cerebro.domain.records import Link, Record
 
 
 def test_a_record_is_stored_with_its_links_and_categories(tmp_path: Path) -> None:
@@ -86,6 +86,44 @@ def test_a_failed_run_keeps_the_previous_records(tmp_path: Path) -> None:
     path = store.path
     assert rows(path, "SELECT name FROM characters") == [("Daniel Berkhart",)]
     assert len(rows(path, "SELECT * FROM links")) == len(real_character().links)
+
+
+def linking(pageid: int, *links: tuple[str, str]) -> Record:
+    """A character whose only links point at the given titles with the given texts."""
+    record = real_character()
+    return replace(
+        record,
+        pageid=pageid,
+        title=f"Page {pageid} (Earth-616)",
+        links=tuple(Link("history", title, text) for title, text in links),
+    )
+
+
+def test_name_uses_count_how_often_each_link_text_points_at_each_page(
+    tmp_path: Path,
+) -> None:
+    store = SqliteRecordStore(tmp_path / "records.sqlite")
+    nick, horse = "Nicholas Fury (Earth-616)", "Fury (Horse) (Earth-616)"
+
+    store.replace(
+        Category.CHARACTERS,
+        [linking(1, (nick, "Fury"), (horse, "fury")), linking(2, (nick, "FURY"))],
+    )
+
+    # Any case counts as the same text, and the name is matched the same way.
+    assert store.name_uses(" Fury ") == {nick: 2, horse: 1}
+    assert store.name_uses("Nick") == {}
+
+
+def test_saving_a_category_again_counts_only_the_links_stored(tmp_path: Path) -> None:
+    store = SqliteRecordStore(tmp_path / "records.sqlite")
+    nick = "Nicholas Fury (Earth-616)"
+    store.replace(Category.CHARACTERS, [linking(1, (nick, "Fury"))])
+    store.replace(Category.TEAMS, [real_team()])
+
+    store.replace(Category.CHARACTERS, [linking(2, (nick, "Fury"), (nick, "Fury"))])
+
+    assert store.name_uses("Fury") == {nick: 2}
 
 
 def test_characters_read_back_as_they_were_stored(tmp_path: Path) -> None:

@@ -50,8 +50,9 @@ SHARED_TABLES = [
 ]
 
 # How often the wiki's links with each text point at each page, across every kind of
-# record. It ranks name search by what the wiki most often means by a name. It is
-# rebuilt whenever a category is saved, so it always counts the links stored.
+# record. It ranks name search by what the wiki most often means by a name, and tells
+# a name one page holds from one several share. It is rebuilt whenever a category is
+# saved, so it always counts the links stored.
 LINK_TEXTS = [
     "DROP TABLE IF EXISTS link_texts",
     "CREATE TABLE link_texts AS SELECT lower(text) AS text, title, COUNT(*) AS n"
@@ -224,6 +225,18 @@ class SqliteRecordStore(RecordStore, RecordReader, RecordLookup):
                 hits += [PageHit(title, Category(kind), n) for title, kind, n in found]
 
         return hits
+
+    def name_uses(self, name: str) -> dict[str, int]:
+        if not has_table(self.path, "link_texts"):
+            return {}
+
+        with closing(sqlite3.connect(self.path)) as db:
+            rows = db.execute(
+                "SELECT title, n FROM link_texts WHERE text = ?",
+                (name.strip().lower(),),
+            ).fetchall()
+
+        return dict(rows)
 
     def record(self, title: str) -> Record | None:
         if not has_table(self.path, Category.CHARACTERS):

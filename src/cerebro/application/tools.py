@@ -2,6 +2,7 @@
 comics a page appears in, put a character's comics in reading order, and compare
 two characters or teams."""
 
+import re
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING
 
@@ -27,6 +28,8 @@ ORDER_LIMIT = 25
 FIELD_LIMIT = 1500
 PAGE_LIMIT = 12000
 CUT = " [cut]"
+# A reality or disambiguation tag at the end of a title, as in "Galactus (Earth-616)".
+TRAILING_TAG = re.compile(r"\s*\([^()]*\)$")
 # A comparison puts two pages in one reply, so each field is one short line.
 COMPARE_FIELD_LIMIT = 200
 
@@ -84,8 +87,44 @@ def search_pages(lookup: RecordLookup, name: str) -> ToolResult:
             line += f", in {hit.appearances:,} comics' cast lists"
         lines.append(line)
 
+    note = _name_note(lookup, name)
+    if note:
+        lines.insert(0, note)
+
     # A search result is not evidence, so it cites nothing.
     return ToolResult("\n".join(lines), ())
+
+
+def _name_note(lookup: RecordLookup, name: str) -> str:
+    """Who the wiki's links mean by this name, among main-reality pages. With no
+    majority holder the name is ambiguous (Wikipedia's primary-topic rule), and the
+    note asks the model to ask which one."""
+    uses = {
+        t: n for t, n in lookup.name_uses(name).items() if t.endswith("(Earth-616)")
+    }
+    if len(uses) < 2:
+        return ""
+
+    total = sum(uses.values())
+    ranked = sorted(uses.items(), key=lambda item: -item[1])[:4]
+    shares = [f"{title} ({count / total:.0%})" for title, count in ranked]
+    holder, count = ranked[0]
+    if count / total > 0.5:
+        # A main holder needs no note when its title holds the name, as the search
+        # ranks it first. When it does not, the model reads a page that does: asked
+        # "Who is Destiny?", it read "Destiny (Overspace)" over Irene Adler.
+        if name.strip().lower() in TRAILING_TAG.sub("", holder).lower():
+            return ""
+        return (
+            f'MAIN MEANING: the wiki\'s links mean "{holder}" by "{name}" '
+            f"({count / total:.0%} of them). Read that page unless the question asks "
+            "for another one."
+        )
+    return (
+        f'AMBIGUOUS NAME: several Earth-616 characters go by "{name}" in the wiki\'s '
+        f"links: {', '.join(shares)}. Unless the question says which one, ask the "
+        "user which they mean."
+    )
 
 
 def read_page(lookup: RecordLookup, title: str) -> ToolResult:

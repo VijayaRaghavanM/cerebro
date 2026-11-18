@@ -137,7 +137,8 @@ def comicvine_characters() -> list[ComicVineCharacter]:
 
 
 class FakeLookup(RecordLookup):
-    """A record lookup that answers from the hits, records, match and casts given."""
+    """A record lookup that answers from the hits, records, match, casts and link
+    uses given."""
 
     def __init__(
         self,
@@ -145,8 +146,10 @@ class FakeLookup(RecordLookup):
         records: list[Record] | None = None,
         comicvine: ComicVineCharacter | None = None,
         casts: dict[str, list[Appearance]] | None = None,
+        uses: dict[str, int] | None = None,
     ) -> None:
         self.casts = casts or {}
+        self.uses = uses or {}
         self.hits = hits or []
         self.records = {record.title: record for record in records or []}
         self.matched = comicvine
@@ -155,6 +158,9 @@ class FakeLookup(RecordLookup):
     def find(self, name: str, limit: int) -> list[PageHit]:
         self.limits.append(limit)
         return self.hits[:limit]
+
+    def name_uses(self, name: str) -> dict[str, int]:
+        return self.uses
 
     def record(self, title: str) -> Record | None:
         return self.records.get(title)

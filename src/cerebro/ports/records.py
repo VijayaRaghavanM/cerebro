@@ -64,6 +64,12 @@ class RecordLookup(ABC):
         """
 
     @abstractmethod
+    def name_uses(self, name: str) -> dict[str, int]:
+        """How many links in the records with `name` as their text, in any case,
+        point at each page, by title. Empty when no link uses the name.
+        """
+
+    @abstractmethod
     def record(self, title: str) -> Record | None:
         """The character, team or comic with this title, or None.
 

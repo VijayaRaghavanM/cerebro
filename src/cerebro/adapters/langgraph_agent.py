@@ -43,6 +43,10 @@ SYSTEM_PROMPT = (
     "title from the results. Several pages can share a name: results come in the "
     "order the wiki most often means the name, so take the first Earth-616 result "
     "unless the question asks for another version.\n"
+    "Only when a search_pages result starts with AMBIGUOUS NAME and the question "
+    "does not say which one, ask the user which they mean in one sentence that "
+    "names the candidates from that line and ends with a question mark, like "
+    '"Do you mean A, B or C?" State nothing else.\n'
     "When the question describes a person, a topic or an event instead of naming "
     "a page, or asks for a detail from deep in a long page, use search_text. "
     "Passages it returns are evidence you can cite.\n"

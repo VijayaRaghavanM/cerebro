@@ -280,6 +280,52 @@ def test_a_team_reads_like_a_character() -> None:
     assert len(result.sources) == 1
 
 
+HITS = [PageHit("Ann Doe (Earth-1)", Category.CHARACTERS, 5)]
+
+
+def first_line(uses: dict[str, int], name: str) -> str:
+    return search_pages(FakeLookup(HITS, uses=uses), name).text.splitlines()[0]
+
+
+def test_a_name_no_main_reality_page_mostly_holds_gets_the_ambiguous_note() -> None:
+    uses = {
+        "Carol Danvers (Earth-616)": 47,
+        "Mar-Vell (Earth-616)": 31,
+        "Monica Rambeau (Earth-616)": 22,
+        "Captain Marvel (Earth-1610)": 500,
+    }
+
+    assert first_line(uses, "Captain Marvel") == (
+        'AMBIGUOUS NAME: several Earth-616 characters go by "Captain Marvel" in the'
+        " wiki's links: Carol Danvers (Earth-616) (47%), Mar-Vell (Earth-616) (31%),"
+        " Monica Rambeau (Earth-616) (22%). Unless the question says which one, ask"
+        " the user which they mean."
+    )
+
+
+def test_a_main_holder_whose_title_lacks_the_name_gets_the_main_meaning() -> None:
+    uses = {"Irene Adler (Earth-616)": 74, "Paul Destine (Earth-616)": 26}
+
+    assert first_line(uses, "Destiny") == (
+        'MAIN MEANING: the wiki\'s links mean "Irene Adler (Earth-616)" by "Destiny"'
+        " (74% of them). Read that page unless the question asks for another one."
+    )
+
+
+def test_a_main_holder_whose_title_holds_the_name_gets_no_note() -> None:
+    uses = {"Thanos (Earth-616)": 95, "Thanos (Clone) (Earth-616)": 5}
+
+    assert first_line(uses, "thanos") == (
+        '1. "Ann Doe (Earth-1)": character, in 5 comics\' cast lists'
+    )
+
+
+def test_a_name_one_main_reality_page_holds_gets_no_note() -> None:
+    assert first_line({"Irene Adler (Earth-616)": 9}, "Destiny") == (
+        '1. "Ann Doe (Earth-1)": character, in 5 comics\' cast lists'
+    )
+
+
 def test_an_unknown_title_says_to_search() -> None:
     result = read_page(FakeLookup(), "Nobody")
 
