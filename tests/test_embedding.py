@@ -93,8 +93,8 @@ def test_a_failure_mid_part_keeps_earlier_parts_and_leaves_no_half_part(
     with pytest.raises(EmbedderUnavailable):
         embed_chunks(FakeChunks(10), failing, store)
 
-    assert store.has_part(0)
-    assert not store.has_part(1)
+    assert store.part_ids(0) == [f"1:7:{n}" for n in range(4)]
+    assert store.part_ids(1) is None
     assert sorted(path.name for path in tmp_path.iterdir()) == [
         "part-00000.json",
         "part-00000.npy",
@@ -102,6 +102,21 @@ def test_a_failure_mid_part_keeps_earlier_parts_and_leaves_no_half_part(
 
     report = embed_chunks(FakeChunks(10), FakeEmbedder(), store)
     assert report == EmbedReport(chunks=10, parts=3, skipped_parts=1)
+
+
+def test_a_grown_table_redoes_the_part_saved_short_and_adds_the_rest(
+    tmp_path: Path,
+) -> None:
+    store = NumpyVectorStore(tmp_path)
+    embed_chunks(FakeChunks(6), FakeEmbedder(), store)
+    embedder = FakeEmbedder()
+
+    report = embed_chunks(FakeChunks(10), embedder, store)
+
+    assert report == EmbedReport(chunks=10, parts=3, skipped_parts=1)
+    assert store.part_ids(1) == [f"1:7:{n}" for n in range(4, 8)]
+    assert np.load(tmp_path / "part-00001.npy")[:, 0].tolist() == [5, 6, 7, 8]
+    assert embedder.batch_sizes == [3, 1, 2]
 
 
 def test_progress_counts_chunks_done_out_of_the_total(tmp_path: Path) -> None:

@@ -34,8 +34,8 @@ class VectorStore(ABC):
     """Keeps vectors in numbered parts, so a long run can stop and resume."""
 
     @abstractmethod
-    def has_part(self, number: int) -> bool:
-        """Whether part `number` was saved in full."""
+    def part_ids(self, number: int) -> list[str] | None:
+        """The chunk ids part `number` holds, or None if it was not saved in full."""
 
     @abstractmethod
     def save_part(

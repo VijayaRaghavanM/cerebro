@@ -32,8 +32,8 @@ def embed_chunks(
 ) -> EmbedReport:
     """Embed each chunk's text and save the vectors, part by part.
 
-    A part the store already has is skipped, so a rerun resumes where a run stopped.
-    A part is saved only when all of it is embedded.
+    A part the store already holds, with the same chunks, is skipped, so a rerun
+    resumes where a run stopped. A part is saved only when all of it is embedded.
     """
     # A first pass to count, so progress can show a total. It is one cheap read of
     # the chunk table, next to about an hour of embedding.
@@ -43,7 +43,9 @@ def embed_chunks(
     for number, part in enumerate(batched(chunks.chunks(), PART_SIZE, strict=False)):
         parts += 1
 
-        if store.has_part(number):
+        # A part counts as done only when it holds the chunks the table gives it
+        # now: once the table grows, the last part saved short has rows to add.
+        if store.part_ids(number) == [chunk.id for chunk in part]:
             skipped_parts += 1
             done += len(part)
             if progress:

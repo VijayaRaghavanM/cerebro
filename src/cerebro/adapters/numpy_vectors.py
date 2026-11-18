@@ -16,8 +16,13 @@ class NumpyVectorStore(VectorStore):
     def __init__(self, folder: Path) -> None:
         self.folder = folder
 
-    def has_part(self, number: int) -> bool:
-        return self._ids_path(number).exists()
+    def part_ids(self, number: int) -> list[str] | None:
+        path = self._ids_path(number)
+        if not path.exists():
+            return None
+
+        ids: list[str] = json.loads(path.read_text(encoding="utf-8"))
+        return ids
 
     def save_part(
         self, number: int, chunk_ids: list[str], vectors: list[list[float]]
@@ -32,7 +37,7 @@ class NumpyVectorStore(VectorStore):
             np.save(file, np.asarray(vectors, dtype=np.float32))
         ids_temp.write_text(json.dumps(chunk_ids), encoding="utf-8")
 
-        # Renamed into place with the ids last, because `has_part` looks at the ids:
+        # Renamed into place with the ids last, because `part_ids` looks at the ids:
         # a stopped run must not leave a half part that a rerun would skip.
         vectors_temp.replace(vectors_path)
         ids_temp.replace(ids_path)
