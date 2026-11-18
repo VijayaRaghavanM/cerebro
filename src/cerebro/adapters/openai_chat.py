@@ -24,10 +24,12 @@ def openai_chat(
     extra_body: Mapping[str, Any] | None = None,
     rate_limiter: BaseRateLimiter | None = None,
     transport: httpx.BaseTransport | None = None,
+    timeout: float = TIMEOUT_SECONDS,
+    max_retries: int = 1,
 ) -> ChatOpenAI:
     """A model at temperature 0, sending through `transport` if given and waiting
-    its turn at `rate_limiter` if given. A failed request is tried once more, each
-    try within TIMEOUT_SECONDS.
+    its turn at `rate_limiter` if given. The SDK tries a failed request
+    `max_retries` more times, each within `timeout` seconds.
 
     `extra_body` adds fields the protocol lacks.
     """
@@ -41,6 +43,6 @@ def openai_chat(
         extra_body=extra_body,
         rate_limiter=rate_limiter,
         http_client=client,
-        timeout=TIMEOUT_SECONDS,
-        max_retries=1,
+        timeout=timeout,
+        max_retries=max_retries,
     )
