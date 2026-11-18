@@ -183,6 +183,22 @@ def found(
     return titles(store.find(query, 10))[:2]
 
 
+def test_the_page_the_wikis_links_mean_by_a_name_comes_first(tmp_path: Path) -> None:
+    # Both hold the name; links with it as their text point at the second only.
+    popular = page("Namor (Earth-9997)", name="Namor")
+    meant = page("Namor McKenzie (Earth-616)", codenames="Namor")
+    linker = replace(
+        page("Linker (Earth-1)", name="Someone"),
+        pageid=3,
+        links=(Link("history", meant.title, "Namor"),),
+    )
+    store = SqliteRecordStore(tmp_path / "records.sqlite")
+    store.replace(Category.CHARACTERS, [popular, replace(meant, pageid=2), linker])
+    store.replace(Category.COMICS, [cast(real_comic(), popular.title)])
+
+    assert titles(store.find("namor", 10))[:2] == [meant.title, popular.title]
+
+
 def test_a_page_named_by_the_search_comes_before_one_with_more_appearances(
     tmp_path: Path,
 ) -> None:
@@ -201,17 +217,20 @@ def test_words_in_a_row_come_before_words_scattered_across_names(
     assert found(tmp_path, "iron man", popular, phrase) == [phrase.title, popular.title]
 
 
-@pytest.mark.parametrize("separator", ["\n", ", ", "; "])
+@pytest.mark.parametrize("separator", ["\n", ",", ";"])
 def test_each_alias_counts_as_a_name(tmp_path: Path, separator: str) -> None:
-    # Both hold the search as whole words, so only the alias that is exactly it wins.
-    popular = page("Ann Doe (Earth-1)", name="The Zephyr Choir")
+    # Unsplit, "Blaze;Zephyr" is one word that holds no "zephyr"; the popular page
+    # holds it only inside a longer word.
+    popular = page("Ann Doe (Earth-1)", name="The Zephyrs Choir")
     aliased = page("Bob Roe (Earth-1)", aliases=f"Blaze{separator}Zephyr")
 
     assert found(tmp_path, "zephyr", popular, aliased) == [aliased.title, popular.title]
 
 
 def test_a_name_with_a_comma_in_it_counts_whole(tmp_path: Path) -> None:
-    popular = page("Ann Doe (Earth-1)", name="The Zephyr Gale and Squall Band")
+    # Only split at its comma, the name would hold the search's words apart, as the
+    # popular page does.
+    popular = page("Ann Doe (Earth-1)", name="Gale and Squall of Zephyr")
     named = page("Bob Roe (Earth-1)", name="Zephyr, Gale and Squall")
 
     query = "Zephyr, Gale and Squall"
@@ -226,8 +245,8 @@ def test_a_comma_in_a_title_makes_no_name_of_its_own(tmp_path: Path) -> None:
     assert found(tmp_path, "zephyr 1", popular, titled) == [popular.title, titled.title]
 
 
-def test_the_title_without_its_reality_counts_as_a_name(tmp_path: Path) -> None:
-    popular = page("Ann Doe (Earth-1)", name="The Zephyr Choir")
+def test_the_title_counts_as_a_name(tmp_path: Path) -> None:
+    popular = page("Ann Doe (Earth-1)", name="The Zephyrs Choir")
     titled = page("Zephyr (Earth-616)")
 
     assert found(tmp_path, "zephyr", popular, titled) == [titled.title, popular.title]

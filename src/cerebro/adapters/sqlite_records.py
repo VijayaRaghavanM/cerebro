@@ -49,6 +49,16 @@ SHARED_TABLES = [
     "CREATE INDEX IF NOT EXISTS categories_by_record ON categories (kind, pageid)",
 ]
 
+# How often the wiki's links with each text point at each page, across every kind of
+# record. It ranks name search by what the wiki most often means by a name. It is
+# rebuilt whenever a category is saved, so it always counts the links stored.
+LINK_TEXTS = [
+    "DROP TABLE IF EXISTS link_texts",
+    "CREATE TABLE link_texts AS SELECT lower(text) AS text, title, COUNT(*) AS n"
+    " FROM links GROUP BY lower(text), title",
+    "CREATE INDEX link_texts_text ON link_texts (text, title)",
+]
+
 # Fields stored in tables of their own rather than in a column.
 ROW_FIELDS_LEFT_OUT = {"links", "categories", "stories"}
 
@@ -71,13 +81,18 @@ NAME_COLUMNS = {
     Category.COMICS: ["title", "year"],
 }
 
-# Searched and ranked apart, each up to the limit. A character or team whose name is
-# the search ("Vision") comes before one that only holds it in a longer name
-# ("... Intervention, Enforcement and Logistics Division"); then appearances, which
-# compare characters with teams but say nothing of comics, where the shortest title is
-# the plainest match ("Avengers Vol 1 1" before "Avengers Annual Vol 1 1").
+# Searched and ranked apart, each up to the limit. A character or team ranks first by
+# how often the wiki's links with the search as their text point at it, which is what
+# the wiki most often means by the name: every codename a page ever held counts as
+# its name, so alternate realities hold "Namor" as well. Then a name that is the
+# search, or holds its words in a run, before one that holds them apart; then
+# appearances. A comic ranks by the shortest title, the plainest match ("Avengers Vol
+# 1 1" before "Avengers Annual Vol 1 1").
 SEARCH_GROUPS = [
-    ((Category.CHARACTERS, Category.TEAMS), "name_rank, appearances DESC, title"),
+    (
+        (Category.CHARACTERS, Category.TEAMS),
+        "linked DESC, name_rank, appearances DESC, title",
+    ),
     ((Category.COMICS,), "length(title), title"),
 ]
 
@@ -146,6 +161,9 @@ class SqliteRecordStore(RecordStore, RecordReader, RecordLookup):
                 names = ", ".join(NAME_COLUMNS[category])
                 db.execute(f'CREATE INDEX "{category}_names" ON "{category}" ({names})')
 
+            for statement in LINK_TEXTS:
+                db.execute(statement)
+
     # Reading: one record at a time, so a category is never held in memory whole.
 
     def characters(self) -> Iterator[Character]:
@@ -191,6 +209,8 @@ class SqliteRecordStore(RecordStore, RecordReader, RecordLookup):
                     if has_table(self.path, category):
                         condition, more = _all_words_in(NAME_COLUMNS[category], words)
                         selects.append(_hits_from(category, condition))
+                        if category is not Category.COMICS:
+                            params.append(name.strip().lower())
                         params.extend(more)
                 if not selects:
                     continue
@@ -449,29 +469,23 @@ def _words(text: str) -> list[str]:
 
 
 def _name_rank(wanted: list[str], title: str, *others: str | None) -> int:
-    """How closely a page's names match the search: 0 is best.
-
-    0 when the search is one of the names, 1 when it is a run of whole words inside
-    one, 2 when its words are only scattered across the names or part-words.
+    """0 when the search's words come in a row in one of the page's names, whole,
+    and 1 when they are only scattered across the names or part of longer words.
     `wanted` is lower case; the title's reality is dropped.
     """
     columns = [other for other in others if other]
     # The title is one name, commas and all ("Avengers (1,000,000 BC)"). Another
     # column holds one name, which can have a comma in it, or several names, so
-    # each counts whole and split.
+    # each counts whole and split: "Blaze;Zephyr" holds "Zephyr" only once split.
     parts = [part for column in columns for part in NAME_SEPARATORS.split(column)]
     names = [REALITY.sub("", title), *columns, *parts]
 
-    rank = 2
     size = len(wanted)
     for name in names:
         words = _words(name.lower())
-        if words == wanted:
-            return 0
-
         if any(words[start : start + size] == wanted for start in range(len(words))):
-            rank = 1
-    return rank
+            return 0
+    return 1
 
 
 def _all_words_in(columns: list[str], words: list[str]) -> tuple[str, list[str]]:
@@ -488,11 +502,19 @@ def _all_words_in(columns: list[str], words: list[str]) -> tuple[str, list[str]]
 
 
 def _hits_from(category: Category, condition: str) -> str:
-    """The SELECT for one table's hits: title, category, appearances and name rank."""
+    """The SELECT for one table's hits: title, category, appearances, name rank and
+    how often links with the search as their text point at the page."""
     if category is Category.COMICS:
         count = "0"
         rank = "0"
+        linked = "0"
     else:
+        # `link_texts` holds lowered text, and the search comes lowered as its
+        # parameter.
+        linked = (
+            "COALESCE((SELECT n FROM link_texts"
+            " WHERE text = ? AND title = page.title), 0)"
+        )
         # The title comes first in every table's name columns, as `_name_rank` expects.
         rank = f"name_rank({', '.join(NAME_COLUMNS[category])})"
         # The page's title is what a cast list links to; a comic counts once however
@@ -504,6 +526,6 @@ def _hits_from(category: Category, condition: str) -> str:
         )
     return (
         f"SELECT title, '{category}' AS category, {count} AS appearances,"
-        f" {rank} AS name_rank"
+        f" {rank} AS name_rank, {linked} AS linked"
         f' FROM "{category}" AS page WHERE {condition}'
     )
