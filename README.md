@@ -64,6 +64,8 @@ Open the address Vite prints. Vite sends `/ask` to the API.
 
 - The evaluation questions in `evals/golden.jsonl` and `evals/golden-v2.jsonl` include questions people asked on [Science Fiction & Fantasy Stack Exchange](https://scifi.stackexchange.com) (CC BY-SA 4.0), in [Natural Questions](https://ai.google.com/research/NaturalQuestions) (CC BY-SA 3.0) and in [WebQuestions](https://nlp.stanford.edu/software/sempre/) (CC BY 4.0). Each line names its source, link and license; questions marked `cerebro` were written for this project.
 
+- The drawings use the [Patrick Hand](https://github.com/google/fonts/tree/main/ofl/patrickhand) font by Patrick Wagesreiter, under the SIL Open Font License ([assets/OFL-PatrickHand.txt](assets/OFL-PatrickHand.txt)).
+
 This is a non-commercial fan project. It is not affiliated with or endorsed by Marvel, Fandom or Comic Vine.
 
 ## License
