@@ -9,7 +9,7 @@ import re
 from collections.abc import Mapping
 
 from cerebro.application.report import overall_line, render_report
-from cerebro.domain.answers import REFUSAL, Answer, ToolCall, is_comic_vine
+from cerebro.domain.answers import REFUSAL, Answer, ToolCall
 from cerebro.domain.evaluation import (
     Failure,
     GoldenQuestion,
@@ -18,7 +18,7 @@ from cerebro.domain.evaluation import (
     Verdict,
 )
 from cerebro.domain.scoring import Price, Score, Summary
-from cerebro.ports.evaluation import RunStore
+from cerebro.ports.evaluation import CitedPages, RunStore
 
 # Without the leading "I", so a refusal in any person counts; plus the spelled-out form.
 REFUSALS = (
@@ -30,14 +30,18 @@ NOTHING = Answer("", (), 0, 0, 0, 0, 0.0)
 
 
 def score_run(
-    questions: list[GoldenQuestion], store: RunStore, prices: Mapping[str, Price]
+    questions: list[GoldenQuestion],
+    store: RunStore,
+    prices: Mapping[str, Price],
+    pages: CitedPages,
 ) -> str | None:
     """Score every saved result, keep the scores and a report, and return the
     overall totals in one line, or None when the run has no results.
 
-    `prices` is keyed by the model name a result carries.
+    `prices` is keyed by the model name a result carries; `pages` says which page
+    each cited source stands for.
     """
-    scores = score_results(questions, store, prices)
+    scores = score_results(questions, store, prices, pages)
     if not scores:
         return None
 
@@ -48,7 +52,10 @@ def score_run(
 
 
 def score_results(
-    questions: list[GoldenQuestion], store: RunStore, prices: Mapping[str, Price]
+    questions: list[GoldenQuestion],
+    store: RunStore,
+    prices: Mapping[str, Price],
+    pages: CitedPages,
 ) -> list[Score]:
     """The score of every saved result, with the judge's verdict where the run has
     one. A result whose question is no longer in the golden set is left out.
@@ -61,6 +68,7 @@ def score_results(
             by_id[result.question_id],
             result,
             prices[result.model],
+            pages,
             verdicts.get(result.question_id),
         )
         for result in store.results()
@@ -72,6 +80,7 @@ def score(
     question: GoldenQuestion,
     result: RunResult,
     price: Price,
+    pages: CitedPages,
     verdict: Verdict | None = None,
 ) -> Score:
     """How one result measures against its question, with the judge's verdict on
@@ -82,7 +91,7 @@ def score(
 
     # A failure scores as an empty answer that cost nothing.
     answer = result.final if isinstance(result.final, Answer) else NOTHING
-    cited = cited_pages(answer)
+    cited = cited_pages(answer, pages)
     expected_cited = [title for title in cited if title in question.expected_pages]
     found = facts_found(question.expected_facts, answer.text)
     solved = is_solved(question, observed, found, len(expected_cited), verdict)
@@ -150,11 +159,12 @@ def facts_found(facts: tuple[str, ...], text: str) -> int:
     return sum(1 for fact in facts if _normal(fact) in words)
 
 
-def cited_pages(answer: Answer) -> list[str]:
-    """The titles an answer cites, once each, without the Comic Vine records."""
-    titles = [source.title for source in answer.sources if not is_comic_vine(source)]
+def cited_pages(answer: Answer, pages: CitedPages) -> list[str]:
+    """The pages an answer cites, once each. A Comic Vine record counts as the page
+    it is matched to, and one with no match counts as no page."""
+    titles = [pages.page(source) for source in answer.sources]
 
-    return list(dict.fromkeys(titles))
+    return list(dict.fromkeys(title for title in titles if title is not None))
 
 
 def tools_in_order(expected: tuple[str, ...], called: list[str]) -> bool:

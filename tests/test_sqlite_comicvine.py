@@ -6,6 +6,7 @@ from helpers import comicvine_characters, real_character, rows
 
 from cerebro.adapters.sqlite_comicvine import SqliteComicVineStore
 from cerebro.adapters.sqlite_records import SqliteRecordStore
+from cerebro.domain.answers import Source
 from cerebro.domain.comicvine import CharacterMatch
 from cerebro.domain.pages import Category
 
@@ -117,3 +118,31 @@ def test_matched_characters_are_ranked_by_appearances(tmp_path: Path) -> None:
         (2, berkhart.pageid, berkhart.title, 3, 12),
         (3, berkhart.pageid, berkhart.title, 2, 0),
     ]
+
+
+def test_a_citation_stands_for_its_page_or_for_the_page_its_record_matches(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "records.sqlite"
+    store = SqliteComicVineStore(path)
+    berkhart = real_character()
+    SqliteRecordStore(path).replace(Category.CHARACTERS, [berkhart])
+    witch, nobody = comicvine_characters()
+    store.replace_comicvine([witch, nobody])
+    store.replace_matches([CharacterMatch(berkhart.pageid, witch.id, 0.5)])
+
+    wiki = Source(berkhart.title, "https://wiki.example/a")
+    matched = Source(f"Comic Vine: {witch.name}", witch.url)
+    unmatched = Source(f"Comic Vine: {nobody.name}", nobody.url)
+
+    assert store.page(wiki) == berkhart.title
+    assert store.page(matched) == berkhart.title
+    assert store.page(unmatched) is None
+
+
+def test_before_comic_vine_is_loaded_its_citations_stand_for_no_page(
+    tmp_path: Path,
+) -> None:
+    store = SqliteComicVineStore(tmp_path / "records.sqlite")
+
+    assert store.page(Source("Comic Vine: Ann", "https://cv.example/1")) is None

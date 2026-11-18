@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 
+from cerebro.domain.answers import Source
 from cerebro.domain.evaluation import (
     Exchange,
     GoldenQuestion,
@@ -19,6 +20,16 @@ class ExchangesMissing(Exception):
 
 class VerdictUnreadable(Exception):
     """The judge's reply was not a verdict. The message says what it was."""
+
+
+class CitedPages(ABC):
+    """Which wiki page a cited source stands for, so a citation can count as
+    citing a golden question's expected page."""
+
+    @abstractmethod
+    def page(self, source: Source) -> str | None:
+        """A wiki page stands for itself, and a Comic Vine record for the page it is
+        matched to, or for none when it has no match."""
 
 
 class Judge(ABC):

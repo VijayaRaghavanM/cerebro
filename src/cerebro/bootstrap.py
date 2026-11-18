@@ -250,7 +250,7 @@ def score_run(run_name: str) -> str | None:
     questions = JsonlGoldenSet(Settings().golden_file).questions(None)
 
     return scoring.score_run(
-        questions, JsonlRunStore(RUNS_DIR / run_name), _model_prices()
+        questions, JsonlRunStore(RUNS_DIR / run_name), _model_prices(), _comicvine()
     )
 
 
@@ -264,7 +264,7 @@ def compare_runs(run_names: list[str]) -> str:
     prices = _model_prices()
     stores = {name: JsonlRunStore(RUNS_DIR / name) for name in run_names}
 
-    return compare.compare_runs(questions, stores, prices)
+    return compare.compare_runs(questions, stores, prices, _comicvine())
 
 
 def judge_run(

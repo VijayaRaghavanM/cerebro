@@ -7,7 +7,7 @@ from cerebro.application.report import dollars, percent, render_table
 from cerebro.application.scoring import score_results, summarise
 from cerebro.domain.evaluation import GoldenQuestion
 from cerebro.domain.scoring import Price, Summary
-from cerebro.ports.evaluation import RunStore
+from cerebro.ports.evaluation import CitedPages, RunStore
 
 OVERALL = (
     "Run",
@@ -34,6 +34,7 @@ def compare_runs(
     questions: list[GoldenQuestion],
     stores: Mapping[str, RunStore],
     prices: Mapping[str, Price],
+    pages: CitedPages,
 ) -> str:
     """Markdown comparing runs, each scored as `score_run` scores it: a table with
     a row per run, a table of the questions solved in each category, and a line per
@@ -45,7 +46,7 @@ def compare_runs(
     summaries: dict[str, list[Summary]] = {}
     models: dict[str, str] = {}
     for name, store in stores.items():
-        scores = score_results(questions, store, prices)
+        scores = score_results(questions, store, prices, pages)
         if not scores:
             raise RunEmpty(name)
 

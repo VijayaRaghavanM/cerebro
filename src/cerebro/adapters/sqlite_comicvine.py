@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, get_args, get_origin
 
 from cerebro.adapters.sqlite import has_table, transaction
+from cerebro.domain.answers import Source, is_comic_vine
 from cerebro.domain.comicvine import (
     CharacterMatch,
     ComicVineCharacter,
@@ -16,6 +17,7 @@ from cerebro.domain.comicvine import (
     ComicVineIssue,
 )
 from cerebro.ports.comicvine import ComicVineStore, MatchStore
+from cerebro.ports.evaluation import CitedPages
 
 # A view, so the ranking always reflects the latest load and match without copying
 # data. The id breaks ties between characters with the same appearances.
@@ -29,7 +31,7 @@ CHARACTER_RANKING = (
 )
 
 
-class SqliteComicVineStore(MatchStore, ComicVineStore):
+class SqliteComicVineStore(MatchStore, ComicVineStore, CitedPages):
     """Comic Vine's data, in the same SQLite file as the records.
 
     `comicvine_characters` holds what Comic Vine says of each character,
@@ -70,7 +72,7 @@ class SqliteComicVineStore(MatchStore, ComicVineStore):
                 values = _comicvine_values(character)
                 db.execute(f"INSERT INTO comicvine_characters VALUES ({marks})", values)
 
-    # Reading: the character matched to a page.
+    # Reading: the character matched to a page, and the page a citation stands for.
 
     def character(self, pageid: int) -> ComicVineCharacter | None:
         """The Comic Vine character matched to the page, or None.
@@ -96,6 +98,26 @@ class SqliteComicVineStore(MatchStore, ComicVineStore):
             return None
 
         return _comicvine_character(row)
+
+    def page(self, source: Source) -> str | None:
+        if not is_comic_vine(source):
+            return source.title
+        if not (
+            has_table(self.path, "comicvine_matches")
+            and has_table(self.path, "comicvine_characters")
+        ):
+            return None
+
+        # A citation carries the record's Comic Vine page, the only part kept whole.
+        with closing(sqlite3.connect(self.path)) as db:
+            row = db.execute(
+                "SELECT page.title FROM comicvine_characters cv"
+                " JOIN comicvine_matches m ON m.comicvine_id = cv.id"
+                " JOIN characters page ON page.pageid = m.pageid"
+                " WHERE cv.url = ? ORDER BY m.overlap DESC, page.pageid LIMIT 1",
+                (source.url,),
+            ).fetchone()
+        return None if row is None else str(row[0])
 
 
 def _character_fields() -> list[Field[Any]]:

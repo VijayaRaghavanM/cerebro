@@ -1,5 +1,22 @@
-from cerebro.domain.answers import Answer, Source
+from cerebro.domain.answers import Answer, Source, is_comic_vine
 from cerebro.domain.evaluation import GoldenQuestion, Outcome, Split
+from cerebro.ports.evaluation import CitedPages
+
+
+class FakePages(CitedPages):
+    """A wiki page stands for itself; a Comic Vine record for the page `matches`
+    pairs its url with, if any."""
+
+    def __init__(self, matches: dict[str, str] | None = None) -> None:
+        self.matches = matches or {}
+
+    def page(self, source: Source) -> str | None:
+        if not is_comic_vine(source):
+            return source.title
+        return self.matches.get(source.url)
+
+
+PAGES = FakePages()
 
 
 def golden_question(id: str, split: Split = Split.DEV) -> GoldenQuestion:

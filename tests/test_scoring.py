@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from eval_helpers import answer, golden_question
+from eval_helpers import PAGES, FakePages, answer, golden_question
 
 from cerebro.adapters.jsonl_evaluation import JsonlRunStore
 from cerebro.application.report import COLUMNS, render_report
@@ -31,7 +31,7 @@ def scored(
     final: Answer | Failure, verdict: Verdict | None = None, **changes: Any
 ) -> Score:
     question = replace(golden_question("a"), **changes)
-    return score(question, RunResult("a", "m", (), final), FREE, verdict)
+    return score(question, RunResult("a", "m", (), final), FREE, PAGES, verdict)
 
 
 # Observed outcome
@@ -124,7 +124,18 @@ def test_citation_recall_and_precision_count_expected_pages() -> None:
     assert (result.pages_cited, result.pages_expected, result.cited_total) == (1, 2, 2)
 
 
-def test_a_comic_vine_source_is_neither_relevant_nor_irrelevant() -> None:
+def test_a_comic_vine_record_counts_as_the_page_it_is_matched_to() -> None:
+    vine = Source("Comic Vine: Wolverine", "https://comicvine.example/4005-1440/")
+    question = golden_question("a")
+    pages = FakePages({vine.url: HOWLETT.title})
+
+    result = score(question, RunResult("a", "m", (), cites(vine)), FREE, pages)
+
+    assert (result.pages_cited, result.cited_total) == (1, 1)
+    assert result.solved
+
+
+def test_a_comic_vine_record_with_no_match_counts_as_no_page() -> None:
     final = cites(HOWLETT, Source("Comic Vine: Wolverine", "https://example.test/c"))
 
     result = scored(final)
@@ -143,7 +154,7 @@ def test_tools_are_scored_from_the_trace() -> None:
         ToolCall("other_tool", "x"),
     )
 
-    result = score(question, RunResult("a", "m", trace, answer()), FREE)
+    result = score(question, RunResult("a", "m", trace, answer()), FREE, PAGES)
 
     assert (result.tools_used, result.tools_expected) == (2, 2)
     assert not result.in_order
@@ -157,7 +168,7 @@ def test_tools_called_in_the_expected_order_are_in_order() -> None:
         ToolCall("search_pages", "Logan"),
     )
 
-    result = score(question, RunResult("a", "m", trace, answer()), FREE)
+    result = score(question, RunResult("a", "m", trace, answer()), FREE, PAGES)
 
     assert result.in_order
 
@@ -168,7 +179,7 @@ def test_tools_called_in_the_expected_order_are_in_order() -> None:
 def test_cost_is_dollars_per_million_input_and_output_tokens() -> None:
     question = golden_question("a")  # the answer used 1200 in and 40 out
 
-    result = score(question, RunResult("a", "m", (), answer()), Price(1.0, 10.0))
+    result = score(question, RunResult("a", "m", (), answer()), Price(1.0, 10.0), PAGES)
 
     assert result.cost == (1200 * 1.0 + 40 * 10.0) / 1_000_000
 
@@ -251,7 +262,7 @@ def test_a_summary_adds_up_each_category_and_all_of_them() -> None:
         (second, RunResult("b", "m", (), cites(text="Nobody."))),
         (third, RunResult("c", "m", (), Failure("RateLimited", ""))),
     ]
-    scores = [score(question, result, price) for question, result in results]
+    scores = [score(question, result, price, PAGES) for question, result in results]
 
     lookup, multi_hop, overall = summarise(scores)
 
@@ -277,7 +288,7 @@ def test_a_failure_never_counts_as_a_right_refusal() -> None:
 
 def test_the_report_has_a_header_row_and_a_row_per_summary() -> None:
     result = RunResult("a", "m", (), cites(HOWLETT))
-    scores = [score(golden_question("a"), result, FREE)]
+    scores = [score(golden_question("a"), result, FREE, PAGES)]
 
     lines = render_report(summarise(scores)).splitlines()
 
@@ -289,7 +300,9 @@ def test_the_report_has_a_header_row_and_a_row_per_summary() -> None:
 
 def test_the_report_gives_the_judge_correct_rate_and_says_it_is_provisional() -> None:
     result = RunResult("a", "m", (), cites(HOWLETT))
-    scores = [score(golden_question("a"), result, FREE, Verdict(False, "Wrong."))]
+    scores = [
+        score(golden_question("a"), result, FREE, PAGES, Verdict(False, "Wrong."))
+    ]
 
     report = render_report(summarise(scores))
 
@@ -301,7 +314,7 @@ def test_the_report_gives_the_judge_correct_rate_and_says_it_is_provisional() ->
 
 def test_a_report_without_verdicts_makes_no_claim_about_the_judge() -> None:
     result = RunResult("a", "m", (), cites(HOWLETT))
-    scores = [score(golden_question("a"), result, FREE)]
+    scores = [score(golden_question("a"), result, FREE, PAGES)]
 
     report = render_report(summarise(scores))
 
@@ -317,7 +330,7 @@ def test_a_run_is_scored_and_its_scores_and_report_are_kept(tmp_path: Path) -> N
     store.append(RunResult("a", "m", (), cites(HOWLETT)))
     store.append(RunResult("zzz", "m", (), cites(HOWLETT)))  # not in the golden set
 
-    line = score_run([golden_question("a")], store, {"m": FREE})
+    line = score_run([golden_question("a")], store, {"m": FREE}, PAGES)
 
     assert line == "1 of 1 solved, fact recall 100%, cost $0.0000"
     kept = json.loads((tmp_path / "scores.json").read_text())
@@ -331,7 +344,7 @@ def test_a_run_is_scored_with_the_verdicts_the_judge_kept(tmp_path: Path) -> Non
     store.append(RunResult("a", "m", (), cites(HOWLETT)))
     store.save_verdict("a", Verdict(False, "Wrong person."))
 
-    line = score_run([golden_question("a")], store, {"m": FREE})
+    line = score_run([golden_question("a")], store, {"m": FREE}, PAGES)
 
     assert line == "0 of 1 solved, fact recall 100%, cost $0.0000"
     kept = json.loads((tmp_path / "scores.json").read_text())
@@ -342,5 +355,5 @@ def test_a_run_is_scored_with_the_verdicts_the_judge_kept(tmp_path: Path) -> Non
 def test_a_run_with_no_results_is_not_scored(tmp_path: Path) -> None:
     store = JsonlRunStore(tmp_path)
 
-    assert score_run([golden_question("a")], store, {}) is None
+    assert score_run([golden_question("a")], store, {}, PAGES) is None
     assert not (tmp_path / "report.md").exists()
