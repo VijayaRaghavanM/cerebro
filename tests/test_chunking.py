@@ -1,14 +1,16 @@
 import re
 from dataclasses import replace
 
-from helpers import character, real_character
+from helpers import character, real_character, real_comic
 
 from cerebro.application.chunking import (
     CHARS_PER_TOKEN,
     PROSE_FIELDS,
     TARGET_TOKENS,
     chunk_character,
+    chunk_comic,
 )
+from cerebro.domain.records import Comic, Story
 
 TARGET_CHARS = TARGET_TOKENS * CHARS_PER_TOKEN
 
@@ -169,3 +171,64 @@ def test_real_page_chunks_fit_and_keep_every_paragraph() -> None:
     for paragraph in record.history.split("\n\n"):
         if paragraph.strip():
             assert squash(paragraph) in kept
+
+
+# Comic pages
+
+
+def story(
+    number: int, title: str | None, synopsis: str, reprint: bool = False
+) -> Story:
+    base = real_comic().stories[0]
+    reprint_of = "Amazing Fantasy Vol 1 15" if reprint else None
+    return replace(
+        base, number=number, title=title, synopsis=synopsis, reprint_of=reprint_of
+    )
+
+
+def comic(
+    *stories: Story, notes: str | None = None, trivia: str | None = None
+) -> Comic:
+    return replace(real_comic(), stories=stories, notes=notes, trivia=trivia)
+
+
+def test_a_comics_chunks_are_its_stories_then_its_notes_and_trivia() -> None:
+    page = comic(
+        story(1, "The Storm", "Ann flies."),
+        story(2, None, "Bob runs."),
+        notes="Drawn in a week.",
+        trivia="The first issue.",
+    )
+
+    chunks = chunk_comic(page)
+
+    assert [(c.section, c.text) for c in chunks] == [
+        ("Story 1: The Storm > Synopsis", "Ann flies."),
+        ("Story 2 > Synopsis", "Bob runs."),
+        ("Notes", "Drawn in a week."),
+        ("Trivia", "The first issue."),
+    ]
+    assert [c.number for c in chunks] == [0, 1, 2, 3]
+    assert {c.title for c in chunks} == {page.title}
+
+
+def test_a_comics_prefix_names_the_issue_and_its_cover_date() -> None:
+    page = replace(comic(story(1, None, "Ann flies.")), month="July", year="1966")
+
+    (chunk,) = chunk_comic(page)
+
+    assert chunk.prefix == f"{page.title} (July 1966) > Story 1 > Synopsis"
+
+
+def test_a_comic_with_no_cover_date_is_named_by_its_title_alone() -> None:
+    page = replace(comic(story(1, None, "Ann flies.")), month=None, year=None)
+
+    (chunk,) = chunk_comic(page)
+
+    assert chunk.prefix == f"{page.title} > Story 1 > Synopsis"
+
+
+def test_a_reprinted_story_is_left_to_its_original() -> None:
+    page = comic(story(1, None, "Ann flies.", reprint=True), story(2, None, "New."))
+
+    assert [c.text for c in chunk_comic(page)] == ["New."]

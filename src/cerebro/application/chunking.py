@@ -5,7 +5,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, fields
 
 from cerebro.domain.chunks import Chunk
-from cerebro.domain.records import Character
+from cerebro.domain.records import Character, Comic
 from cerebro.ports.chunks import ChunkStore
 from cerebro.ports.records import RecordReader
 
@@ -23,6 +23,10 @@ PROSE_FIELDS = (
     "notes",
     "trivia",
 )
+
+# A comic page is cut too, so text search reaches what happens in an issue (its
+# stories' synopses) and what the page says about it.
+COMIC_PROSE_FIELDS = ("notes", "trivia")
 
 # Fields that identify the page or list its links; a search gains nothing from them.
 PAGE_FURNITURE = ("pageid", "revid", "title", "categories", "links")
@@ -54,6 +58,7 @@ def chunk_records(records: RecordReader, store: ChunkStore) -> ChunkReport:
     # Asked for here, not inside the stream, so missing records fail before the
     # store opens anything to write.
     characters = records.characters()
+    comics = records.comics()
     pages = chunks = 0
 
     def stream() -> Iterator[Chunk]:
@@ -61,6 +66,11 @@ def chunk_records(records: RecordReader, store: ChunkStore) -> ChunkReport:
         for character in characters:
             pages += 1
             for chunk in chunk_character(character):
+                chunks += 1
+                yield chunk
+        for comic in comics:
+            pages += 1
+            for chunk in chunk_comic(comic):
                 chunks += 1
                 yield chunk
 
@@ -77,18 +87,48 @@ def chunk_character(character: Character) -> list[Chunk]:
         if text:
             sections.extend(_field_sections(field, text))
 
-    page_part = _page_prefix(character)
+    return _numbered(character, _page_prefix(character), sections)
+
+
+def chunk_comic(comic: Comic) -> list[Chunk]:
+    """Each story's synopsis, then the page's notes and trivia."""
+    sections = []
+    for story in comic.stories:
+        # A reprint repeats its original's synopsis, and the original is cut too.
+        if not story.synopsis or story.reprint_of:
+            continue
+
+        label = f"Story {story.number}"
+        if story.title:
+            label += f": {story.title}"
+        for name, texts in _field_sections("synopsis", story.synopsis):
+            sections.append((f"{label} > {name}", texts))
+
+    for field in COMIC_PROSE_FIELDS:
+        text = getattr(comic, field)
+        if text:
+            sections.extend(_field_sections(field, text))
+
+    cover = " ".join(part for part in (comic.month, comic.year) if part)
+    page_part = f"{comic.title} ({cover})" if cover else comic.title
+    return _numbered(comic, page_part, sections)
+
+
+def _numbered(
+    page: Character | Comic, page_part: str, sections: list[tuple[str, list[str]]]
+) -> list[Chunk]:
+    """The sections' texts as chunks, numbered in page order."""
     chunks: list[Chunk] = []
     for name, texts in sections:
         for text in texts:
             number = len(chunks)
             chunks.append(
                 Chunk(
-                    id=f"{character.pageid}:{character.revid}:{number}",
-                    pageid=character.pageid,
-                    revid=character.revid,
+                    id=f"{page.pageid}:{page.revid}:{number}",
+                    pageid=page.pageid,
+                    revid=page.revid,
                     number=number,
-                    title=character.title,
+                    title=page.title,
                     section=name,
                     prefix=f"{page_part} > {name}",
                     text=text,

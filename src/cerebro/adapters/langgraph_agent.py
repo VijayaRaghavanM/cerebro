@@ -64,7 +64,9 @@ SEARCH_DESCRIPTION = (
 )
 TEXT_DESCRIPTION = (
     "Find passages by what they say, for a description, a topic or a fact "
-    "inside a long page; returns the best matches with their page titles."
+    "inside a long page; returns the best matches with their page titles. "
+    "Searches character pages and what happens in each comic (its story synopses, "
+    "notes and trivia)."
 )
 READ_DESCRIPTION = "Read one page by its exact title."
 APPEARANCES_DESCRIPTION = (

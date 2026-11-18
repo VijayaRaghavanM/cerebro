@@ -1,28 +1,30 @@
 import sqlite3
 from pathlib import Path
 
-from helpers import real_character
+from helpers import real_character, real_comic
 from typer.testing import CliRunner
 
 from cerebro.adapters.sqlite_records import SqliteRecordStore
-from cerebro.application.chunking import chunk_character
+from cerebro.application.chunking import chunk_character, chunk_comic
 from cerebro.domain.pages import Category
 from cerebro.interfaces.cli import app
 
 
-def test_chunk_stores_the_chunks_of_the_parsed_characters(data_dir: Path) -> None:
-    record = real_character()
-    SqliteRecordStore(data_dir / "records.sqlite").replace(
-        Category.CHARACTERS, [record]
-    )
-    expected = chunk_character(record)
+def test_chunk_stores_the_chunks_of_the_parsed_characters_and_comics(
+    data_dir: Path,
+) -> None:
+    store = SqliteRecordStore(data_dir / "records.sqlite")
+    character, comic = real_character(), real_comic()
+    store.replace(Category.CHARACTERS, [character])
+    store.replace(Category.COMICS, [comic])
+    expected = chunk_character(character) + chunk_comic(comic)
 
     result = CliRunner().invoke(app, ["chunk"])
 
     assert result.exit_code == 0
-    assert result.output == f"1 pages, {len(expected):,} chunks\n"
+    assert result.output == f"2 pages, {len(expected):,} chunks\n"
     with sqlite3.connect(data_dir / "records.sqlite") as db:
-        stored = db.execute("SELECT id, text FROM chunks ORDER BY number")
+        stored = db.execute("SELECT id, text FROM chunks ORDER BY rowid")
         assert stored.fetchall() == [(c.id, c.text) for c in expected]
 
 
