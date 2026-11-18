@@ -11,6 +11,10 @@ from pydantic import SecretStr
 # The client refuses to build without a key, and a local server ignores it.
 NO_KEY = SecretStr("not-needed")
 
+# The SDK waits 600 s by default, and a local model once hung for 26 minutes. A
+# local 14B model answering a long tool reply needs up to a few minutes.
+TIMEOUT_SECONDS = 300
+
 
 def openai_chat(
     base_url: str,
@@ -22,7 +26,8 @@ def openai_chat(
     transport: httpx.BaseTransport | None = None,
 ) -> ChatOpenAI:
     """A model at temperature 0, sending through `transport` if given and waiting
-    its turn at `rate_limiter` if given.
+    its turn at `rate_limiter` if given. A failed request is tried once more, each
+    try within TIMEOUT_SECONDS.
 
     `extra_body` adds fields the protocol lacks.
     """
@@ -36,4 +41,6 @@ def openai_chat(
         extra_body=extra_body,
         rate_limiter=rate_limiter,
         http_client=client,
+        timeout=TIMEOUT_SECONDS,
+        max_retries=1,
     )
