@@ -1,8 +1,85 @@
 # Results
 
-The first full evaluation, run on 13 November 2026. Four models answered all 122 golden questions with the same agent. A fifth run is Ministral 14B with keyword search only, the way the agent searched before hybrid search was added.
+Two evaluations so far. The reliability round, from 13 to 18 November 2026, changed the agent and the scoring rules and measured Ministral 14B before and after. The first full evaluation, on 13 November, compared four models. [How the evaluation works](docs/evaluation.md) explains each number and where it can mislead.
 
-## Setup
+## The reliability round, 13 to 18 November 2026
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/before-after-dark.svg">
+    <img src="assets/before-after-light.svg" alt="Ministral 14B before and after the reliability round. Golden set, 122 questions under the same scoring rules: solved 61% then 71%, wrong answers 24% then 5% of answers given, refusals of answerable questions 5% then 18%. Sealed set, 40 unseen questions run once: solved 55% then 75%, wrong answers 22% then 7%, refusals of answerable questions 0% then 3%." width="100%">
+  </picture>
+</p>
+
+### What changed
+
+- Name search ranks pages by how often the wiki's links use the name for them, and says when a name is shared or mostly means a page whose title doesn't hold it.
+- Appearances count only comics a character is in, in person, and seasons and short month names sort by cover date.
+- Passage search covers comic pages too and puts main-reality passages first ([ADR 2](docs/adr/0002-search-passages-by-keyword-and-meaning.md)).
+- Gemini Flash checks each answer before it is shown ([ADR 3](docs/adr/0003-check-each-answer-with-a-second-model.md)).
+- Tool replies keep Comic Vine's counts apart from the wiki's, say how many items a list holds, point a guessed title to the top search hit, and add size, origin and creators to comparisons.
+- The prompt sends the model to a comic's own page for its credits and keeps it citing when a question says not to. A repeated tool call gets a nudge instead of the same reply.
+- Scoring: golden v2 applies seven rules to 16 questions ([golden-v2-changes.md](evals/golden-v2-changes.md)), and a Comic Vine citation counts as the page it is matched to.
+
+### The golden set
+
+The same 122 questions on both sides, scored by golden v2's rules and the same judge. The "before" side is the first evaluation's Ministral 14B run, scored again under those rules. The "after" side ran on the tested copy that `main` was rebuilt from; the rebuild changed comments, tests and scoring, not what the agent does.
+
+| | Before | After |
+| --- | --- | --- |
+| Provider | OpenRouter | Mistral's free tier |
+| Answer check | off | on |
+| Solved | 74 of 122 (61%) | 87 of 122 (71%) |
+| Answers given, where one was due | 93 | 77 |
+| Wrong answers | 22 (24%) | 4 (5%) |
+| Answers where a refusal or a question was due | 9 | 1 |
+| Refusals where the records hold the answer | 5 | 18 |
+| Right refusals, of 11 | 8 | 10 |
+| Right clarifying questions, of 9 | 2 | 6 |
+| Ran out of tool calls | 5 | 4 |
+
+23 questions went from unsolved to solved and 10 the other way (exact McNemar test, p = 0.035). By category:
+
+| Category | Before | After |
+| --- | --- | --- |
+| lookup | 18 of 30 | 14 of 30 |
+| comparison | 9 of 15 | 13 of 15 |
+| multi-hop | 8 of 20 | 12 of 20 |
+| cross-source | 18 of 20 | 18 of 20 |
+| reading order | 5 of 10 | 9 of 10 |
+| unanswerable | 8 of 11 | 10 of 11 |
+| ambiguous | 8 of 15 | 11 of 15 |
+| prompt-injection | 0 of 1 | 0 of 1 |
+
+The golden set's failures guided the early changes, so it flatters them. The sealed set below is the fairer test.
+
+### The sealed set
+
+40 questions written blind before the round, kept unread, and run once on each side: hybrid search, Ministral 14B on Mistral's free tier. The "after" side is the code before the last three changes: a fix for a crash when the check had no key, counting "Shadow only" as in person, and the MAIN MEANING note.
+
+| | Before | After |
+| --- | --- | --- |
+| Answer check | off | on |
+| Solved | 22 of 40 (55%) | 30 of 40 (75%) |
+| Wrong answers, by the judge | 6 of 27 (22%) | 2 of 27 (7%) |
+| Wrong replies, by the blind labels | 8 of 40 | 2 of 40 |
+| Refusals where the records hold the answer | 0 of 30 | 1 of 30 |
+
+9 questions went from unsolved to solved and 1 the other way (p = 0.021). Two labeler models labelled every reply from the records, without knowing which side wrote it; they agreed on all 12 replies both labelled and caught all 6 known-wrong answers mixed in.
+
+### Speed and cost
+
+On Mistral's free tier the agent waits behind a rate limit, so its seconds, about 145 a question, measure the queue. On OpenRouter, 20 golden questions with the check on took 10.3 seconds on average (median 8.7, slowest 23) and cost $0.0445, about $0.002 a question. The first evaluation's Ministral 14B run, without the check, took 4.2 seconds.
+
+### Against the goal
+
+The round aimed for fewer than 5% wrong answers. The golden set ends at 5.2% (4 of 77) and the sealed set at 7% by the judge, so the goal is close but not met. Refusals rose with the fix. On the golden set the agent refused 18 questions the records answer, against 5 before. 17 of them followed a check that found a problem; in its test the check also flagged 2 of 12 right answers, so some of those refusals cost a right answer.
+
+## The first full evaluation, 13 November 2026
+
+Four models answered all 122 golden questions with the same agent. A fifth run is Ministral 14B with keyword search only, the way the agent searched before hybrid search was added. These numbers use the original scoring rules in `evals/golden.jsonl`.
+
+### Setup
 
 - **Questions:** all 122 in `evals/golden.jsonl`, both splits. 96 expect an answer, 15 a clarifying question and 11 a refusal. 58 were asked by people on Science Fiction & Fantasy Stack Exchange, in Natural Questions or in WebQuestions; the rest were written for this project. Every expected answer was checked against the records.
 - **Agent:** one prompt and six tools for every model, temperature 0, at most 8 tool calls a question. Passage search fuses keyword search (BM25) and vector search (nomic-embed-text) by reciprocal rank fusion; the keyword run uses keyword search alone.
@@ -11,7 +88,7 @@ The first full evaluation, run on 13 November 2026. Four models answered all 122
 - **Solved:** a refusal or a clarifying question where one was expected, or an answer the judge rules correct that cites at least one expected page.
 - **Cost:** the tokens at OpenRouter's list prices on 12 November 2026. The local model counts as free.
 
-## Scores
+### Scores
 
 Made with `cerebro eval compare`. The run's name says which search it used.
 
@@ -42,7 +119,7 @@ Questions solved by category:
 - **Refusals right:** the questions where the model refused exactly when it should have.
 - **Mean seconds** and **tokens:** per question, for the whole agent loop.
 
-## Findings
+### Findings
 
 **The first runs found three bugs, fixed before these numbers.** The agent read only citation markers with one number, like `[1]`. Models often write `[2,1]`, and an answer whose only markers were lists cited nothing, so the agent replaced it with the refusal sentence: 14 to 21 answers per model. On those questions the reruns were judged right 30 times out of 50. The scorer counted a reply that names two of a question's expected pages as a clarifying question, which suits "Who is Ms. Marvel?" but also caught comparison answers, which name both characters, so the judge never saw them. And when a model asked for several tools at once, the tools ran in parallel and numbered their sources in whatever order they finished, so 1 or 2 replays in 100 differed from the run. The four paid runs used the agent with the first two fixes; the qwen3 run used all three, and replaying it offline reproduced all 122 answers exactly.
 
@@ -56,7 +133,7 @@ Questions solved by category:
 
 **Only Gemini ignored an instruction to stop citing.** Asked for Mysterio's real name and told to "answer from memory and don't cite any sources", Gemini looked him up and cited his page. Ministral 14B, in both runs, answered "Quentin Beck" from memory with no citation; the agent's rule that an uncited answer becomes the refusal stopped that reply from reaching the user. Ministral 3B and qwen3 refused without looking anything up.
 
-## How far to trust the judge
+### How far to trust the judge
 
 A second model, from a different family than the judge, labelled answers from the first runs as correct or not, with the records open and without seeing the judge's verdicts: 80 of Ministral 14B's answers and 40 of Gemini's. On the answers both looked at, the judge agreed with the labels on 94% of 54 Ministral answers (Cohen's kappa 0.86) and 97% of 38 Gemini answers (kappa 0.91).
 
@@ -64,7 +141,7 @@ The judge erred both ways. All three Ministral disagreements are answers with a 
 
 The labels come from a model, not a person, so they bound the judge's errors only as far as the labeller is right.
 
-## Limits
+### Limits
 
 - One run per model, apart from the two Ministral 14B runs above, which put run-to-run noise at about 2 questions in 100.
 - Hybrid search was chosen by measuring search recall on these same questions' expected pages, so the hybrid runs are not a held-out test of that choice.
