@@ -46,6 +46,21 @@ The question was "Who was the editor-in-chief when Gambit first appeared in a co
 - **A second reader.** Gemini Flash checks each answer against what the tools returned before it is shown ([ADR 3](docs/adr/0003-check-each-answer-with-a-second-model.md)).
 - **Measured.** A fixed set of questions checked against the records, a judge checked against blind labels, a sealed set run once, and a recorded run that CI replays on every push. [How the evaluation works](docs/evaluation.md) covers each part and where its numbers can mislead.
 
+## How well it works
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/before-after-dark.svg">
+    <img src="assets/before-after-light.svg" alt="Ministral 14B before and after the reliability round. Golden set: solved 61% then 71%, wrong answers 24% then 5%, refusals of answerable questions 5% then 18%. Sealed set: solved 55% then 75%, wrong answers 22% then 7%, refusals of answerable questions 0% then 3%." width="100%">
+  </picture>
+</p>
+
+- **Golden set:** on 122 questions scored by the same rules, the agent solved 71%, up from 61% in the first run, and 5% of its answers were wrong, down from 24%. It refuses more than it did: 18 questions the records answer, against 5.
+- **Sealed set:** on 40 questions written blind and run once, it solved 75%, up from 55%, and gave 2 wrong answers, down from 6 (p = 0.021).
+- **Speed and cost:** with the check on, an answer takes about 10 seconds and costs about $0.002 on OpenRouter.
+
+[RESULTS.md](RESULTS.md) has the full tables, and the first evaluation, which compared four models.
+
 ## What's in the repo
 
 | Path | What it holds |
