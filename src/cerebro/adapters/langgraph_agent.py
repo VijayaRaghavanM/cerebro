@@ -9,7 +9,7 @@ import httpx
 import openai
 from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.tools import BaseTool, tool
 from langgraph.errors import GraphRecursionError
 
@@ -23,8 +23,18 @@ from cerebro.application.tools import (
     search_pages,
     search_text,
 )
-from cerebro.domain.answers import REFUSAL, Answer, Source, Step, ToolCall, ToolReply
+from cerebro.domain.answers import (
+    REFUSAL,
+    Answer,
+    Check,
+    CheckVerdict,
+    Source,
+    Step,
+    ToolCall,
+    ToolReply,
+)
 from cerebro.ports.agent import Agent
+from cerebro.ports.answer_check import AnswerChecker
 from cerebro.ports.chunks import ChunkSearch
 from cerebro.ports.records import RecordLookup
 
@@ -104,11 +114,16 @@ COMPARE_DESCRIPTION = (
 
 class LangGraphAgent(Agent):
     def __init__(
-        self, model: BaseChatModel, lookup: RecordLookup, chunks: ChunkSearch
+        self,
+        model: BaseChatModel,
+        lookup: RecordLookup,
+        chunks: ChunkSearch,
+        checker: AnswerChecker | None = None,
     ) -> None:
         self.model = model
         self.lookup = lookup
         self.chunks = chunks
+        self.checker = checker
 
     def steps(self, question: str) -> Iterator[Step]:
         started = time.perf_counter()
@@ -119,8 +134,12 @@ class LangGraphAgent(Agent):
             system_prompt=SYSTEM_PROMPT,
         )
 
-        messages = yield from self._run(agent, question)
+        messages = yield from self._run(agent, [("user", question)])
         text, cited = self._final(messages, numbered)
+        if self.checker is not None and _is_answer(text):
+            messages, text, cited = yield from self._checked(
+                self.checker, agent, question, messages, numbered
+            )
 
         ai = [m for m in messages if isinstance(m, AIMessage)]
         tool_replies = [m for m in messages if isinstance(m, ToolMessage)]
@@ -135,6 +154,35 @@ class LangGraphAgent(Agent):
             output_tokens=sum(u["output_tokens"] for u in usage),
             seconds=time.perf_counter() - started,
         )
+
+    # Checking the answer
+
+    def _checked(
+        self,
+        checker: AnswerChecker,
+        agent: Any,
+        question: str,
+        messages: list[BaseMessage],
+        numbered: dict[Source, int],
+    ) -> Generator[Step, None, tuple[list[BaseMessage], str, tuple[Source, ...]]]:
+        """The conversation and answer after the check. A problem gets one more try
+        with the checker's note; a second problem turns the answer into the refusal.
+        """
+        text, cited = self._final(messages, numbered)
+        check = yield from _check(checker, question, messages, text)
+        if not _found_a_problem(check):
+            return messages, text, cited
+
+        retry = HumanMessage(_retry_note(check.missing))
+        messages = yield from self._run(agent, [*messages, retry])
+        text, cited = self._final(messages, numbered)
+        if not _is_answer(text):
+            return messages, text, cited
+
+        check = yield from _check(checker, question, messages, text)
+        if _found_a_problem(check):
+            return messages, REFUSAL, ()
+        return messages, text, cited
 
     # Running the graph
 
@@ -152,15 +200,16 @@ class LangGraphAgent(Agent):
         return text, cited
 
     def _run(
-        self, agent: Any, question: str
+        self, agent: Any, start: list[Any]
     ) -> Generator[Step, None, list[BaseMessage]]:
         """Yields each tool call and reply as the graph produces it, and returns the
         conversation, kept even if the step cap stops the run.
         """
         messages: list[BaseMessage] = []
+        seen = len(start) if start and isinstance(start[0], BaseMessage) else 0
         try:
             for state in agent.stream(
-                {"messages": [("user", question)]},
+                {"messages": start},
                 # One tool at a time: source numbers follow the order the model
                 # asked, or replaying a saved run differs. The tools are local, so
                 # running them in turn costs nothing noticeable.
@@ -168,7 +217,7 @@ class LangGraphAgent(Agent):
                 stream_mode="values",
             ):
                 # Each state holds every message so far; only the new ones are steps.
-                new = state["messages"][len(messages) :]
+                new = state["messages"][max(len(messages), seen) :]
                 messages = state["messages"]
                 for message in new:
                     yield from _steps_in(message)
@@ -284,3 +333,48 @@ def _with_numbers(result: ToolResult, numbered: dict[Source, int]) -> str:
         labels.append(f"[{number}] {source.title}")
 
     return f"{result.text}\n\nSources: {', '.join(labels)}"
+
+
+def _is_answer(text: str) -> bool:
+    """An answer, not the refusal, a give-up or a question back: only an answer is
+    checked."""
+    return text not in (REFUSAL, GAVE_UP) and not text.rstrip().endswith("?")
+
+
+def _check(
+    checker: AnswerChecker, question: str, messages: list[BaseMessage], text: str
+) -> Generator[Step, None, Check]:
+    """Checks the answer and shows the check as steps: its verdict, then what is
+    missing when it found a problem."""
+    check = checker.check(question, _evidence(messages), text)
+    yield ToolCall("check_answer", check.verdict.value)
+    if _found_a_problem(check):
+        yield ToolReply("check_answer", check.missing)
+    return check
+
+
+def _found_a_problem(check: Check) -> bool:
+    # An answer the check could not look at goes out as it is.
+    return check.verdict not in (CheckVerdict.ANSWERS, CheckVerdict.UNCHECKED)
+
+
+def _retry_note(missing: str) -> str:
+    # Drop unstated claims first: told to find what is missing, the model hunted
+    # for proof of its own embellishments until it ran out of calls.
+    return (
+        f"A check of your answer found a problem: {missing} Answer again with only "
+        "what the records you read state, with citations, and drop any claim they "
+        "do not state. If what is left does not answer the question, use the tools "
+        f'to find what is missing. If the records do not say, reply: "{REFUSAL}"'
+    )
+
+
+def _evidence(messages: list[BaseMessage]) -> str:
+    """Every tool call and reply, as the checker reads them."""
+    parts = []
+    for message in messages:
+        if isinstance(message, AIMessage):
+            parts += [f">>> {c['name']}({c['args']})" for c in message.tool_calls]
+        elif isinstance(message, ToolMessage):
+            parts.append(str(message.content))
+    return "\n".join(parts)

@@ -1,6 +1,7 @@
 """What an answer is built from and cites."""
 
 from dataclasses import dataclass
+from enum import StrEnum
 
 from cerebro.domain.comicvine import ComicVineCharacter
 
@@ -60,5 +61,28 @@ class Answer:
 # What the agent says when the records lack the answer: the agent writes it and
 # scoring reads it.
 REFUSAL = "I couldn't find that in the records."
+
+
+class CheckVerdict(StrEnum):
+    """What a check of an answer against the tool output it came from found. The
+    values are what a run's trace shows."""
+
+    ANSWERS = "answers"
+    # The claims are in the tool output, but it is about something the question
+    # did not ask: another reality's version, another comic, an unsettled step.
+    OFF_TARGET = "off_target"
+    # A claim is missing from the tool output, or the output contradicts it.
+    UNSUPPORTED = "unsupported"
+    # The check could not run, so the answer goes out as it was.
+    UNCHECKED = "unchecked"
+
+
+@dataclass(frozen=True)
+class Check:
+    """A check's verdict, and what the tool output lacks when it found a problem."""
+
+    verdict: CheckVerdict
+    missing: str = ""
+
 
 type Step = ToolCall | ToolReply | Answer

@@ -33,6 +33,8 @@ uv run cerebro match comicvine   # match Comic Vine's characters to the parsed o
 uv run cerebro ask "..."         # answer a question, with citations (needs MISTRAL_API_KEY)
 ```
 
+With `GEMINI_API_KEY` set, a second model (Gemini Flash) checks each answer against what the tools returned before it is shown. When the check finds a problem, the agent gets one more try; a second problem turns the answer into "I couldn't find that in the records." Without the key, or when Gemini does not reply within 20 seconds, the answer goes out unchecked.
+
 CI runs these checks and replays a recorded evaluation on every push, so a tool that changes what the model sees fails it.
 
 To evaluate a model, answer the golden questions in `evals/golden.jsonl`, judge the answers, then score them. Each run keeps its results in `runs/<run>/`. `eval run --help` lists the models: the `-openrouter` ones need `OPENROUTER_API_KEY`, `ministral-14b` needs `MISTRAL_API_KEY`, and `qwen3-14b-ollama` needs `OLLAMA_BASE_URL`, which also adds vector search to the keyword search.

@@ -13,6 +13,8 @@ from cerebro.adapters.comicvine_api import ComicVineClient
 from cerebro.adapters.comicvine_dump import ComicVineDump
 from cerebro.adapters.fandom import FandomClient
 from cerebro.adapters.fandom_records import FandomRecordParser
+from cerebro.adapters.gemini_check import MODEL as CHECK_MODEL
+from cerebro.adapters.gemini_check import Breaker, GeminiAnswerChecker
 from cerebro.adapters.http_recording import RecordingTransport, ReplayTransport
 from cerebro.adapters.jsonl_evaluation import JsonlGoldenSet, JsonlRunStore
 from cerebro.adapters.jsonl_pages import JsonlPageStore
@@ -46,6 +48,7 @@ from cerebro.domain.answers import Step
 from cerebro.domain.evaluation import Exchange, Split
 from cerebro.domain.pages import Category
 from cerebro.domain.scoring import Price
+from cerebro.ports.answer_check import AnswerChecker
 from cerebro.ports.chunks import ChunkSearch
 from cerebro.settings import Settings
 
@@ -148,7 +151,7 @@ def ask(question: str, model: Contestant = Contestant.MINISTRAL_14B) -> Iterator
     Returns the agent's steps, ending with the answer. The key is checked here, not
     on the first step, so a missing key fails before any step is read.
     """
-    return _agent(chat_model(model), chunk_search()).steps(question)
+    return _agent(chat_model(model), chunk_search(), _checker()).steps(question)
 
 
 def search_label() -> str:
@@ -157,6 +160,14 @@ def search_label() -> str:
         return "Searching by keyword only (set OLLAMA_BASE_URL to add meaning)."
 
     return "Searching by keyword and meaning."
+
+
+def check_label() -> str:
+    """One line saying whether `ask` checks its answers."""
+    if Settings().gemini_api_key is None:
+        return "Answer check off (set GEMINI_API_KEY to turn it on)."
+
+    return "Answers are checked before they are shown."
 
 
 def chunk_search(transport: httpx.BaseTransport | None = None) -> ChunkSearch:
@@ -187,9 +198,10 @@ def run_eval(
 
     def ask_model(question: str, exchanges: list[Exchange]) -> Iterator[Step]:
         recorder = RecordingTransport(exchanges=exchanges)
-        return _agent(chat_model(model, recorder), chunk_search(recorder)).steps(
-            question
+        agent = _agent(
+            chat_model(model, recorder), chunk_search(recorder), _checker(recorder)
         )
+        return agent.steps(question)
 
     return evaluation.run_eval(
         ask_model,
@@ -218,8 +230,15 @@ def replay_run(run_name: str) -> evaluation.ReplayReport:
             url = _REPLAY_URL
         search = _passage_search(url, replayer)
 
+        # A run that checked its answers kept the check's exchanges too.
+        checker = None
+        if any(_sent_to(exchange, CHECK_MODEL) for exchange in exchanges):
+            checker = GeminiAnswerChecker(
+                _PLACEHOLDER_KEY, breaker=Breaker(), transport=replayer
+            )
+
         chat = chat_model(Contestant(model), replayer, offline=True)
-        return _agent(chat, search).steps(question)
+        return _agent(chat, search, checker).steps(question)
 
     return evaluation.replay_run(reask, questions, JsonlRunStore(RUNS_DIR / run_name))
 
@@ -294,11 +313,13 @@ def chat_model(
     return _CONTESTANTS[contestant](settings, transport, offline)
 
 
-# What an offline model is built with: nothing is sent, so no real key is needed.
+# What an offline model or check is built with: nothing is sent, so no real key
+# is needed.
 _REPLAY_URL = "http://replay.invalid"
+_PLACEHOLDER_KEY = SecretStr("replay")
 _PLACEHOLDERS = {
-    "mistral_api_key": SecretStr("replay"),
-    "openrouter_api_key": SecretStr("replay"),
+    "mistral_api_key": _PLACEHOLDER_KEY,
+    "openrouter_api_key": _PLACEHOLDER_KEY,
     "ollama_base_url": _REPLAY_URL,
 }
 
@@ -383,8 +404,27 @@ def _model_prices() -> dict[str, Price]:
     return {contestant.value: price for contestant, price in _PRICES.items()}
 
 
-def _agent(model: BaseChatModel, chunks: ChunkSearch) -> LangGraphAgent:
-    return LangGraphAgent(model, _records(), chunks)
+def _agent(
+    model: BaseChatModel, chunks: ChunkSearch, checker: AnswerChecker | None
+) -> LangGraphAgent:
+    return LangGraphAgent(model, _records(), chunks, checker)
+
+
+def _checker(transport: httpx.BaseTransport | None = None) -> AnswerChecker | None:
+    """The answer check when GEMINI_API_KEY is set, sending through `transport`;
+    without the key, none, and answers go out unchecked."""
+    key = Settings().gemini_api_key
+    if key is None:
+        return None
+
+    return GeminiAnswerChecker(key, breaker=_breaker(), transport=transport)
+
+
+@cache
+def _breaker() -> Breaker:
+    # A checker lasts one question, an outage lasts longer: one breaker for the
+    # whole process means only the first few answers wait for a Gemini that is down.
+    return Breaker()
 
 
 def _passage_search(

@@ -30,10 +30,20 @@ from cerebro.adapters.langgraph_agent import (
     SYSTEM_PROMPT,
     LangGraphAgent,
 )
-from cerebro.domain.answers import REFUSAL, Answer, Source, ToolCall, ToolReply
+from cerebro.domain.answers import (
+    REFUSAL,
+    Answer,
+    Check,
+    CheckVerdict,
+    Source,
+    Step,
+    ToolCall,
+    ToolReply,
+)
 from cerebro.domain.pages import Category
 from cerebro.domain.records import Character, PageHit, Record
 from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
+from cerebro.ports.answer_check import AnswerChecker
 
 TITLE = "Ann Doe (Earth-1)"
 
@@ -498,3 +508,103 @@ def test_passages_are_numbered_for_the_model_and_citable() -> None:
     assert answer.sources == (
         Source("Storm Club (Earth-1)", "https://wiki.example/Storm_Club_(Earth-1)"),
     )
+
+
+# Checking the answer
+
+
+class FakeChecker(AnswerChecker):
+    """Gives the verdicts it was handed, in turn, and keeps what it was shown."""
+
+    def __init__(self, *checks: Check) -> None:
+        self.checks = list(checks)
+        self.seen: list[tuple[str, str, str]] = []
+
+    def check(self, question: str, evidence: str, answer: str) -> Check:
+        self.seen.append((question, evidence, answer))
+        return self.checks.pop(0)
+
+
+def checked(model: BaseChatModel, checker: FakeChecker) -> list[Step]:
+    agent = LangGraphAgent(model, lookup(), passages(), checker)
+    return list(agent.steps("Who is Ann Doe?"))
+
+
+def read_and_reply(*texts: str) -> ScriptedModel:
+    return scripted(call("read_page", TITLE), *(reply(text) for text in texts))
+
+
+def test_an_answer_that_passes_the_check_goes_out() -> None:
+    checker = FakeChecker(Check(CheckVerdict.ANSWERS))
+
+    steps = checked(read_and_reply("Ann Doe flies [1]."), checker)
+
+    assert ToolCall("check_answer", "answers") in steps
+    assert not any(isinstance(s, ToolReply) and s.tool == "check_answer" for s in steps)
+    assert isinstance(steps[-1], Answer)
+    assert steps[-1].text == "Ann Doe flies [1]."
+
+
+def test_a_problem_gets_one_more_try_with_the_checkers_note() -> None:
+    model = read_and_reply("Ann Doe flies and sings [1].", "Ann Doe flies [1].")
+    checker = FakeChecker(
+        Check(CheckVerdict.UNSUPPORTED, "Nothing says she sings."),
+        Check(CheckVerdict.ANSWERS),
+    )
+
+    steps = checked(model, checker)
+
+    assert ToolReply("check_answer", "Nothing says she sings.") in steps
+    note = model.seen[-1][-1].content
+    assert isinstance(note, str)
+    assert "Nothing says she sings." in note
+    assert isinstance(steps[-1], Answer)
+    assert steps[-1].text == "Ann Doe flies [1]."
+    assert [seen[2] for seen in checker.seen] == [
+        "Ann Doe flies and sings [1].",
+        "Ann Doe flies [1].",
+    ]
+
+
+def test_a_second_problem_turns_the_answer_into_the_refusal() -> None:
+    model = read_and_reply("Ann Doe sings [1].", "Ann Doe sings well [1].")
+    checker = FakeChecker(
+        Check(CheckVerdict.UNSUPPORTED, "Nothing says she sings."),
+        Check(CheckVerdict.OFF_TARGET, "That is another Ann."),
+    )
+
+    steps = checked(model, checker)
+
+    assert isinstance(steps[-1], Answer)
+    assert (steps[-1].text, steps[-1].sources) == (REFUSAL, ())
+
+
+def test_an_answer_the_check_could_not_look_at_goes_out_as_it_is() -> None:
+    checker = FakeChecker(Check(CheckVerdict.UNCHECKED))
+
+    steps = checked(read_and_reply("Ann Doe flies [1]."), checker)
+
+    assert ToolCall("check_answer", "unchecked") in steps
+    assert isinstance(steps[-1], Answer)
+    assert steps[-1].text == "Ann Doe flies [1]."
+
+
+def test_a_refusal_is_not_checked() -> None:
+    checker = FakeChecker()
+
+    steps = checked(read_and_reply(REFUSAL), checker)
+
+    assert checker.seen == []
+    assert isinstance(steps[-1], Answer)
+    assert steps[-1].text == REFUSAL
+
+
+def test_the_check_sees_the_question_each_tool_call_and_its_reply() -> None:
+    checker = FakeChecker(Check(CheckVerdict.ANSWERS))
+
+    checked(read_and_reply("Ann Doe flies [1]."), checker)
+
+    question, evidence, _ = checker.seen[0]
+    assert question == "Who is Ann Doe?"
+    assert f">>> read_page({{'title': '{TITLE}'}})" in evidence
+    assert "Ann Doe" in evidence.split("\n", 1)[1]

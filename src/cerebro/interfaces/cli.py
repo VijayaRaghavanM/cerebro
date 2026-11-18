@@ -234,6 +234,7 @@ def ask(
         # Read before the steps, so a missing key fails before this line is shown.
         steps = bootstrap.ask(question, model)
         typer.echo(bootstrap.search_label(), err=True)
+        typer.echo(bootstrap.check_label(), err=True)
         for step in steps:
             show_step(step)
     except bootstrap.MissingSetting as error:

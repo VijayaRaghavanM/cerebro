@@ -19,5 +19,7 @@ class Settings(BaseSettings):
     mistral_api_key: SecretStr | None = None
     openrouter_api_key: SecretStr | None = None
     cerebras_api_key: SecretStr | None = None
+    # Without it, answers go out without the second model's check.
+    gemini_api_key: SecretStr | None = None
     comicvine_api_key: SecretStr | None = None
     ollama_base_url: str | None = None

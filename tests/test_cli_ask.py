@@ -11,13 +11,17 @@ from cerebro.ports.agent import ModelTimeout, ProviderError, RateLimited
 from cerebro.ports.embeddings import EmbedderUnavailable, VectorsMissing
 from cerebro.ports.records import RecordsMissing
 
-SEARCH_LINE = "Searching by keyword only (set OLLAMA_BASE_URL to add meaning).\n"
+SETUP_LINES = (
+    "Searching by keyword only (set OLLAMA_BASE_URL to add meaning).\n"
+    "Answer check off (set GEMINI_API_KEY to turn it on).\n"
+)
 
 
 @pytest.fixture(autouse=True)
 def keyword_search(data_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """No Ollama server set, in a folder with no .env to set one."""
+    """No Ollama server or Gemini key set, in a folder with no .env to set one."""
     monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
 
 
 def answer(*sources: Source) -> Answer:
@@ -67,7 +71,7 @@ def test_ask_prints_the_answer_its_sources_and_what_it_cost(
 
     assert result.exit_code == 0
     assert result.output == (
-        SEARCH_LINE + "\n"
+        SETUP_LINES + "\n"
         "Wolverine's real name is James Howlett [1].\n"
         "\n"
         f"[1] James Howlett (Earth-616): {url}\n"
@@ -96,7 +100,7 @@ def test_ask_says_when_no_sources_are_cited(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert result.exit_code == 0
     assert result.output == (
-        SEARCH_LINE + "\n"
+        SETUP_LINES + "\n"
         "Wolverine's real name is James Howlett [1].\n"
         "\n"
         "No sources cited.\n"
@@ -121,7 +125,7 @@ def test_ask_prints_each_step_before_the_answer(
 
     assert result.exit_code == 0
     assert result.output == (
-        SEARCH_LINE + "search_pages: Wolverine\n"
+        SETUP_LINES + "search_pages: Wolverine\n"
         "  James Howlett (Earth-616)\n"
         "read_page: James Howlett (Earth-616)\n"
         "  Page: James Howlett (Earth-616)\n"
@@ -164,7 +168,7 @@ def test_ask_reports_a_failure_that_comes_after_some_steps(
 
     assert result.exit_code == 1
     assert result.output == (
-        SEARCH_LINE + "search_pages: Wolverine\n"
+        SETUP_LINES + "search_pages: Wolverine\n"
         "  James Howlett (Earth-616)\n"
         "The model provider is rate limiting requests; try again in a minute.\n"
     )
@@ -193,7 +197,7 @@ def test_ask_reports_a_failure_without_a_traceback(
     result = CliRunner().invoke(app, ["ask", "Who is Wolverine?"])
 
     assert result.exit_code == 1
-    assert result.output == f"{SEARCH_LINE}{message}\n"
+    assert result.output == f"{SETUP_LINES}{message}\n"
 
 
 def test_ask_says_when_it_searches_by_meaning_too(
@@ -228,4 +232,4 @@ def test_ask_reports_a_failed_meaning_search_without_a_traceback(
     result = CliRunner().invoke(app, ["ask", "Who is Wolverine?"])
 
     assert result.exit_code == 1
-    assert result.output == f"{SEARCH_LINE}{message}\n"
+    assert result.output == f"{SETUP_LINES}{message}\n"
