@@ -214,7 +214,7 @@ def replay_run(run_name: str) -> evaluation.ReplayReport:
         # searched by keyword, so a replay needs neither the setting nor the server.
         replayer = ReplayTransport(exchanges)
         url = None
-        if any(_embedded(exchange) for exchange in exchanges):
+        if any(_sent_to(exchange, EMBEDDING_MODEL) for exchange in exchanges):
             url = _REPLAY_URL
         search = _passage_search(url, replayer)
 
@@ -411,10 +411,10 @@ def _vector_index(folder: Path) -> NumpyVectorIndex:
     return NumpyVectorIndex(folder)
 
 
-def _embedded(exchange: Exchange) -> bool:
-    """Whether the exchange is a query sent to the embedding server."""
+def _sent_to(exchange: Exchange, model: str) -> bool:
+    """Whether the exchange is a request to `model`."""
     sent_to: object = exchange["request"].get("model")
-    return sent_to == EMBEDDING_MODEL
+    return sent_to == model
 
 
 def _pages() -> JsonlPageStore:
