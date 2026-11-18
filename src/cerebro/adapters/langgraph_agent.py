@@ -73,6 +73,11 @@ SYSTEM_PROMPT = (
     "Answer in one to three sentences."
 )
 
+REPEATED = (
+    "You already made this exact call, and its reply is above. Use it: read a page "
+    "it named, try different words, or answer with what you have."
+)
+
 SEARCH_DESCRIPTION = (
     "Find pages whose names contain these words; returns titles, most-appearing first."
 )
@@ -173,30 +178,50 @@ class LangGraphAgent(Agent):
     def _tools(self, numbered: dict[Source, int]) -> list[BaseTool]:
         lookup = self.lookup
         chunks = self.chunks
+        # A call the model already made, word for word, gets a nudge instead of the
+        # same reply: loops of identical calls ended most give-ups.
+        asked: set[tuple[str, ...]] = set()
+
+        def repeat(*call: str) -> str:
+            key = tuple(part.strip().lower() for part in call)
+            if key in asked:
+                return REPEATED
+            asked.add(key)
+            return ""
 
         @tool("search_pages", description=SEARCH_DESCRIPTION)
         def search(name: str) -> str:
-            return search_pages(lookup, name).text
+            return repeat("search_pages", name) or search_pages(lookup, name).text
 
         @tool("search_text", description=TEXT_DESCRIPTION)
         def passages(query: str) -> str:
-            return _with_numbers(search_text(chunks, lookup, query), numbered)
+            return repeat("search_text", query) or _with_numbers(
+                search_text(chunks, lookup, query), numbered
+            )
 
         @tool("read_page", description=READ_DESCRIPTION)
         def read(title: str) -> str:
-            return _with_numbers(read_page(lookup, title), numbered)
+            return repeat("read_page", title) or _with_numbers(
+                read_page(lookup, title), numbered
+            )
 
         @tool("find_appearances", description=APPEARANCES_DESCRIPTION)
         def appearances(title: str) -> str:
-            return _with_numbers(find_appearances(lookup, title), numbered)
+            return repeat("find_appearances", title) or _with_numbers(
+                find_appearances(lookup, title), numbered
+            )
 
         @tool("reading_order", description=ORDER_DESCRIPTION)
         def order(title: str) -> str:
-            return _with_numbers(reading_order(lookup, title), numbered)
+            return repeat("reading_order", title) or _with_numbers(
+                reading_order(lookup, title), numbered
+            )
 
         @tool("compare_characters", description=COMPARE_DESCRIPTION)
         def compare(first: str, second: str) -> str:
-            return _with_numbers(compare_characters(lookup, first, second), numbered)
+            return repeat("compare_characters", first, second) or _with_numbers(
+                compare_characters(lookup, first, second), numbered
+            )
 
         return [search, passages, read, appearances, order, compare]
 

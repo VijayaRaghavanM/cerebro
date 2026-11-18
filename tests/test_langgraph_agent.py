@@ -26,6 +26,7 @@ from pydantic import ConfigDict
 from cerebro.adapters.langgraph_agent import (
     GAVE_UP,
     MAX_TOOL_CALLS,
+    REPEATED,
     SYSTEM_PROMPT,
     LangGraphAgent,
 )
@@ -226,10 +227,10 @@ def test_sources_are_listed_in_citation_order_once_each() -> None:
     ]
 
 
-def test_numbers_continue_across_reads_and_repeat_for_the_same_page() -> None:
+def test_numbers_continue_across_calls_and_repeat_for_a_page_met_again() -> None:
     model = scripted(
         call("read_page", TITLE),
-        call("read_page", TITLE),
+        call("search_text", "rain"),
         reply("Done [1]."),
     )
 
@@ -241,7 +242,21 @@ def test_numbers_continue_across_reads_and_repeat_for_the_same_page() -> None:
     assert first.endswith(
         "Sources: [1] Ann Doe (Earth-1), [2] Comic Vine: Weather Witch"
     )
-    assert second.endswith(first[first.index("Sources:") :])
+    assert second.endswith(f"Sources: [1] {TITLE}, [3] Storm Club (Earth-1)")
+
+
+def test_the_same_call_again_gets_a_nudge_instead_of_the_same_reply() -> None:
+    model = scripted(
+        call("read_page", TITLE),
+        call("read_page", f" {TITLE.lower()} "),
+        reply("Done [1]."),
+    )
+
+    steps = list(LangGraphAgent(model, lookup(), passages()).steps("Who?"))
+
+    replies = [step.text for step in steps if isinstance(step, ToolReply)]
+    assert replies[1] == REPEATED
+    assert "name: Ann Doe" in replies[0]
 
 
 def test_a_second_page_is_numbered_after_the_first() -> None:
