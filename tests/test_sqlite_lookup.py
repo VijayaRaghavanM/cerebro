@@ -395,6 +395,29 @@ def test_appearances_come_in_cover_date_order(tmp_path: Path) -> None:
     ]
 
 
+def test_a_season_counts_as_its_middle_month_and_a_month_by_its_start(
+    tmp_path: Path,
+) -> None:
+    store = with_comics(
+        tmp_path,
+        issue(1, "Winter", "Winter", "1941", [ANN]),
+        issue(2, "Fall", "Fall", "1941", [ANN]),
+        issue(3, "Sept", "Sept", "1941", [ANN]),
+        issue(4, "Summer", "Summer", "1941", [ANN]),
+        issue(5, "March", "March", "1941", [ANN]),
+    )
+
+    found = store.appearances(ANN, 10)
+
+    assert [c.title for c in found.first] == [
+        "March",
+        "Summer",
+        "Sept",
+        "Fall",
+        "Winter",
+    ]
+
+
 def tagged(pageid: int, *lines: str) -> Comic:
     """A made-up comic with one story per cast line, each linking Ann by her name."""
     stories = tuple(

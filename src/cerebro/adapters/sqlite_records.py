@@ -124,6 +124,9 @@ MONTHS = (
     "November",
     "December",
 )
+# A season counts as its middle month, and winter as the year's last month: All
+# Winners Comics ran Summer, Fall and Winter 1941, then Spring 1942.
+SEASONS = {"Spring": 4, "Summer": 7, "Fall": 10, "Autumn": 10, "Winter": 12}
 
 WIKI_PAGES = "https://marvel.fandom.com/wiki/"
 # Left readable in a citation; quote() encodes the rest.
@@ -486,11 +489,17 @@ def _in_person(text: str, appearing: str) -> bool:
 
 
 def _month_number(month: str | None) -> int:
-    """1 for January up to 12; 0 when the cover gives no month or a season. A month
-    can be qualified ("Mid December").
+    """1 for January up to 12, or 0 when the cover gives no month. A month can be
+    qualified ("Mid December") or cut short ("Sept"); a season counts as one month.
     """
+    if not month:
+        return 0
+
+    word = month.split()[-1]
+    if word in SEASONS:
+        return SEASONS[word]
     for number, name in enumerate(MONTHS, start=1):
-        if month and month.endswith(name):
+        if word[:3] == name[:3]:
             return number
     return 0
 
