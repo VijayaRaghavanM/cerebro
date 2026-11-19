@@ -38,7 +38,11 @@ The same 122 questions on both sides, scored by golden v2's rules and the same j
 | Right clarifying questions, of 9 | 2 | 6 |
 | Ran out of tool calls | 5 | 4 |
 
-23 questions went from unsolved to solved and 10 the other way (exact McNemar test, p = 0.035). By category:
+23 questions went from unsolved to solved and 10 the other way (exact McNemar test, p = 0.035).
+
+A second run of `main` on the same questions solved 84 and gave 7 wrong answers out of 80 (9%), with 15 refusals where the records hold the answer. The two runs agree on 111 of the 122 questions, so a difference of a few questions between runs is noise.
+
+By category, for the first "after" run:
 
 | Category | Before | After |
 | --- | --- | --- |
@@ -89,7 +93,7 @@ On Mistral's free tier the agent waits behind a rate limit, so its seconds, abou
 
 ### Against the goal
 
-The round aimed for fewer than 5% wrong answers. By the judge, which runs strict, it missed: 5.2% on the golden set (4 of 77), 7% on the sealed set and 13% on the confirmation set. By the blind labels, 2 of the 40 replies were wrong on each sealed set. Refusals rose with the fix. On the golden set the agent refused 18 questions the records answer, against 5 before. 17 of them followed a check that found a problem; in its test the check also flagged 2 of 12 right answers, so some of those refusals cost a right answer.
+The round aimed for fewer than 5% wrong answers. By the judge, which runs strict, it missed: 5.2% and 9% in two runs on the golden set, 7% on the sealed set and 13% on the confirmation set. By the blind labels, 2 of the 40 replies were wrong on each sealed set. Refusals rose with the fix. On the golden set the agent refused 18 questions the records answer, against 5 before. 17 of them followed a check that found a problem; in its test the check also flagged 2 of 12 right answers, so some of those refusals cost a right answer.
 
 ## The first full evaluation, 13 November 2026
 

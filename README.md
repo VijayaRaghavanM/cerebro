@@ -55,7 +55,7 @@ The question was "Who was the editor-in-chief when Gambit first appeared in a co
   </picture>
 </p>
 
-- **Golden set:** on 122 questions scored by the same rules, the agent solved 71%, up from 61% in the first run, and 5% of its answers were wrong, down from 24%. It refuses more than it did: 18 questions the records answer, against 5.
+- **Golden set:** on 122 questions scored by the same rules, two runs of the current code solved 69% and 71%, up from 61% in the first run, and 5% and 9% of their answers were wrong, down from 24%. It refuses more than it did: 15 to 18 questions the records answer, against 5.
 - **Sealed set:** on 40 questions written blind and run once, it solved 75%, up from 55%, and gave 2 wrong answers, down from 6 (p = 0.021).
 - **Confirmation set:** on 40 more questions, written after the last change and run once on `main`, it solved 85%, and the blind labels found 2 wrong replies.
 - **Speed and cost:** with the check on, an answer takes about 10 seconds and costs about $0.002 on OpenRouter.
