@@ -27,6 +27,11 @@ function run(...actions: Action[]): Session {
   return actions.reduce(reduce, idle);
 }
 
+function check(verdict: string): Action {
+  const data = { tool: "check_answer", argument: verdict };
+  return { type: "event", event: { event: "call", data } };
+}
+
 describe("reduce", () => {
   it("shows a call and its reply as one step with the reply's first line", () => {
     const session = run(asked, call, reply);
@@ -65,6 +70,41 @@ describe("reduce", () => {
 
     expect(session.status).toBe("failed");
     expect(session.error).toBe("No model key");
+  });
+
+  it("marks an answer that went out because the check could not run", () => {
+    const session = run(asked, call, reply, check("unchecked"), answered, ended);
+
+    expect(session.unchecked).toBe(true);
+  });
+
+  it("leaves the answer unmarked when the check ran or none was tried", () => {
+    expect(run(asked, call, reply, check("answers"), answered, ended).unchecked).toBe(false);
+    expect(run(asked, call, reply, answered, ended).unchecked).toBe(false);
+  });
+
+  it("goes by the check of the answer shown after a retry", () => {
+    const retried = run(asked, call, reply, check("unsupported"), check("unchecked"), answered);
+    const passed = run(asked, call, reply, check("unsupported"), check("answers"), answered);
+
+    expect(retried.unchecked).toBe(true);
+    expect(passed.unchecked).toBe(false);
+  });
+
+  it("reads a verdict only from the answer check's own call", () => {
+    const search: Action = {
+      type: "event",
+      event: { event: "call", data: { tool: "search_text", argument: "unchecked" } },
+    };
+
+    expect(run(asked, search, answered).unchecked).toBe(false);
+  });
+
+  it("leaves a refusal after a failed check unmarked", () => {
+    const refusal = { ...answer, text: "I couldn't find that in the records.", sources: [] };
+    const refused: Action = { type: "event", event: { event: "answer", data: refusal } };
+
+    expect(run(asked, call, reply, check("unsupported"), refused).unchecked).toBe(false);
   });
 
   it("clears the last trace and answer when asking again", () => {

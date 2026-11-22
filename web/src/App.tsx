@@ -44,7 +44,7 @@ export function App() {
 
       <Trace steps={session.trace} />
       {running && <p>Working...</p>}
-      {session.answer && <Result answer={session.answer} />}
+      {session.answer && <Result answer={session.answer} unchecked={session.unchecked} />}
       {session.error && <p role="alert">{session.error}</p>}
     </main>
   );
@@ -63,10 +63,13 @@ function Trace({ steps }: { steps: Step[] }) {
   );
 }
 
-function Result({ answer }: { answer: Answer }) {
+function Result({ answer, unchecked }: { answer: Answer; unchecked: boolean }) {
   return (
     <section>
       <AnswerText text={answer.text} sources={answer.sources} />
+      {unchecked && (
+        <p className="unchecked">Not double-checked: the answer check couldn't run.</p>
+      )}
 
       <ol className="sources">
         {answer.sources.map((source) => (

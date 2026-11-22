@@ -9,6 +9,8 @@ export type Session = {
   status: "idle" | "asking" | "done" | "failed";
   trace: Step[];
   answer: Answer | null;
+  // The latest answer check could not run, so the answer went out as it was.
+  unchecked: boolean;
   error: string | null;
 };
 
@@ -22,6 +24,7 @@ export const idle: Session = {
   status: "idle",
   trace: [],
   answer: null,
+  unchecked: false,
   error: null,
 };
 
@@ -47,7 +50,12 @@ function reduceEvent(session: Session, event: AgentEvent): Session {
   switch (event.event) {
     case "call": {
       const step = { label: `${event.data.tool}: ${event.data.argument}`, reply: null };
-      return { ...session, trace: [...session.trace, step] };
+      const trace = [...session.trace, step];
+      if (event.data.tool !== "check_answer") return { ...session, trace };
+
+      // The check's verdict comes as the call's argument. After a retry, the
+      // second check speaks for the answer that is shown.
+      return { ...session, trace, unchecked: event.data.argument === "unchecked" };
     }
 
     case "reply": {
