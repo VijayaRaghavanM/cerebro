@@ -79,6 +79,8 @@ The question was "Who was the editor-in-chief when Gambit first appeared in a co
 
 Requires [uv](https://docs.astral.sh/uv/).
 
+To see it work without any API keys or data, run `uv sync && uv run pytest`. The tests include a replay of a recorded evaluation: the real tools run over a small wiki, and the saved model replies come back in order.
+
 ```sh
 uv sync                          # create .venv and install the pinned dependencies
 uv run pytest                    # run the tests
