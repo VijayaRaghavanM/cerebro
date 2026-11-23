@@ -59,6 +59,7 @@ The question was "Who was the editor-in-chief when Gambit first appeared in a co
 - **Sealed set:** on 40 questions written blind and run once, it solved 75%, up from 55%, and gave 2 wrong answers, down from 6 (p = 0.021).
 - **Confirmation set:** on 40 more questions, written after the last change and run once on `main`, it solved 85%, and the blind labels found 2 wrong replies.
 - **Speed and cost:** with the check on, an answer takes about 10 seconds and costs about $0.002 on OpenRouter.
+- **A stronger model:** with Gemini 3.8 Flash in place of Ministral 14B, the same agent solved 81% of the golden set, mostly by refusing less, at about a cent per solved question.
 
 [RESULTS.md](RESULTS.md) has the full tables, and the first evaluation, which compared four models.
 

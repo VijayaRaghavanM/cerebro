@@ -87,6 +87,26 @@ The golden set's failures guided the early changes, so it flatters them. The sea
 
 Of the 4 answers the judge ruled wrong, the labels found 1 wrong, 2 incomplete and 1 right. The other wrong reply is a clarifying question that offered a single holder of a shared name. The labelers agreed on all 12 replies both labelled and caught all 6 known-wrong answers mixed in.
 
+### Two models, same agent
+
+Gemini 3.8 Flash, through OpenRouter, in place of Ministral 14B, with everything else as on `main`: the same tools, hybrid search, data, judge and answer check. The check is a Gemini model too, so in these runs it checks its own model family. Both models ran on golden v2 and on a third sealed set of 40 questions, written blind after the last change and run once with each.
+
+| | Ministral 14B | Gemini 3.8 Flash |
+| --- | --- | --- |
+| Golden set, solved | 87 and 84 of 122, in two runs | 99 of 122 (81%) |
+| Golden set, wrong answers, by the judge | 4 of 77 and 7 of 80 | 6 of 93 (6%) |
+| Golden set, refusals where the records hold the answer | 18 and 15 | 2 |
+| Golden set, ran out of tool calls | 4 | 9 |
+| Sealed set 3, solved | 30 of 40 | 33 of 40 |
+| Sealed set 3, wrong answers, by the blind labels | 0 of 26 | 0 of 30 |
+| Sealed set 3, refusals where the records hold the answer | 7 of 33 | 0 of 33 |
+| Cost per solved question | free tier (about $0.003 at OpenRouter's prices) | $0.012 |
+| Median seconds per question | about 110 in the free tier's queue, 8.7 on OpenRouter | 12 |
+
+On the golden set, Gemini solved 21 questions that Ministral's first run missed and missed 9 it solved (exact McNemar test, p = 0.043; against the second run, 20 and 5, p = 0.004). On the 40 sealed questions the gap, 33 against 30, is within noise (p = 0.55).
+
+Most of Gemini's gain is fewer refusals. Its first answer passed the check 90 times out of 97 on the golden set and 30 out of 30 on the sealed set, against about 70% for Ministral. As the check is a Gemini model too, part of that could be leniency toward its own family. The blind labels found no wrong answer among Gemini's 30 on the sealed set, which argues against it, but 30 answers is a small sample. Gemini also ran out of tool calls more often, 9 times against 4, because it reads more pages before it answers. The labelers agreed on all 12 replies both labelled and caught 5 of the 6 known-wrong answers mixed in.
+
 ### Speed and cost
 
 On Mistral's free tier the agent waits behind a rate limit, so its seconds, about 145 a question, measure the queue. On OpenRouter, 20 golden questions with the check on took 10.3 seconds on average (median 8.7, slowest 23) and cost $0.0445, about $0.002 a question. The first evaluation's Ministral 14B run, without the check, took 4.2 seconds.
