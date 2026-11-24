@@ -4,6 +4,7 @@ import { Logo } from "./Logo";
 import { Result } from "./Result";
 import { checkOutcome, idle, reduce } from "./session";
 import { Timeline } from "./Timeline";
+import { Welcome } from "./Welcome";
 import { ask } from "./stream";
 
 export function App() {
@@ -14,6 +15,11 @@ export function App() {
   function submit(event: FormEvent) {
     event.preventDefault();
     run(question);
+  }
+
+  function pick(example: string) {
+    setQuestion(example);
+    run(example);
   }
 
   async function run(asked: string) {
@@ -53,6 +59,7 @@ export function App() {
           <button disabled={running}>Ask</button>
         </form>
 
+        {session.status === "idle" && <Welcome onPick={pick} />}
         {session.question && <h2 className="question">{session.question}</h2>}
         {(running || session.trace.length > 0) && <Timeline session={session} />}
         {session.answer && <Result answer={session.answer} check={checkOutcome(session.trace)} />}
