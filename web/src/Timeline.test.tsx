@@ -46,6 +46,17 @@ describe("Timeline", () => {
     expect(render({ ...session, status: "done" })).not.toContain("Working out the next step");
   });
 
+  it("counts tool calls only once one has run", () => {
+    const starting: Session = { ...idle, status: "asking" };
+    const searched: Session = {
+      ...starting,
+      trace: [{ tool: "search_pages", argument: "Sunspot", reply }],
+    };
+
+    expect(render(starting)).not.toContain("tool call");
+    expect(render(searched)).toContain("1 tool call");
+  });
+
   it("shows the note of a check that found a problem", () => {
     const note = "No source names the penciler.";
     const session: Session = {

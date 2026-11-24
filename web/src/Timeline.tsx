@@ -22,7 +22,7 @@ export function Timeline({ session }: { session: Session }) {
     <section className="steps" aria-labelledby="steps-title" aria-busy={asking}>
       <div className="steps-head">
         <h3 id="steps-title">Steps</h3>
-        <span>{tools === 1 ? "1 tool call" : `${tools} tool calls`}</span>
+        {tools > 0 && <span>{tools === 1 ? "1 tool call" : `${tools} tool calls`}</span>}
       </div>
 
       <ol className="timeline">
