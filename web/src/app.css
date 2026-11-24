@@ -649,6 +649,56 @@ code {
   font-size: 0.8rem;
 }
 
-.error {
-  color: var(--link);
+.failure {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--brand);
+  border-radius: var(--radius);
+}
+
+.failure > .icon {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.1rem;
+  color: var(--brand);
+}
+
+.failure-text {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.failure-text p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.failure-text .failure-title {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.failure button {
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--sunken);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+}
+
+.failure button:hover {
+  border-color: var(--muted);
 }

@@ -1,4 +1,5 @@
 import { useReducer, useState, type FormEvent } from "react";
+import { Failure } from "./Failure";
 import { Logo } from "./Logo";
 import { Result } from "./Result";
 import { checkOutcome, idle, reduce } from "./session";
@@ -10,12 +11,16 @@ export function App() {
   const [question, setQuestion] = useState("");
   const running = session.status === "asking";
 
-  async function submit(event: FormEvent) {
+  function submit(event: FormEvent) {
     event.preventDefault();
-    dispatch({ type: "asked", question });
+    run(question);
+  }
+
+  async function run(asked: string) {
+    dispatch({ type: "asked", question: asked });
 
     try {
-      for await (const agentEvent of ask(question)) {
+      for await (const agentEvent of ask(asked)) {
         dispatch({ type: "event", event: agentEvent });
       }
       dispatch({ type: "ended" });
@@ -49,13 +54,9 @@ export function App() {
         </form>
 
         {session.question && <h2 className="question">{session.question}</h2>}
-        {session.status !== "idle" && <Timeline session={session} />}
+        {(running || session.trace.length > 0) && <Timeline session={session} />}
         {session.answer && <Result answer={session.answer} check={checkOutcome(session.trace)} />}
-        {session.error && (
-          <p className="error" role="alert">
-            {session.error}
-          </p>
-        )}
+        {session.error && <Failure message={session.error} onRetry={() => run(session.question)} />}
       </main>
 
       <footer className="credits">
