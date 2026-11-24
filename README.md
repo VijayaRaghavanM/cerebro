@@ -104,12 +104,12 @@ The editor-in-chief when Gambit first appeared in *X-Men Annual Vol. 1 14* was *
 
 The question was "Who was the editor-in-chief when Gambit first appeared in a comic?" The CLI shows the first line of each tool reply; the model reads all of it.
 
-The chat page shows the same steps as they happen. Here it replays a saved run in which the check sent the first answer back and the second try passed:
+The chat page shows the same steps as they happen. This is a live recording with Ministral 14B on OpenRouter. The first answer cited Wanda's page, which gives only her own first appearance, so the check sent it back. The agent read Pietro's page, and the second answer passed.
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/chat-dark.png">
-    <img src="assets/chat-light.png" alt="The chat page answering who penciled the comic in which Sunspot first appeared. A timeline of steps: searched page names, found the comics that feature Roberto Da Costa, read New Mutants Vol 1 1, then the check found a claim the records don't back and sent the answer back; the agent read Marvel Graphic Novel Vol 1 4 and the second check passed. The answer card says it was checked on the second try and cites one Marvel Database page." width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/answer-dark.gif">
+    <img src="assets/answer-light.gif" alt="The chat page answering who the Scarlet Witch's twin brother is and where he first appeared. The question is typed, then the steps appear one at a time: searched page names for Scarlet Witch, read Wanda Maximoff (Earth-616), the check sent the first answer back, searched for and read Pietro Maximoff (Earth-616), and the second check passed. The answer names Pietro Maximoff (Quicksilver), first in X-Men Vol. 1 #4, and cites his Marvel Database page." width="780">
   </picture>
 </p>
 
