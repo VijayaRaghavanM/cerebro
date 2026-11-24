@@ -1,7 +1,8 @@
 import { useReducer, useState, type FormEvent } from "react";
 import { AnswerText } from "./AnswerText";
 import { Logo } from "./Logo";
-import { idle, reduce, type Answer, type Step } from "./session";
+import { idle, reduce, type Answer } from "./session";
+import { Timeline } from "./Timeline";
 import { ask } from "./stream";
 
 export function App() {
@@ -48,8 +49,7 @@ export function App() {
         </form>
 
         {session.question && <h2 className="question">{session.question}</h2>}
-        <Trace steps={session.trace} />
-        {running && <p className="working">Working...</p>}
+        {session.status !== "idle" && <Timeline session={session} />}
         {session.answer && <Result answer={session.answer} unchecked={session.unchecked} />}
         {session.error && (
           <p className="error" role="alert">
@@ -69,26 +69,11 @@ export function App() {
   );
 }
 
-function Trace({ steps }: { steps: Step[] }) {
-  return (
-    <ul className="trace">
-      {steps.map((step, index) => (
-        <li key={index}>
-          {step.tool}: {step.argument}
-          {step.reply && <span>{step.reply.split("\n")[0]}</span>}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function Result({ answer, unchecked }: { answer: Answer; unchecked: boolean }) {
   return (
     <section className="result">
       <AnswerText text={answer.text} sources={answer.sources} />
-      {unchecked && (
-        <p className="unchecked">Not double-checked: the answer check couldn't run.</p>
-      )}
+      {unchecked && <p className="unchecked">Not double-checked: the answer check couldn't run.</p>}
 
       <ol className="sources">
         {answer.sources.map((source) => (
