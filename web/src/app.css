@@ -455,6 +455,18 @@ code {
   padding: 1.25rem 1.5rem 1.1rem;
 }
 
+.result.is-refusal {
+  background: transparent;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.refusal-note {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
 .result-label {
   margin-bottom: 0.5rem;
   color: var(--muted);

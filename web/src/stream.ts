@@ -1,5 +1,8 @@
 export type Source = { title: string; url: string };
 
+// The answer's text when the records don't hold one.
+export const REFUSAL = "I couldn't find that in the records.";
+
 export type AgentEvent =
   | { event: "call"; data: { tool: string; argument: string } }
   | { event: "reply"; data: { tool: string; text: string } }

@@ -3,7 +3,7 @@ import { AnswerText } from "./AnswerText";
 import { origin } from "./citations";
 import { Icon } from "./Icon";
 import type { Answer, CheckOutcome } from "./session";
-import type { Source } from "./stream";
+import { REFUSAL, type Source } from "./stream";
 
 const BANNERS = {
   passed: {
@@ -26,16 +26,23 @@ const BANNERS = {
 export function Result({ answer, check }: { answer: Answer; check: CheckOutcome }) {
   // The citation being pointed at, so that its source stands out in the list.
   const [cited, setCited] = useState<number | null>(null);
+  const refused = answer.text === REFUSAL;
 
   return (
-    <section className="result" aria-labelledby="answer-title">
+    <section className={refused ? "result is-refusal" : "result"} aria-labelledby="answer-title">
       {check && <CheckBanner check={check} />}
 
       <div className="result-body">
         <h3 id="answer-title" className="result-label">
-          Answer
+          {refused ? "No answer" : "Answer"}
         </h3>
         <AnswerText text={answer.text} sources={answer.sources} onCite={setCited} />
+        {refused && (
+          <p className="refusal-note">
+            Cerebro answers only from what its tools return, and gives no answer when that doesn't
+            settle the question.
+          </p>
+        )}
 
         {answer.sources.length > 0 && <Sources sources={answer.sources} cited={cited} />}
 

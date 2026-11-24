@@ -38,9 +38,13 @@ describe("Result", () => {
     expect(html).toContain('>Thanos</span><span class="site is-comicvine">Comic Vine<');
   });
 
-  it("leaves out the sources of an answer that cites none", () => {
+  it("sets a refusal apart from an answer, with no sources", () => {
     const refusal = { ...answer, text: "I couldn't find that in the records.", sources: [] };
+    const html = renderToStaticMarkup(<Result answer={refusal} check={null} />);
 
-    expect(renderToStaticMarkup(<Result answer={refusal} check={null} />)).not.toContain("Sources");
+    expect(html).toContain(">No answer</h3>");
+    expect(html).toContain("gives no answer when that doesn&#x27;t settle the question");
+    expect(html).not.toContain("Sources");
+    expect(render(null)).toContain(">Answer</h3>");
   });
 });
