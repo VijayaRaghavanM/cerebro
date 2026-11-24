@@ -33,11 +33,13 @@ function check(verdict: string): Action {
 }
 
 describe("reduce", () => {
-  it("shows a call and its reply as one step with the reply's first line", () => {
+  it("keeps a call and its whole reply as one step", () => {
     const session = run(asked, call, reply);
 
     expect(session.status).toBe("asking");
-    expect(session.trace).toEqual([{ label: "search_pages: Hellfire Club", reply: "1. one" }]);
+    expect(session.trace).toEqual([
+      { tool: "search_pages", argument: "Hellfire Club", reply: "1. one\n2. two" },
+    ]);
   });
 
   it("keeps the answer when the run is done", () => {

@@ -55,8 +55,8 @@ function Trace({ steps }: { steps: Step[] }) {
     <ul className="trace">
       {steps.map((step, index) => (
         <li key={index}>
-          {step.label}
-          {step.reply && <span>{step.reply}</span>}
+          {step.tool}: {step.argument}
+          {step.reply && <span>{step.reply.split("\n")[0]}</span>}
         </li>
       ))}
     </ul>

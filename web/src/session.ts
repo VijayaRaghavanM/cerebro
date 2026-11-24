@@ -2,8 +2,9 @@ import type { AgentEvent } from "./stream";
 
 export type Answer = Extract<AgentEvent, { event: "answer" }>["data"];
 
-// `reply` stays null until the tool answers.
-export type Step = { label: string; reply: string | null };
+// `reply` stays null until the tool answers. It keeps the tool's whole text, which
+// can run to thousands of characters, so a step can be opened to read it.
+export type Step = { tool: string; argument: string; reply: string | null };
 
 export type Session = {
   status: "idle" | "asking" | "done" | "failed";
@@ -49,7 +50,7 @@ export function reduce(session: Session, action: Action): Session {
 function reduceEvent(session: Session, event: AgentEvent): Session {
   switch (event.event) {
     case "call": {
-      const step = { label: `${event.data.tool}: ${event.data.argument}`, reply: null };
+      const step = { tool: event.data.tool, argument: event.data.argument, reply: null };
       const trace = [...session.trace, step];
       if (event.data.tool !== "check_answer") return { ...session, trace };
 
@@ -59,13 +60,11 @@ function reduceEvent(session: Session, event: AgentEvent): Session {
     }
 
     case "reply": {
-      // The full text runs to thousands of characters, so only its first line is kept.
-      const firstLine = event.data.text.split("\n")[0];
       const trace = [...session.trace];
       const last = trace.length - 1;
 
       // Tools run one at a time, so a reply belongs to the latest call.
-      if (last >= 0) trace[last] = { ...trace[last], reply: firstLine };
+      if (last >= 0) trace[last] = { ...trace[last], reply: event.data.text };
       return { ...session, trace };
     }
 
