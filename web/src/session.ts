@@ -12,8 +12,6 @@ export type Session = {
   question: string;
   trace: Step[];
   answer: Answer | null;
-  // The latest answer check could not run, so the answer went out as it was.
-  unchecked: boolean;
   error: string | null;
 };
 
@@ -28,7 +26,6 @@ export const idle: Session = {
   question: "",
   trace: [],
   answer: null,
-  unchecked: false,
   error: null,
 };
 
@@ -54,12 +51,7 @@ function reduceEvent(session: Session, event: AgentEvent): Session {
   switch (event.event) {
     case "call": {
       const step = { tool: event.data.tool, argument: event.data.argument, reply: null };
-      const trace = [...session.trace, step];
-      if (event.data.tool !== "check_answer") return { ...session, trace };
-
-      // The check's verdict comes as the call's argument. After a retry, the
-      // second check speaks for the answer that is shown.
-      return { ...session, trace, unchecked: event.data.argument === "unchecked" };
+      return { ...session, trace: [...session.trace, step] };
     }
 
     case "reply": {
@@ -77,4 +69,22 @@ function reduceEvent(session: Session, event: AgentEvent): Session {
     case "error":
       return { ...session, status: "failed", error: event.data.message };
   }
+}
+
+// What the check found about the answer shown. "fixed" means it sent a first
+// answer back and passed the second. Null when no check ran, or when a problem
+// stood, since the reply shown is then the refusal or another non-answer.
+export type CheckOutcome = "passed" | "fixed" | "unchecked" | null;
+
+export function checkOutcome(trace: Step[]): CheckOutcome {
+  // The verdict comes as the check's argument. After a retry, the second check
+  // speaks for the answer that is shown.
+  const verdicts = trace
+    .filter((step) => step.tool === "check_answer")
+    .map((step) => step.argument);
+  const last = verdicts.at(-1);
+
+  if (last === "unchecked") return "unchecked";
+  if (last === "answers") return verdicts.length > 1 ? "fixed" : "passed";
+  return null;
 }

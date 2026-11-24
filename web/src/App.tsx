@@ -1,7 +1,7 @@
 import { useReducer, useState, type FormEvent } from "react";
 import { Logo } from "./Logo";
 import { Result } from "./Result";
-import { idle, reduce } from "./session";
+import { checkOutcome, idle, reduce } from "./session";
 import { Timeline } from "./Timeline";
 import { ask } from "./stream";
 
@@ -50,7 +50,7 @@ export function App() {
 
         {session.question && <h2 className="question">{session.question}</h2>}
         {session.status !== "idle" && <Timeline session={session} />}
-        {session.answer && <Result answer={session.answer} unchecked={session.unchecked} />}
+        {session.answer && <Result answer={session.answer} check={checkOutcome(session.trace)} />}
         {session.error && (
           <p className="error" role="alert">
             {session.error}

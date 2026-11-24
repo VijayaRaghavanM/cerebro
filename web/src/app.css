@@ -424,11 +424,60 @@ code {
 }
 
 .result {
-  padding: 1.25rem 1.5rem;
+  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+}
+
+.result-body {
+  padding: 1.25rem 1.5rem 1.1rem;
+}
+
+.result-label {
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.check-banner {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  margin: 0;
+  padding: 0.65rem 1.5rem;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.check-banner .icon {
+  flex: none;
+  margin-top: 0.2rem;
+}
+
+.check-banner.is-passed,
+.check-banner.is-fixed {
+  background: var(--passed-soft);
+}
+
+.check-banner.is-passed .icon,
+.check-banner.is-fixed .icon,
+.check-banner.is-passed strong,
+.check-banner.is-fixed strong {
+  color: var(--passed);
+}
+
+.check-banner.is-unchecked {
+  background: var(--problem-soft);
+}
+
+.check-banner.is-unchecked .icon,
+.check-banner.is-unchecked strong {
+  color: var(--problem);
 }
 
 .answer {
@@ -453,13 +502,6 @@ code {
   margin: 1rem 0 0;
   color: var(--faint);
   font-size: 0.8rem;
-}
-
-.unchecked {
-  padding-left: 0.5rem;
-  color: var(--muted);
-  font-size: 0.9rem;
-  border-left: 3px solid var(--brand);
 }
 
 .error {

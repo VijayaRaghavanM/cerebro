@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { idle, reduce, type Action, type Answer, type Session } from "./session";
+import { checkOutcome, idle, reduce, type Action, type Answer, type Session } from "./session";
 
 const answer: Answer = {
   text: "Yes [1].",
@@ -74,41 +74,6 @@ describe("reduce", () => {
     expect(session.error).toBe("No model key");
   });
 
-  it("marks an answer that went out because the check could not run", () => {
-    const session = run(asked, call, reply, check("unchecked"), answered, ended);
-
-    expect(session.unchecked).toBe(true);
-  });
-
-  it("leaves the answer unmarked when the check ran or none was tried", () => {
-    expect(run(asked, call, reply, check("answers"), answered, ended).unchecked).toBe(false);
-    expect(run(asked, call, reply, answered, ended).unchecked).toBe(false);
-  });
-
-  it("goes by the check of the answer shown after a retry", () => {
-    const retried = run(asked, call, reply, check("unsupported"), check("unchecked"), answered);
-    const passed = run(asked, call, reply, check("unsupported"), check("answers"), answered);
-
-    expect(retried.unchecked).toBe(true);
-    expect(passed.unchecked).toBe(false);
-  });
-
-  it("reads a verdict only from the answer check's own call", () => {
-    const search: Action = {
-      type: "event",
-      event: { event: "call", data: { tool: "search_text", argument: "unchecked" } },
-    };
-
-    expect(run(asked, search, answered).unchecked).toBe(false);
-  });
-
-  it("leaves a refusal after a failed check unmarked", () => {
-    const refusal = { ...answer, text: "I couldn't find that in the records.", sources: [] };
-    const refused: Action = { type: "event", event: { event: "answer", data: refusal } };
-
-    expect(run(asked, call, reply, check("unsupported"), refused).unchecked).toBe(false);
-  });
-
   it("keeps the question that was asked", () => {
     expect(run(asked, call).question).toBe("Who founded the Hellfire Club?");
   });
@@ -118,5 +83,45 @@ describe("reduce", () => {
     const session = run(asked, call, reply, answered, ended, again);
 
     expect(session).toEqual({ ...idle, status: "asking", question: "Who leads it?" });
+  });
+});
+
+describe("checkOutcome", () => {
+  function outcome(...actions: Action[]) {
+    return checkOutcome(run(...actions).trace);
+  }
+
+  it("marks an answer that went out because the check could not run", () => {
+    expect(outcome(asked, call, reply, check("unchecked"), answered, ended)).toBe("unchecked");
+  });
+
+  it("passes an answer the check found backed, and has nothing to say with no check", () => {
+    expect(outcome(asked, call, reply, check("answers"), answered, ended)).toBe("passed");
+    expect(outcome(asked, call, reply, answered, ended)).toBeNull();
+  });
+
+  it("goes by the check of the answer shown after a retry", () => {
+    expect(outcome(asked, call, reply, check("unsupported"), check("unchecked"), answered)).toBe(
+      "unchecked",
+    );
+    expect(outcome(asked, call, reply, check("unsupported"), check("answers"), answered)).toBe(
+      "fixed",
+    );
+  });
+
+  it("reads a verdict only from the answer check's own call", () => {
+    const search: Action = {
+      type: "event",
+      event: { event: "call", data: { tool: "search_text", argument: "unchecked" } },
+    };
+
+    expect(outcome(asked, search, answered)).toBeNull();
+  });
+
+  it("leaves a refusal after a failed check unmarked", () => {
+    const refusal = { ...answer, text: "I couldn't find that in the records.", sources: [] };
+    const refused: Action = { type: "event", event: { event: "answer", data: refusal } };
+
+    expect(outcome(asked, call, reply, check("unsupported"), refused)).toBeNull();
   });
 });
