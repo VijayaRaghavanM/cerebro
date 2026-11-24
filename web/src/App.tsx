@@ -11,7 +11,7 @@ export function App() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    dispatch({ type: "asked" });
+    dispatch({ type: "asked", question });
 
     try {
       for await (const agentEvent of ask(question)) {
@@ -47,6 +47,7 @@ export function App() {
           <button disabled={running}>Ask</button>
         </form>
 
+        {session.question && <h2 className="question">{session.question}</h2>}
         <Trace steps={session.trace} />
         {running && <p className="working">Working...</p>}
         {session.answer && <Result answer={session.answer} unchecked={session.unchecked} />}

@@ -177,6 +177,14 @@ a {
 
 /* The run */
 
+.question {
+  margin: 2rem 0 0;
+  font-size: 1.3rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
 .trace {
   margin: 1.5rem 0;
   padding: 0;

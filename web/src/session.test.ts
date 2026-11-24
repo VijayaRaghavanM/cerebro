@@ -11,7 +11,7 @@ const answer: Answer = {
   seconds: 9.5,
 };
 
-const asked: Action = { type: "asked" };
+const asked: Action = { type: "asked", question: "Who founded the Hellfire Club?" };
 const ended: Action = { type: "ended" };
 const answered: Action = { type: "event", event: { event: "answer", data: answer } };
 const call: Action = {
@@ -109,9 +109,14 @@ describe("reduce", () => {
     expect(run(asked, call, reply, check("unsupported"), refused).unchecked).toBe(false);
   });
 
-  it("clears the last trace and answer when asking again", () => {
-    const session = run(asked, call, reply, answered, ended, asked);
+  it("keeps the question that was asked", () => {
+    expect(run(asked, call).question).toBe("Who founded the Hellfire Club?");
+  });
 
-    expect(session).toEqual({ ...idle, status: "asking" });
+  it("clears the last trace and answer when asking again", () => {
+    const again: Action = { type: "asked", question: "Who leads it?" };
+    const session = run(asked, call, reply, answered, ended, again);
+
+    expect(session).toEqual({ ...idle, status: "asking", question: "Who leads it?" });
   });
 });

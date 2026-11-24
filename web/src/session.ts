@@ -8,6 +8,8 @@ export type Step = { tool: string; argument: string; reply: string | null };
 
 export type Session = {
   status: "idle" | "asking" | "done" | "failed";
+  // Kept apart from the input, which can change while the run streams.
+  question: string;
   trace: Step[];
   answer: Answer | null;
   // The latest answer check could not run, so the answer went out as it was.
@@ -16,13 +18,14 @@ export type Session = {
 };
 
 export type Action =
-  | { type: "asked" }
+  | { type: "asked"; question: string }
   | { type: "event"; event: AgentEvent }
   | { type: "ended" }
   | { type: "failed"; message: string };
 
 export const idle: Session = {
   status: "idle",
+  question: "",
   trace: [],
   answer: null,
   unchecked: false,
@@ -31,7 +34,7 @@ export const idle: Session = {
 
 export function reduce(session: Session, action: Action): Session {
   if (action.type === "asked") {
-    return { ...idle, status: "asking" };
+    return { ...idle, status: "asking", question: action.question };
   }
 
   if (action.type === "failed") {
