@@ -7,7 +7,80 @@
 
 # Cerebro
 
-Cerebro answers questions about Marvel characters, teams and comics, and cites the record behind every claim. It reads a local copy of the Marvel Database wiki joined to Comic Vine. When the records don't hold the answer it says so, and when a name is shared it asks which one you mean. You can ask in the CLI or on a local chat page that shows each tool call as it happens. An evaluation suite measures how often it is right, and [RESULTS.md](RESULTS.md) has every run.
+Cerebro is a Marvel research agent and the evaluation harness that measures it. The agent answers questions about Marvel characters, teams and comics from a local copy of the Marvel Database wiki joined to Comic Vine, and cites the record behind every claim. When the records don't hold the answer it says so, and when a name is shared it asks which one you mean.
+
+Most of the work is the harness. 122 questions have every expected fact checked against the records, a judge model is checked against blind labels, sealed question sets are run once, and CI replays a recorded run on every push. Changes to the agent were tested on fresh questions and kept or dropped on their numbers. [RESULTS.md](RESULTS.md) has every run.
+
+## How it's measured
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/eval-loop-dark.svg">
+    <img src="assets/eval-loop-light.svg" alt="Golden questions go through an eval run that records every model call, a judge rules on each answer, and the run is scored. The judge is checked against blind labels, the recorded run is replayed in CI, and a sealed set is run once before and after a change." width="100%">
+  </picture>
+</p>
+
+- **Questions with checked answers.** 122 golden questions, 58 of them asked by people; each says what a good reply is, and every expected fact was checked against the records. Scoring rules are written down before any re-scoring ([golden-v2-changes.md](evals/golden-v2-changes.md)).
+- **A judge that is checked too.** gpt-oss-120b rules on each answer, and its verdicts are compared with blind labels.
+- **Fresh questions to test changes.** Rounds of changes were tested on batches written blind before them, and three sealed sets of 40 questions were each run once.
+- **Replay.** Every model call is recorded, so a run can be replayed offline, and CI replays one on every push.
+
+[How the evaluation works](docs/evaluation.md) covers each part and where its numbers can mislead.
+
+## What the measurements show
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/round-by-round-dark.svg">
+    <img src="assets/round-by-round-light.svg" alt="Questions fixed minus questions broken by each round of changes, on a fresh batch written blind before the change. Kept: round 2 +1, 3b +5, 6a +6, 7 +2, 9 +10, 11 0, 12 +1, rounds 9 to 12 together 0. Kept in part: round 10 -1. Rejected: round 8 -1, 13 -1, 14 -3." width="100%">
+  </picture>
+</p>
+
+Twelve rounds of changes, each tested on its own fresh batch. Rounds 8, 13 and 14 made things worse and were dropped, and round 10 was kept in part.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/before-after-dark.svg">
+    <img src="assets/before-after-light.svg" alt="Ministral 14B before and after the reliability round. Golden set: solved 61% then 71%, wrong answers 24% then 5%, refusals of answerable questions 5% then 18%. Sealed set: solved 55% then 75%, wrong answers 22% then 7%, refusals of answerable questions 0% then 3%." width="100%">
+  </picture>
+</p>
+
+- **Golden set:** on 122 questions scored by the same rules, two runs of the current code solved 69% and 71%, up from 61% in the first run, and 5% and 9% of their answers were wrong, down from 24%. It refuses more than it did: 15 to 18 questions the records answer, against 5.
+- **Sealed set:** on 40 questions written blind and run once, it solved 75%, up from 55%, and gave 2 wrong answers, down from 6 (p = 0.021).
+- **Confirmation set:** on 40 more questions, written after the last change and run once on `main`, it solved 85%, and the blind labels found 2 wrong replies.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/two-models-dark.svg">
+    <img src="assets/two-models-light.svg" alt="The same agent with Ministral 14B and with Gemini 3.8 Flash. Golden set: solved 71% and 81%, wrong answers 5% and 6% of answers given, refusals of answerable questions 18% and 2%. Sealed set 3: solved 75% and 83%, wrong answers 8% and 3%, refusals of answerable questions 21% and 0%." width="100%">
+  </picture>
+</p>
+
+- **A stronger model:** with Gemini 3.8 Flash in place of Ministral 14B, the same agent solved 81% of the golden set, mostly by refusing less, at about a cent per solved question.
+- **Speed and cost:** with Ministral 14B and the check on, an answer takes about 10 seconds and costs about $0.002 on OpenRouter.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/checked-numbers-dark.svg">
+    <img src="assets/checked-numbers-light.svg" alt="How the numbers are checked: the judge's verdicts match blind labels on 55 of 67 answers and were never too lenient; blind labelers agreed on 36 of 36 shared replies and caught 17 of 18 known-wrong answers across three sealed sets; the answer check caught 8 of 8 wrong answers in its test; 120 sealed questions were written blind and run once per version; CI replays a recorded run on every push." width="100%">
+  </picture>
+</p>
+
+[RESULTS.md](RESULTS.md) has the full tables, and the first evaluation, which compared four models.
+
+## How it answers
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/answer-flow-dark.svg">
+    <img src="assets/answer-flow-light.svg" alt="Wiki pages and Comic Vine are joined into one SQLite file and cut into passages for keyword and vector search. For each question the agent, Ministral 14B, calls up to 8 tools, Gemini Flash checks the answer against the evidence, and the answer goes out with citations." width="100%">
+  </picture>
+</p>
+
+- **Two sources, joined.** The wiki has 106,078 character pages, one for every version of a character: 645 pages are named Wolverine. Comic Vine adds its own counts, powers and creators. Each Comic Vine character is matched to the wiki page whose comics overlap most with its issues ([ADR 1](docs/adr/0001-match-comic-vine-by-shared-issues.md)).
+- **Search that knows what a name usually means.** Name search ranks pages by how often the wiki's own links use the name for them, so "Gambit" finds Remy LeBeau first and says so. Passage search fuses keyword and meaning and puts the main reality first ([ADR 2](docs/adr/0002-search-passages-by-keyword-and-meaning.md)).
+- **An agent with six tools.** Ministral 14B searches names and passages, reads pages, lists a character's comics by cover date, builds reading orders and compares characters, in at most 8 tool calls. The prompt asks for a citation after every fact, and an answer with none becomes a refusal.
+- **A second reader.** Gemini Flash checks each answer against what the tools returned before it is shown ([ADR 3](docs/adr/0003-check-each-answer-with-a-second-model.md)).
 
 Here is one question from an evaluation run of the current code, printed the way `cerebro ask` prints it:
 
@@ -31,37 +104,14 @@ The editor-in-chief when Gambit first appeared in *X-Men Annual Vol. 1 14* was *
 
 The question was "Who was the editor-in-chief when Gambit first appeared in a comic?" The CLI shows the first line of each tool reply; the model reads all of it.
 
-## How it works
+The chat page shows the same steps as they happen. Here it replays a saved run in which the check sent the first answer back and the second try passed:
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/answer-flow-dark.svg">
-    <img src="assets/answer-flow-light.svg" alt="Wiki pages and Comic Vine are joined into one SQLite file and cut into passages for keyword and vector search. For each question the agent, Ministral 14B, calls up to 8 tools, Gemini Flash checks the answer against the evidence, and the answer goes out with citations." width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/chat-dark.png">
+    <img src="assets/chat-light.png" alt="The chat page answering who penciled the comic in which Sunspot first appeared. A timeline of steps: searched page names, found the comics that feature Roberto Da Costa, read New Mutants Vol 1 1, then the check found a claim the records don't back and sent the answer back; the agent read Marvel Graphic Novel Vol 1 4 and the second check passed. The answer card says it was checked on the second try and cites one Marvel Database page." width="100%">
   </picture>
 </p>
-
-- **Two sources, joined.** The wiki has 106,078 character pages, one for every version of a character: 645 pages are named Wolverine. Comic Vine adds its own counts, powers and creators. Each Comic Vine character is matched to the wiki page whose comics overlap most with its issues ([ADR 1](docs/adr/0001-match-comic-vine-by-shared-issues.md)).
-- **Search that knows what a name usually means.** Name search ranks pages by how often the wiki's own links use the name for them, so "Gambit" finds Remy LeBeau first and says so. Passage search fuses keyword and meaning and puts the main reality first ([ADR 2](docs/adr/0002-search-passages-by-keyword-and-meaning.md)).
-- **An agent with six tools.** Ministral 14B searches names and passages, reads pages, lists a character's comics by cover date, builds reading orders and compares characters, in at most 8 tool calls. The prompt asks for a citation after every fact, and an answer with none becomes a refusal.
-- **A second reader.** Gemini Flash checks each answer against what the tools returned before it is shown ([ADR 3](docs/adr/0003-check-each-answer-with-a-second-model.md)).
-- **Measured.** A fixed set of questions checked against the records, a judge checked against blind labels, a sealed set run once, and a recorded run that CI replays on every push. [How the evaluation works](docs/evaluation.md) covers each part and where its numbers can mislead.
-
-## How well it works
-
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/before-after-dark.svg">
-    <img src="assets/before-after-light.svg" alt="Ministral 14B before and after the reliability round. Golden set: solved 61% then 71%, wrong answers 24% then 5%, refusals of answerable questions 5% then 18%. Sealed set: solved 55% then 75%, wrong answers 22% then 7%, refusals of answerable questions 0% then 3%." width="100%">
-  </picture>
-</p>
-
-- **Golden set:** on 122 questions scored by the same rules, two runs of the current code solved 69% and 71%, up from 61% in the first run, and 5% and 9% of their answers were wrong, down from 24%. It refuses more than it did: 15 to 18 questions the records answer, against 5.
-- **Sealed set:** on 40 questions written blind and run once, it solved 75%, up from 55%, and gave 2 wrong answers, down from 6 (p = 0.021).
-- **Confirmation set:** on 40 more questions, written after the last change and run once on `main`, it solved 85%, and the blind labels found 2 wrong replies.
-- **Speed and cost:** with the check on, an answer takes about 10 seconds and costs about $0.002 on OpenRouter.
-- **A stronger model:** with Gemini 3.8 Flash in place of Ministral 14B, the same agent solved 81% of the golden set, mostly by refusing less, at about a cent per solved question.
-
-[RESULTS.md](RESULTS.md) has the full tables, and the first evaluation, which compared four models.
 
 ## What's in the repo
 
