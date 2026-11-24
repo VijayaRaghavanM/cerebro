@@ -6,6 +6,11 @@ export type Answer = Extract<AgentEvent, { event: "answer" }>["data"];
 // can run to thousands of characters, so a step can be opened to read it.
 export type Step = { tool: string; argument: string; reply: string | null };
 
+// The answer check comes through the stream as a step of its own.
+export function isCheck(step: Step): boolean {
+  return step.tool === "check_answer";
+}
+
 export type Session = {
   status: "idle" | "asking" | "done" | "failed";
   // Kept apart from the input, which can change while the run streams.
@@ -79,9 +84,7 @@ export type CheckOutcome = "passed" | "fixed" | "unchecked" | null;
 export function checkOutcome(trace: Step[]): CheckOutcome {
   // The verdict comes as the check's argument. After a retry, the second check
   // speaks for the answer that is shown.
-  const verdicts = trace
-    .filter((step) => step.tool === "check_answer")
-    .map((step) => step.argument);
+  const verdicts = trace.filter(isCheck).map((step) => step.argument);
   const last = verdicts.at(-1);
 
   if (last === "unchecked") return "unchecked";

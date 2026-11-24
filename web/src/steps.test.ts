@@ -86,7 +86,7 @@ describe("describeTool", () => {
 
 describe("describeCheck", () => {
   it("passes an answer the check found backed", () => {
-    expect(describeCheck(step("check_answer", "answers"), false)).toMatchObject({
+    expect(describeCheck([step("check_answer", "answers")], 0)).toMatchObject({
       tone: "passed",
       next: null,
     });
@@ -96,18 +96,18 @@ describe("describeCheck", () => {
     const unsupported = step("check_answer", "unsupported", "No source names the penciler.");
     const offTarget = step("check_answer", "off_target", "It names another reality's version.");
 
-    expect(describeCheck(unsupported, false)).toMatchObject({
+    expect(describeCheck([read, unsupported], 1)).toMatchObject({
       tone: "problem",
       next: "Sent back to try once more",
     });
-    expect(describeCheck(offTarget, true)).toMatchObject({
+    expect(describeCheck([unsupported, read, offTarget], 2)).toMatchObject({
       tone: "problem",
       next: "The answer was withheld",
     });
   });
 
   it("says when the check could not run", () => {
-    expect(describeCheck(step("check_answer", "unchecked"), false)).toMatchObject({
+    expect(describeCheck([step("check_answer", "unchecked")], 0)).toMatchObject({
       title: "Tried to check the answer",
       tone: "unchecked",
     });

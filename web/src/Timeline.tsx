@@ -1,7 +1,7 @@
 import { origin } from "./citations";
 import { Icon, Spinner, type IconName } from "./Icon";
-import type { Session, Step } from "./session";
-import { describeCheck, describeTool, waitingOnTool } from "./steps";
+import { isCheck, type Session, type Step } from "./session";
+import { describeCheck, describeTool, waitingOnTool, type CheckView } from "./steps";
 
 const ICONS: Record<string, IconName> = {
   search_pages: "search",
@@ -16,7 +16,7 @@ export function Timeline({ session }: { session: Session }) {
   const { trace } = session;
   const asking = session.status === "asking";
   const waiting = waitingOnTool(session);
-  const tools = trace.filter((step) => step.tool !== "check_answer").length;
+  const tools = trace.filter((step) => !isCheck(step)).length;
 
   return (
     <section className="steps" aria-labelledby="steps-title" aria-busy={asking}>
@@ -27,9 +27,8 @@ export function Timeline({ session }: { session: Session }) {
 
       <ol className="timeline">
         {trace.map((step, index) => {
-          if (step.tool === "check_answer") {
-            const afterRetry = trace.slice(0, index).some((s) => s.tool === "check_answer");
-            return <CheckRow key={index} step={step} afterRetry={afterRetry} />;
+          if (isCheck(step)) {
+            return <CheckRow key={index} step={step} view={describeCheck(trace, index)} />;
           }
 
           const running = waiting && index === trace.length - 1;
@@ -102,9 +101,7 @@ function ToolRow({ step, running }: { step: Step; running: boolean }) {
   );
 }
 
-function CheckRow({ step, afterRetry }: { step: Step; afterRetry: boolean }) {
-  const view = describeCheck(step, afterRetry);
-
+function CheckRow({ step, view }: { step: Step; view: CheckView }) {
   return (
     <li className={`step is-${view.tone}`}>
       <span className="step-icon">

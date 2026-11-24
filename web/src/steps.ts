@@ -1,4 +1,4 @@
-import type { Session, Step } from "./session";
+import { isCheck, type Session, type Step } from "./session";
 import { REFUSAL } from "./stream";
 
 // The words before a tool's argument, while it runs and once it is done. Searches
@@ -93,10 +93,13 @@ function finding(tool: string, body: string, records: string[]): string | null {
   return lines[0].replace(/:$/, "");
 }
 
-// The check's verdict comes as its argument and its note, when it found a problem,
-// as its reply. A problem gets one more try, and a second one withholds the answer.
-export function describeCheck(step: Step, afterRetry: boolean): CheckView {
-  const next = afterRetry ? "The answer was withheld" : "Sent back to try once more";
+// The check at `index` in the trace. Its verdict comes as its argument and its
+// note, when it found a problem, as its reply. A problem gets one more try, and a
+// second one withholds the answer.
+export function describeCheck(trace: Step[], index: number): CheckView {
+  const step = trace[index];
+  const retried = trace.slice(0, index).some(isCheck);
+  const next = retried ? "The answer was withheld" : "Sent back to try once more";
 
   switch (step.argument) {
     case "answers":
@@ -138,7 +141,7 @@ export function waitingOnTool(session: Session): boolean {
   const last = session.trace.at(-1);
   if (session.status !== "asking" || last === undefined) return false;
 
-  return last.tool !== "check_answer" && last.reply === null;
+  return !isCheck(last) && last.reply === null;
 }
 
 // One line on where the run is, for screen readers: the step under way or just
@@ -151,9 +154,8 @@ export function progress(session: Session): string {
   const last = session.trace.at(-1);
   if (session.status !== "asking" || last === undefined) return "";
 
-  if (last.tool === "check_answer") {
-    const afterRetry = session.trace.slice(0, -1).some((step) => step.tool === "check_answer");
-    const check = describeCheck(last, afterRetry);
+  if (isCheck(last)) {
+    const check = describeCheck(session.trace, session.trace.length - 1);
     return [check.title, check.finding, check.next].filter(Boolean).join(". ");
   }
 
