@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AnswerText } from "./AnswerText";
 import { origin } from "./citations";
 import { Icon } from "./Icon";
@@ -23,6 +24,9 @@ const BANNERS = {
 } as const;
 
 export function Result({ answer, check }: { answer: Answer; check: CheckOutcome }) {
+  // The citation being pointed at, so that its source stands out in the list.
+  const [cited, setCited] = useState<number | null>(null);
+
   return (
     <section className="result" aria-labelledby="answer-title">
       {check && <CheckBanner check={check} />}
@@ -31,9 +35,9 @@ export function Result({ answer, check }: { answer: Answer; check: CheckOutcome 
         <h3 id="answer-title" className="result-label">
           Answer
         </h3>
-        <AnswerText text={answer.text} sources={answer.sources} />
+        <AnswerText text={answer.text} sources={answer.sources} onCite={setCited} />
 
-        {answer.sources.length > 0 && <Sources sources={answer.sources} />}
+        {answer.sources.length > 0 && <Sources sources={answer.sources} cited={cited} />}
 
         <p className="cost">
           {answer.model_calls} model calls, {answer.tool_calls} tool calls,{" "}
@@ -58,7 +62,7 @@ function CheckBanner({ check }: { check: NonNullable<CheckOutcome> }) {
   );
 }
 
-function Sources({ sources }: { sources: Source[] }) {
+function Sources({ sources, cited }: { sources: Source[]; cited: number | null }) {
   return (
     <div className="sources">
       <h4>Sources</h4>
@@ -67,7 +71,7 @@ function Sources({ sources }: { sources: Source[] }) {
           const { kind, site, name } = origin(source.title);
 
           return (
-            <li key={source.url}>
+            <li key={source.url} className={index + 1 === cited ? "is-cited" : undefined}>
               <span className="source-number">{index + 1}</span>
               <a href={source.url} target="_blank" rel="noreferrer">
                 <span className="source-name">{name}</span>

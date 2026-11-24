@@ -23,6 +23,13 @@ describe("AnswerText", () => {
     expect(html).toContain(">[1]</a>");
   });
 
+  it("names the source a citation points to", () => {
+    const html = render("Founded in 1963 [1].");
+
+    expect(html).toContain('title="Marvel Database: Avengers"');
+    expect(html).toContain('aria-label="Source 1: Avengers, Marvel Database"');
+  });
+
   it("does not link [?]", () => {
     expect(render("Unsure [?].")).not.toContain("<a ");
   });
