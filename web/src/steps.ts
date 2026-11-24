@@ -1,32 +1,43 @@
+import type { IconName } from "./Icon";
 import { isCheck, type Session, type Step } from "./session";
 import { REFUSAL } from "./stream";
 
-// The words before a tool's argument, while it runs and once it is done. Searches
-// take words to look for, which read best in quotes; the other tools take titles.
-type Wording = { running: string; done: string; quoted: boolean };
+// How a tool shows in the timeline: its icon, and the words before its argument
+// while it runs and once it is done. Searches take words to look for, which read
+// best in quotes; the other tools take titles.
+type Look = { icon: IconName; running: string; done: string; quoted: boolean };
 
-const WORDING: Record<string, Wording> = {
+const TOOLS: Record<string, Look> = {
   search_pages: {
+    icon: "search",
     running: "Searching page names for",
     done: "Searched page names for",
     quoted: true,
   },
-  search_text: { running: "Searching passages for", done: "Searched passages for", quoted: true },
-  read_page: { running: "Reading", done: "Read", quoted: false },
+  search_text: {
+    icon: "passages",
+    running: "Searching passages for",
+    done: "Searched passages for",
+    quoted: true,
+  },
+  read_page: { icon: "page", running: "Reading", done: "Read", quoted: false },
   find_appearances: {
+    icon: "comics",
     running: "Finding the comics that feature",
     done: "Found the comics that feature",
     quoted: false,
   },
   reading_order: {
+    icon: "order",
     running: "Building the reading order for",
     done: "Built the reading order for",
     quoted: false,
   },
-  compare_characters: { running: "Comparing", done: "Compared", quoted: false },
+  compare_characters: { icon: "compare", running: "Comparing", done: "Compared", quoted: false },
 };
 
 export type ToolView = {
+  icon: IconName;
   action: string;
   quoted: boolean;
   // What the reply found, in a line; null when the records say it better.
@@ -58,9 +69,15 @@ const KINDS: Record<string, string> = {
 };
 
 export function describeTool(step: Step, running: boolean): ToolView {
-  const wording = WORDING[step.tool] ?? { running: step.tool, done: step.tool, quoted: false };
-  const action = running ? wording.running : wording.done;
-  if (step.reply === null) return { action, quoted: wording.quoted, finding: null, records: [] };
+  // A tool the page does not know yet shows under its own name.
+  const unknown: Look = { icon: "tool", running: step.tool, done: step.tool, quoted: false };
+  const look = TOOLS[step.tool] ?? unknown;
+  const shown = {
+    icon: look.icon,
+    action: running ? look.running : look.done,
+    quoted: look.quoted,
+  };
+  if (step.reply === null) return { ...shown, finding: null, records: [] };
 
   const sources = step.reply.match(SOURCES);
   const body = sources ? step.reply.slice(0, sources.index) : step.reply;
@@ -69,7 +86,7 @@ export function describeTool(step: Step, running: boolean): ToolView {
   const titles = [...new Set(labels.map((label) => label.replace(NUMBER, "")))];
   const records = titles.filter((title) => title !== step.argument);
 
-  return { action, quoted: wording.quoted, finding: finding(step.tool, body, records), records };
+  return { ...shown, finding: finding(step.tool, body, records), records };
 }
 
 function finding(tool: string, body: string, records: string[]): string | null {

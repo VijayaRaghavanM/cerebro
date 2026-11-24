@@ -1,16 +1,7 @@
 import { origin } from "./citations";
-import { Icon, Spinner, type IconName } from "./Icon";
+import { Icon, Spinner } from "./Icon";
 import { isCheck, type Session, type Step } from "./session";
 import { describeCheck, describeTool, waitingOnTool, type CheckView } from "./steps";
-
-const ICONS: Record<string, IconName> = {
-  search_pages: "search",
-  search_text: "passages",
-  read_page: "page",
-  find_appearances: "comics",
-  reading_order: "order",
-  compare_characters: "compare",
-};
 
 export function Timeline({ session }: { session: Session }) {
   const { trace } = session;
@@ -74,9 +65,7 @@ function ToolRow({ step, running }: { step: Step; running: boolean }) {
 
   return (
     <li className={running ? "step is-running" : "step"}>
-      <span className="step-icon">
-        {running ? <Spinner /> : <Icon name={ICONS[step.tool] ?? "tool"} />}
-      </span>
+      <span className="step-icon">{running ? <Spinner /> : <Icon name={view.icon} />}</span>
 
       {step.reply === null ? (
         <div className="step-body">{head}</div>

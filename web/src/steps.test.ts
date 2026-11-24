@@ -27,7 +27,10 @@ describe("describeTool", () => {
   });
 
   it("falls back to the tool's own name for a tool it does not know", () => {
-    expect(describeTool(step("new_tool", "x"), false).action).toBe("new_tool");
+    expect(describeTool(step("new_tool", "x"), false)).toMatchObject({
+      icon: "tool",
+      action: "new_tool",
+    });
   });
 
   it("counts the pages a name search found and names the first", () => {
