@@ -1,5 +1,9 @@
 :root {
   --brand: #d7263d;
+  /* Buttons and highlights keep the deeper red in both themes, so white text on
+     them stays readable. */
+  --solid: #d7263d;
+  --solid-hover: #b81f33;
   --text: #1b2a4a;
   --muted: #5b6987;
   --faint: #8792a8;
@@ -190,14 +194,14 @@ a {
   font: inherit;
   font-weight: 600;
   color: #ffffff;
-  background: #d7263d;
+  background: var(--solid);
   border: 0;
   border-radius: var(--radius-small);
   cursor: pointer;
 }
 
 .ask button:hover {
-  background: #b81f33;
+  background: var(--solid-hover);
 }
 
 .ask button:disabled {
@@ -612,7 +616,7 @@ code {
 .answer .cite:hover,
 .answer .cite:focus-visible {
   color: #ffffff;
-  background: #d7263d;
+  background: var(--solid);
 }
 
 .answer > :first-child {
@@ -689,7 +693,7 @@ code {
 
 .sources li.is-cited .source-number {
   color: #ffffff;
-  background: #d7263d;
+  background: var(--solid);
   border-color: transparent;
 }
 
