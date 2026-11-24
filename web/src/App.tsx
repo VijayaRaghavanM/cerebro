@@ -3,6 +3,7 @@ import { Failure } from "./Failure";
 import { Logo } from "./Logo";
 import { Result } from "./Result";
 import { checkOutcome, idle, reduce } from "./session";
+import { progress } from "./steps";
 import { Timeline } from "./Timeline";
 import { Welcome } from "./Welcome";
 import { ask } from "./stream";
@@ -64,6 +65,11 @@ export function App() {
         {(running || session.trace.length > 0) && <Timeline session={session} />}
         {session.answer && <Result answer={session.answer} check={checkOutcome(session.trace)} />}
         {session.error && <Failure message={session.error} onRetry={() => run(session.question)} />}
+
+        {/* Always on the page, so that a screen reader hears each change to it. */}
+        <p className="visually-hidden" aria-live="polite">
+          {progress(session)}
+        </p>
       </main>
 
       <footer className="credits">

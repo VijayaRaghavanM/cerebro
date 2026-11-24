@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { idle, type Session, type Step } from "./session";
-import { describeCheck, describeTool, waitingOnTool } from "./steps";
+import { describeCheck, describeTool, progress, waitingOnTool } from "./steps";
 
 function step(tool: string, argument: string, reply: string | null = null): Step {
   return { tool, argument, reply };
@@ -132,5 +132,47 @@ describe("waitingOnTool", () => {
     const failed: Session = { ...idle, status: "failed", trace: [step("read_page", "A")] };
 
     expect(waitingOnTool(failed)).toBe(false);
+  });
+});
+
+describe("progress", () => {
+  const asking: Session = { ...idle, status: "asking" };
+  const answer = {
+    text: "Yes [1].",
+    sources: [],
+    model_calls: 1,
+    tool_calls: 1,
+    input_tokens: 1,
+    output_tokens: 1,
+    seconds: 1,
+  };
+
+  it("says which tool is at work, then what it found", () => {
+    expect(progress({ ...asking, trace: [step("read_page", "Thanos (Earth-616)")] })).toBe(
+      "Reading Thanos (Earth-616)",
+    );
+    expect(progress({ ...asking, trace: [read] })).toBe(
+      "Read Daniel Rand (Earth-616). Character page",
+    );
+  });
+
+  it("says what a check found and what happens next", () => {
+    const problem = step("check_answer", "unsupported", "No source names the penciler.");
+
+    expect(progress({ ...asking, trace: [read, problem] })).toBe(
+      "Checked the answer. Found a claim the records don't back. Sent back to try once more",
+    );
+  });
+
+  it("says when the answer is ready, or that there is none", () => {
+    const refusal = { ...answer, text: "I couldn't find that in the records." };
+
+    expect(progress({ ...idle, status: "done", answer })).toBe("Answer ready");
+    expect(progress({ ...idle, status: "done", answer: refusal })).toBe("No answer in the records");
+  });
+
+  it("stays quiet before a question and after a failure", () => {
+    expect(progress(idle)).toBe("");
+    expect(progress({ ...idle, status: "failed", trace: [read] })).toBe("");
   });
 });

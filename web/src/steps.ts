@@ -1,4 +1,5 @@
 import type { Session, Step } from "./session";
+import { REFUSAL } from "./stream";
 
 // The words before a tool's argument, while it runs and once it is done. Searches
 // take words to look for, which read best in quotes; the other tools take titles.
@@ -138,6 +139,26 @@ export function waitingOnTool(session: Session): boolean {
   if (session.status !== "asking" || last === undefined) return false;
 
   return last.tool !== "check_answer" && last.reply === null;
+}
+
+// One line on where the run is, for screen readers: the step under way or just
+// finished, then the outcome. A failure speaks for itself as an alert.
+export function progress(session: Session): string {
+  if (session.status === "done") {
+    return session.answer?.text === REFUSAL ? "No answer in the records" : "Answer ready";
+  }
+
+  const last = session.trace.at(-1);
+  if (session.status !== "asking" || last === undefined) return "";
+
+  if (last.tool === "check_answer") {
+    const afterRetry = session.trace.slice(0, -1).some((step) => step.tool === "check_answer");
+    const check = describeCheck(last, afterRetry);
+    return [check.title, check.finding, check.next].filter(Boolean).join(". ");
+  }
+
+  const tool = describeTool(last, waitingOnTool(session));
+  return [`${tool.action} ${last.argument}`, tool.finding].filter(Boolean).join(". ");
 }
 
 function plural(count: number, word: string): string {
