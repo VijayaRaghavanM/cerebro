@@ -1,3 +1,4 @@
+import { origin } from "./citations";
 import { Icon, Spinner, type IconName } from "./Icon";
 import type { Session, Step } from "./session";
 import { describeCheck, describeTool, waitingOnTool } from "./steps";
@@ -63,7 +64,7 @@ function ToolRow({ step, running }: { step: Step; running: boolean }) {
       {view.records.length > 0 && (
         <span className="records">
           {view.records.map((title) => (
-            <span key={title} className="record">
+            <span key={title} className={`record is-${origin(title).kind}`}>
               {title}
             </span>
           ))}

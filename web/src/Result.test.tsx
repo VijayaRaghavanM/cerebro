@@ -5,7 +5,10 @@ import type { Answer, CheckOutcome } from "./session";
 
 const answer: Answer = {
   text: "Jim Starlin penciled it [1].",
-  sources: [{ title: "Iron Man Vol 1 55", url: "https://wiki/Iron_Man_Vol_1_55" }],
+  sources: [
+    { title: "Iron Man Vol 1 55", url: "https://wiki/Iron_Man_Vol_1_55" },
+    { title: "Comic Vine: Thanos", url: "https://comicvine/thanos" },
+  ],
   model_calls: 4,
   tool_calls: 3,
   input_tokens: 9614,
@@ -26,5 +29,18 @@ describe("Result", () => {
 
   it("shows no check when none ran", () => {
     expect(render(null)).not.toContain("check-banner");
+  });
+
+  it("names the site of each source and drops Comic Vine's title prefix", () => {
+    const html = render(null);
+
+    expect(html).toContain('>Iron Man Vol 1 55</span><span class="site is-wiki">Marvel Database<');
+    expect(html).toContain('>Thanos</span><span class="site is-comicvine">Comic Vine<');
+  });
+
+  it("leaves out the sources of an answer that cites none", () => {
+    const refusal = { ...answer, text: "I couldn't find that in the records.", sources: [] };
+
+    expect(renderToStaticMarkup(<Result answer={refusal} check={null} />)).not.toContain("Sources");
   });
 });

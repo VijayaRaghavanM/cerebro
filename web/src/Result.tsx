@@ -1,6 +1,8 @@
 import { AnswerText } from "./AnswerText";
+import { origin } from "./citations";
 import { Icon } from "./Icon";
 import type { Answer, CheckOutcome } from "./session";
+import type { Source } from "./stream";
 
 const BANNERS = {
   passed: {
@@ -31,15 +33,7 @@ export function Result({ answer, check }: { answer: Answer; check: CheckOutcome 
         </h3>
         <AnswerText text={answer.text} sources={answer.sources} />
 
-        <ol className="sources">
-          {answer.sources.map((source) => (
-            <li key={source.url}>
-              <a href={source.url} target="_blank" rel="noreferrer">
-                {source.title}
-              </a>
-            </li>
-          ))}
-        </ol>
+        {answer.sources.length > 0 && <Sources sources={answer.sources} />}
 
         <p className="cost">
           {answer.model_calls} model calls, {answer.tool_calls} tool calls,{" "}
@@ -61,5 +55,29 @@ function CheckBanner({ check }: { check: NonNullable<CheckOutcome> }) {
         <strong>{banner.title}.</strong> {banner.detail}
       </span>
     </p>
+  );
+}
+
+function Sources({ sources }: { sources: Source[] }) {
+  return (
+    <div className="sources">
+      <h4>Sources</h4>
+      <ol>
+        {sources.map((source, index) => {
+          const { kind, site, name } = origin(source.title);
+
+          return (
+            <li key={source.url}>
+              <span className="source-number">{index + 1}</span>
+              <a href={source.url} target="_blank" rel="noreferrer">
+                <span className="source-name">{name}</span>
+                <span className={`site is-${kind}`}>{site}</span>
+                <Icon name="external" />
+              </a>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }

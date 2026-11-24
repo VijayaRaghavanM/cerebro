@@ -10,6 +10,10 @@
   --border-strong: #c9cfd9;
   --link: #b81f33;
   --focus: #2f6fdb;
+  --wiki: #2f5fb3;
+  --wiki-soft: #e9effa;
+  --comicvine: #7a3db8;
+  --comicvine-soft: #f2eafb;
   --passed: #1a7f37;
   --passed-soft: #e6f4ea;
   --problem: #9a6700;
@@ -46,6 +50,10 @@
     --border-strong: #34405e;
     --link: #ff7a89;
     --focus: #7aa7ff;
+    --wiki: #8fb3ff;
+    --wiki-soft: rgb(143 179 255 / 0.12);
+    --comicvine: #c79bff;
+    --comicvine-soft: rgb(199 155 255 / 0.12);
     --passed: #4ac26b;
     --passed-soft: rgb(74 194 107 / 0.13);
     --problem: #e3b341;
@@ -345,6 +353,12 @@ a {
   border-radius: 999px;
 }
 
+.record.is-comicvine {
+  color: var(--comicvine);
+  background: var(--comicvine-soft);
+  border-color: transparent;
+}
+
 .chevron {
   flex: none;
   margin-top: 0.15rem;
@@ -416,6 +430,12 @@ code {
 @media (prefers-reduced-motion: reduce) {
   .spinner {
     animation-duration: 3s;
+  }
+
+  .record.is-comicvine {
+    color: var(--comicvine);
+    background: var(--comicvine-soft);
+    border-color: transparent;
   }
 
   .chevron {
@@ -493,9 +513,99 @@ code {
 }
 
 .sources {
-  margin: 1rem 0 0;
-  padding-left: 1.25rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.sources h4 {
+  margin: 0 0 0.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sources ol {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sources li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  border-radius: var(--radius-small);
+}
+
+.source-number {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  background: var(--sunken);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.sources a {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.3rem 0.5rem;
+  color: var(--text);
   font-size: 0.9rem;
+  text-decoration: none;
+  border-radius: var(--radius-small);
+}
+
+.sources a:hover {
+  background: var(--sunken);
+}
+
+.sources a:hover .source-name {
+  text-decoration: underline;
+}
+
+.source-name {
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.sources a .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--faint);
+}
+
+.site {
+  padding: 0 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.35rem;
+  border-radius: 999px;
+}
+
+.site.is-wiki {
+  color: var(--wiki);
+  background: var(--wiki-soft);
+}
+
+.site.is-comicvine {
+  color: var(--comicvine);
+  background: var(--comicvine-soft);
 }
 
 .cost {

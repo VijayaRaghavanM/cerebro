@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linkCitations } from "./citations";
+import { linkCitations, origin } from "./citations";
 
 const sources = [
   { title: "A", url: "https://wiki/A" },
@@ -19,5 +19,20 @@ describe("linkCitations", () => {
 
   it("leaves [?] and numbers without a source as they are", () => {
     expect(linkCitations("Odd [?] and [3] and [0].", sources)).toBe("Odd [?] and [3] and [0].");
+  });
+});
+
+describe("origin", () => {
+  it("tells a Comic Vine record from a wiki page by its title", () => {
+    expect(origin("Comic Vine: Wolverine")).toEqual({
+      kind: "comicvine",
+      site: "Comic Vine",
+      name: "Wolverine",
+    });
+    expect(origin("James Howlett (Earth-616)")).toEqual({
+      kind: "wiki",
+      site: "Marvel Database",
+      name: "James Howlett (Earth-616)",
+    });
   });
 });

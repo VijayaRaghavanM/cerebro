@@ -11,3 +11,15 @@ export function linkCitations(text: string, sources: Source[]): string {
     return `[\\[${number}\\]](<${source.url}>)`;
   });
 }
+
+export type Origin = { kind: "wiki" | "comicvine"; site: string; name: string };
+
+const COMIC_VINE = "Comic Vine: ";
+
+// Comic Vine records come titled "Comic Vine: Wolverine"; every other source is a
+// Marvel Database wiki page.
+export function origin(title: string): Origin {
+  if (!title.startsWith(COMIC_VINE)) return { kind: "wiki", site: "Marvel Database", name: title };
+
+  return { kind: "comicvine", site: "Comic Vine", name: title.slice(COMIC_VINE.length) };
+}
