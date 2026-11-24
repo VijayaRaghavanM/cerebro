@@ -54,7 +54,7 @@ export function App() {
             onChange={(event) => setQuestion(event.target.value)}
             maxLength={500}
             required
-            placeholder="Ask about a Marvel character, team or comic"
+            placeholder="Ask a question about Marvel"
             aria-label="Question"
           />
           <button disabled={running}>Ask</button>
