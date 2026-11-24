@@ -21,6 +21,15 @@ Two evaluations so far. The reliability round, from 13 to 18 November 2026, chan
 - The prompt sends the model to a comic's own page for its credits and keeps it citing when a question says not to. A repeated tool call gets a nudge instead of the same reply.
 - Scoring: golden v2 applies seven rules to 16 questions ([golden-v2-changes.md](evals/golden-v2-changes.md)), and a Comic Vine citation counts as the page it is matched to.
 
+Each round of changes was tested on a fresh batch of 8 to 20 questions, written blind before the change, and kept or dropped on the result:
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/round-by-round-dark.svg">
+    <img src="assets/round-by-round-light.svg" alt="Questions fixed minus questions broken by each round of changes, on a fresh batch written blind before the change. Kept: round 2 +1, 3b +5, 6a +6, 7 +2, 9 +10, 11 0, 12 +1, rounds 9 to 12 together 0. Kept in part: round 10 -1. Rejected: round 8 -1, 13 -1, 14 -3." width="100%">
+  </picture>
+</p>
+
 ### The golden set
 
 The same 122 questions on both sides, scored by golden v2's rules and the same judge. The "before" side is the first evaluation's Ministral 14B run, scored again under those rules. The "after" side ran on the tested copy that `main` was rebuilt from; the rebuild changed comments, tests and scoring, not what the agent does.
@@ -90,6 +99,13 @@ Of the 4 answers the judge ruled wrong, the labels found 1 wrong, 2 incomplete a
 ### Two models, same agent
 
 Gemini 3.8 Flash, through OpenRouter, in place of Ministral 14B, with everything else as on `main`: the same tools, hybrid search, data, judge and answer check. The check is a Gemini model too, so in these runs it checks its own model family. Both models ran on golden v2 and on a third sealed set of 40 questions, written blind after the last change and run once with each.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/two-models-dark.svg">
+    <img src="assets/two-models-light.svg" alt="The same agent with Ministral 14B and with Gemini 3.8 Flash. Golden set: solved 71% and 81%, wrong answers 5% and 6% of answers given, refusals of answerable questions 18% and 2%. Sealed set 3: solved 75% and 83%, wrong answers 8% and 3%, refusals of answerable questions 21% and 0%." width="100%">
+  </picture>
+</p>
 
 | | Ministral 14B | Gemini 3.8 Flash |
 | --- | --- | --- |
